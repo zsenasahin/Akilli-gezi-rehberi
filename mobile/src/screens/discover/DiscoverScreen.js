@@ -10,18 +10,22 @@ import {
     ScrollView,
     Dimensions,
     TextInput,
+    Alert,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-// Animations handled natively — no Reanimated needed
+import { useNavigation } from '@react-navigation/native';
 import { COLORS } from '../../constants/colors';
 import { FONTS, FONT_SIZES } from '../../constants/typography';
 import { SPACING, BORDER_RADIUS } from '../../constants/layout';
 import { getCategoryImage } from '../../constants/cityImages';
 import { getPlaceImage } from '../../constants/placeImages';
-import { supabase } from '../../config/supabase';
 import { getPlaceSummary } from '../../services/wikipediaService';
+import { toggleFavorite, getFavoriteIds } from '../../services/favoriteService';
+import { getCities } from '../../services/cityService';
+import { getPlaces } from '../../services/placeService';
+import { useAuth } from '../../contexts/AuthContext';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 import ErrorMessage from '../../components/common/ErrorMessage';
 
@@ -29,6 +33,8 @@ const SCREEN_WIDTH = Dimensions.get('window').width;
 const CARD_WIDTH = (SCREEN_WIDTH - SPACING.lg * 2 - SPACING.sm) / 2;
 
 const DiscoverScreen = () => {
+    const navigation = useNavigation();
+    const { user } = useAuth();
     const [places, setPlaces] = useState([]);
     const [cities, setCities] = useState([]);
     const [selectedCity, setSelectedCity] = useState(null);
@@ -40,40 +46,44 @@ const DiscoverScreen = () => {
     const [searchQuery, setSearchQuery] = useState('');
     const [wikiInfo, setWikiInfo] = useState(null);
     const [wikiLoading, setWikiLoading] = useState(false);
+    const [favorites, setFavorites] = useState({});
+    const [cityModalVisible, setCityModalVisible] = useState(false);
 
     const fetchPlaces = useCallback(async () => {
         setError(null);
         try {
-            const { data: cityData, error: cityErr } = await supabase
-                .from('cities')
-                .select('*')
-                .order('name');
-            if (cityErr) throw cityErr;
-            setCities(cityData || []);
+            const [citiesResult, placesResult] = await Promise.all([
+                getCities(),
+                getPlaces({ cityId: selectedCity, sortBy: 'popularity' }),
+            ]);
 
-            let query = supabase
-                .from('places')
-                .select('*, cities(name)')
-                .order('popularity_score', { ascending: false });
 
-            if (selectedCity) {
-                query = query.eq('city_id', selectedCity);
+            if (citiesResult.error) throw citiesResult.error;
+            if (placesResult.error) throw placesResult.error;
+
+            setCities(citiesResult.data || []);
+            setPlaces(placesResult.data || []);
+
+            // Favorileri tek sorguda çek
+            if (user) {
+                const { favoriteIds } = await getFavoriteIds(user.id);
+                const favMap = {};
+                favoriteIds.forEach(id => { favMap[id] = true; });
+                setFavorites(favMap);
             }
-
-            const { data: placeData, error: placeErr } = await query;
-            if (placeErr) throw placeErr;
-            setPlaces(placeData || []);
         } catch (err) {
             console.error('Fetch error:', err);
             setError('Veriler yüklenirken hata oluştu.');
         }
         setLoading(false);
         setRefreshing(false);
-    }, [selectedCity]);
+    }, [selectedCity, user]);
 
     useEffect(() => {
         fetchPlaces();
     }, [fetchPlaces]);
+
+
 
     // Load Wikipedia info for selected place
     useEffect(() => {
@@ -110,39 +120,91 @@ const DiscoverScreen = () => {
         return map[category] || '📍';
     };
 
-    // ─── City filter chips ───
+    // Favori toggle
+    const handleToggleFavorite = async (placeId) => {
+        if (!user) {
+            Alert.alert('Giriş Gerekli', 'Favorilere eklemek için giriş yapmalısınız.');
+            return;
+        }
+        const { isFavorite } = await toggleFavorite(user.id, placeId);
+        setFavorites(prev => ({ ...prev, [placeId]: isFavorite }));
+    };
+
+    // ─── Şehir seçici dropdown ───
+    const selectedCityName = cities.find(c => c.id === selectedCity)?.name || 'Tüm Şehirler';
+
     const renderCityFilter = () => (
-        <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.filterRow}
-        >
+        <View style={styles.cityFilterRow}>
             <TouchableOpacity
-                style={[styles.filterChip, !selectedCity && styles.filterChipActive]}
-                onPress={() => setSelectedCity(null)}
+                style={styles.cityDropdown}
+                onPress={() => setCityModalVisible(true)}
+                activeOpacity={0.8}
             >
-                <Text style={[styles.filterText, !selectedCity && styles.filterTextActive]}>
-                    Tümü
-                </Text>
+                <Ionicons name="location-outline" size={16} color={COLORS.primary} />
+                <Text style={styles.cityDropdownText}>{selectedCityName}</Text>
+                <Ionicons name="chevron-down" size={16} color={COLORS.textLight} />
             </TouchableOpacity>
-            {cities.map((city) => (
+            {selectedCity && (
                 <TouchableOpacity
-                    key={city.id}
-                    style={[styles.filterChip, selectedCity === city.id && styles.filterChipActive]}
-                    onPress={() => setSelectedCity(city.id)}
+                    style={styles.cityResetBtn}
+                    onPress={() => setSelectedCity(null)}
                 >
-                    <Text style={[styles.filterText, selectedCity === city.id && styles.filterTextActive]}>
-                        {city.name}
-                    </Text>
+                    <Ionicons name="close-circle" size={20} color={COLORS.textLight} />
                 </TouchableOpacity>
-            ))}
-        </ScrollView>
+            )}
+
+            {/* Dropdown Modal */}
+            <Modal
+                visible={cityModalVisible}
+                transparent
+                animationType="fade"
+                onRequestClose={() => setCityModalVisible(false)}
+            >
+                <TouchableOpacity
+                    style={styles.cityModalBackdrop}
+                    activeOpacity={1}
+                    onPress={() => setCityModalVisible(false)}
+                >
+                    <View style={styles.cityModalBox}>
+                        <Text style={styles.cityModalTitle}>Bir Şehir Seçin</Text>
+
+                        <TouchableOpacity
+                            style={[styles.cityModalOption, !selectedCity && styles.cityModalOptionActive]}
+                            onPress={() => { setSelectedCity(null); setCityModalVisible(false); }}
+                        >
+                            <Text style={[styles.cityModalOptionText, !selectedCity && styles.cityModalOptionTextActive]}>
+                                Tüm Şehirler
+                            </Text>
+                            {!selectedCity && <Ionicons name="checkmark" size={18} color={COLORS.primary} />}
+                        </TouchableOpacity>
+
+                        {cities.map(city => (
+                            <TouchableOpacity
+                                key={city.id}
+                                style={[styles.cityModalOption, selectedCity === city.id && styles.cityModalOptionActive]}
+                                onPress={() => { setSelectedCity(city.id); setCityModalVisible(false); }}
+                            >
+                                <View>
+                                    <Text style={[styles.cityModalOptionText, selectedCity === city.id && styles.cityModalOptionTextActive]}>
+                                        {city.name}
+                                    </Text>
+                                    <Text style={styles.cityModalOptionSub}>{city.region}</Text>
+                                </View>
+                                {selectedCity === city.id && <Ionicons name="checkmark" size={18} color={COLORS.primary} />}
+                            </TouchableOpacity>
+                        ))}
+                    </View>
+                </TouchableOpacity>
+            </Modal>
+        </View>
     );
 
     const renderPlaceCard = ({ item, index }) => {
         const imageUrl = failedImages[item.id]
             ? getCategoryImage(item.category)
             : getPlaceImage(item.name, item.image_url, item.category);
+
+        const isFav = favorites[item.id];
 
         return (
             <View>
@@ -168,6 +230,18 @@ const DiscoverScreen = () => {
                                 {getCategoryEmoji(item.category)}
                             </Text>
                         </View>
+                        {/* Favori butonu */}
+                        <TouchableOpacity
+                            style={styles.cardFavButton}
+                            onPress={() => handleToggleFavorite(item.id)}
+                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        >
+                            <Ionicons
+                                name={isFav ? 'heart' : 'heart-outline'}
+                                size={18}
+                                color={isFav ? '#EF4444' : '#fff'}
+                            />
+                        </TouchableOpacity>
                     </View>
                     <View style={styles.cardContent}>
                         <Text style={styles.cardTitle} numberOfLines={1}>{item.name}</Text>
@@ -225,6 +299,17 @@ const DiscoverScreen = () => {
                                     colors={COLORS.gradient.card}
                                     style={styles.modalImageGradient}
                                 />
+                                {/* Favori butonu modal içinde */}
+                                <TouchableOpacity
+                                    style={styles.modalFavButton}
+                                    onPress={() => handleToggleFavorite(p.id)}
+                                >
+                                    <Ionicons
+                                        name={favorites[p.id] ? 'heart' : 'heart-outline'}
+                                        size={24}
+                                        color={favorites[p.id] ? '#EF4444' : '#fff'}
+                                    />
+                                </TouchableOpacity>
                                 <View style={styles.modalImageOverlayContent}>
                                     <Text style={styles.modalOverlayTitle}>{p.name}</Text>
                                     <Text style={styles.modalOverlayCity}>📍 {p.cities?.name}</Text>
@@ -390,32 +475,80 @@ const styles = StyleSheet.create({
         color: COLORS.textPrimary,
     },
 
-    // ─── Filters ───
-    filterRow: {
+    // ─── City Dropdown ───
+    cityFilterRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
         paddingHorizontal: SPACING.lg,
-        paddingVertical: SPACING.sm,
+        marginBottom: SPACING.sm,
+        gap: SPACING.xs,
     },
-    filterChip: {
-        paddingHorizontal: 18,
-        paddingVertical: 8,
-        borderRadius: BORDER_RADIUS.full,
+    cityDropdown: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: SPACING.xs,
         backgroundColor: COLORS.surface,
-        marginRight: SPACING.sm,
+        borderRadius: BORDER_RADIUS.full,
+        paddingHorizontal: SPACING.md,
+        paddingVertical: 8,
         borderWidth: 1.5,
         borderColor: COLORS.border,
+        flex: 1,
     },
-    filterChipActive: {
-        backgroundColor: COLORS.primary,
-        borderColor: COLORS.primary,
-    },
-    filterText: {
-        fontFamily: 'Inter_500Medium',
-        fontSize: FONT_SIZES.sm,
-        color: COLORS.textSecondary,
-    },
-    filterTextActive: {
-        color: '#fff',
+    cityDropdownText: {
         fontFamily: 'Inter_600SemiBold',
+        fontSize: FONT_SIZES.sm,
+        color: COLORS.textPrimary,
+        flex: 1,
+    },
+    cityResetBtn: { padding: 4 },
+    cityModalBackdrop: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.45)',
+        justifyContent: 'center',
+        paddingHorizontal: SPACING.xl,
+    },
+    cityModalBox: {
+        backgroundColor: COLORS.surface,
+        borderRadius: BORDER_RADIUS.xl,
+        padding: SPACING.lg,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.2,
+        shadowRadius: 16,
+        elevation: 10,
+    },
+    cityModalTitle: {
+        fontFamily: 'PlayfairDisplay_700Bold',
+        fontSize: FONT_SIZES.lg,
+        color: COLORS.textPrimary,
+        marginBottom: SPACING.md,
+        textAlign: 'center',
+    },
+    cityModalOption: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingVertical: SPACING.sm,
+        paddingHorizontal: SPACING.sm,
+        borderRadius: BORDER_RADIUS.md,
+        marginBottom: 4,
+    },
+    cityModalOptionActive: { backgroundColor: COLORS.primary + '15' },
+    cityModalOptionText: {
+        fontFamily: 'Inter_500Medium',
+        fontSize: FONT_SIZES.md,
+        color: COLORS.textPrimary,
+    },
+    cityModalOptionTextActive: {
+        color: COLORS.primary,
+        fontFamily: 'Inter_700Bold',
+    },
+    cityModalOptionSub: {
+        fontFamily: 'Inter_400Regular',
+        fontSize: FONT_SIZES.xs,
+        color: COLORS.textLight,
+        marginTop: 2,
     },
 
     // ─── Grid ───
@@ -467,6 +600,17 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     cardCategoryEmoji: { fontSize: 14 },
+    cardFavButton: {
+        position: 'absolute',
+        top: 8,
+        left: 8,
+        backgroundColor: 'rgba(0,0,0,0.3)',
+        borderRadius: 14,
+        width: 28,
+        height: 28,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
     cardContent: {
         padding: SPACING.sm,
     },
@@ -528,6 +672,18 @@ const styles = StyleSheet.create({
         borderTopLeftRadius: BORDER_RADIUS.xl,
         borderTopRightRadius: BORDER_RADIUS.xl,
         maxHeight: '92%',
+    },
+    modalFavButton: {
+        position: 'absolute',
+        top: SPACING.sm,
+        left: SPACING.sm,
+        zIndex: 10,
+        backgroundColor: 'rgba(0,0,0,0.4)',
+        borderRadius: 20,
+        width: 40,
+        height: 40,
+        justifyContent: 'center',
+        alignItems: 'center',
     },
     modalClose: {
         position: 'absolute',

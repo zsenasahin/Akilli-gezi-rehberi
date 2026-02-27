@@ -18,8 +18,9 @@ import { useAuth } from '../../contexts/AuthContext';
 import { getCities } from '../../services/cityService';
 import { getPlacesByCity } from '../../services/placeService';
 import { createItinerary } from '../../services/itineraryService';
-import { fetchNearbyHotels } from '../../services/apiService';
+import { getNearbyHotels } from '../../services/mapService';
 import { generateItinerary } from '../../logic/itineraryGenerator';
+
 import Button from '../../components/common/Button';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 import ErrorMessage from '../../components/common/ErrorMessage';
@@ -130,7 +131,8 @@ const CreateItineraryScreen = ({ navigation }) => {
             const fetchHotels = async () => {
                 setHotelsLoading(true);
                 const centerPlace = places[0];
-                const { data } = await fetchNearbyHotels(centerPlace.lat, centerPlace.lng, 5000);
+                const { data } = await getNearbyHotels(centerPlace.lat, centerPlace.lng, 5000);
+
                 setNearbyHotels((data || []).slice(0, 5));
                 setHotelsLoading(false);
             };

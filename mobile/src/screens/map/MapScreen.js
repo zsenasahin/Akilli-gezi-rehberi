@@ -16,27 +16,18 @@ import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../../constants/colors';
 import { FONTS, FONT_SIZES } from '../../constants/typography';
 import { SPACING, BORDER_RADIUS } from '../../constants/layout';
+import { getCityCenter } from '../../constants/cities';
 import { generateLeafletHtml } from '../../utils/leafletHtml';
 import { haversineDistance, sortPlacesByNearest, calculateTotalDistance } from '../../utils/haversine';
 import { getNearbyHotels, getNearbyRestaurants, getOptimizedRoute } from '../../services/mapService';
 import { getPlacesByCity } from '../../services/placeService';
 import { createItinerary } from '../../services/itineraryService';
-import { supabase } from '../../config/supabase';
+import { useAuth } from '../../contexts/AuthContext';
 import HotelCard from '../../components/map/HotelCard';
 import RestaurantCard from '../../components/map/RestaurantCard';
 import Button from '../../components/common/Button';
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
-
-// Şehir merkezleri
-const CITY_CENTERS = {
-    'İstanbul': { lat: 41.0082, lng: 28.9784 },
-    'Antalya': { lat: 36.8969, lng: 30.7133 },
-    'Konya': { lat: 37.8746, lng: 32.4932 },
-    'Trabzon': { lat: 41.0027, lng: 39.7168 },
-    'Kapadokya': { lat: 38.6431, lng: 34.8289 },
-    'İzmir': { lat: 38.4192, lng: 27.1287 },
-};
 
 const STEPS = ['Konaklama', 'Gezi Noktaları', 'Rota'];
 
@@ -49,13 +40,16 @@ const STEPS = ['Konaklama', 'Gezi Noktaları', 'Rota'];
  * 3. Sistem optimize rota oluşturur ve haritada çizer
  */
 const MapScreen = ({ route, navigation }) => {
-    const { city } = route.params || {};
+    const { city, focusLat, focusLng, viewItem } = route.params || {};
+    const { user } = useAuth();
     const cityName = city?.name || 'İstanbul';
-    const cityCenter = CITY_CENTERS[cityName] || CITY_CENTERS['İstanbul'];
+    const cityCenter = getCityCenter(cityName);
+    // Eğer belirli bir yer gösterilecekse (CityDetail'den gelince)
+    const isViewMode = !!(focusLat && focusLng);
 
     const webViewRef = useRef(null);
     const [mapReady, setMapReady] = useState(false);
-    const [currentStep, setCurrentStep] = useState(0);
+    const [currentStep, setCurrentStep] = useState(isViewMode ? 1 : 0); // viewMode'da konaklama adımını atla
 
     // Konaklama
     const [accommodation, setAccommodation] = useState(null);
@@ -103,14 +97,27 @@ const MapScreen = ({ route, navigation }) => {
             switch (message.type) {
                 case 'mapReady':
                     setMapReady(true);
-                    // Şehir merkezine zoom yap
-                    sendCommand({ action: 'flyTo', lat: cityCenter.lat, lng: cityCenter.lng, zoom: 13 });
-                    // Otelleri otomatik yükle
-                    loadHotels(cityCenter.lat, cityCenter.lng);
+                    if (isViewMode) {
+                        // Sadece görüntüleme: direkt o konuma git
+                        sendCommand({ action: 'flyTo', lat: focusLat, lng: focusLng, zoom: 16 });
+                        sendCommand({
+                            action: 'setPlaces',
+                            places: [{
+                                id: 'view-focus',
+                                name: viewItem?.name || 'Seçilen Yer',
+                                lat: focusLat,
+                                lng: focusLng,
+                            }],
+                        });
+                    } else {
+                        // Normal mod: şehir merkezine git ve otelleri yükle
+                        sendCommand({ action: 'flyTo', lat: cityCenter.lat, lng: cityCenter.lng, zoom: 13 });
+                        loadHotels(cityCenter.lat, cityCenter.lng);
+                    }
                     break;
 
                 case 'longPress':
-                    handleLongPress(message.data);
+                    if (!isViewMode) handleLongPress(message.data);
                     break;
 
                 case 'hotelClick':
@@ -118,13 +125,12 @@ const MapScreen = ({ route, navigation }) => {
                     break;
 
                 case 'placeClick':
-                    // İleride detay gösterilebilir
                     break;
             }
         } catch (err) {
             console.error('WebView message parse error:', err);
         }
-    }, [cityCenter]);
+    }, [cityCenter, isViewMode, focusLat, focusLng, viewItem]);
 
     // ─── WebView'e komut gönder ───
     const sendCommand = useCallback((cmd) => {
@@ -133,7 +139,7 @@ const MapScreen = ({ route, navigation }) => {
         }
     }, []);
 
-    // ─── Otel yükle ───
+    // ─── Otel yükle (mapService üzerinden — Overpass API) ───
     const loadHotels = async (lat, lng) => {
         setHotelsLoading(true);
         const { data, error } = await getNearbyHotels(lat, lng, 2000);
@@ -269,15 +275,13 @@ const MapScreen = ({ route, navigation }) => {
 
     // ─── Planı Supabase'e kaydet ───
     const handleSavePlan = async () => {
+        if (!user) {
+            Alert.alert('Giriş Gerekli', 'Planı kaydetmek için giriş yapmalısınız.');
+            return;
+        }
+
         setSaving(true);
         try {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (!user) {
-                Alert.alert('Giriş Gerekli', 'Planı kaydetmek için giriş yapmalısınız.');
-                setSaving(false);
-                return;
-            }
-
             // Itinerary items hazırla (sıralı yerler)
             const items = orderedPlaces.map((place, index) => ({
                 place_id: place.id,
@@ -285,7 +289,7 @@ const MapScreen = ({ route, navigation }) => {
                 order_index: index,
             }));
 
-            const { data, error } = await createItinerary({
+            const { error } = await createItinerary({
                 userId: user.id,
                 cityId: city.id,
                 days: 1,
@@ -312,6 +316,7 @@ const MapScreen = ({ route, navigation }) => {
         }
         setSaving(false);
     };
+
 
     // ─── STEP RENDER FUNCTIONS ───
 

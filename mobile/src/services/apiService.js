@@ -1,8 +1,13 @@
 /**
- * API service – abstracts all external API calls.
- * The mobile app should NEVER call external APIs directly from components.
- * All external data is fetched here and cached into Supabase.
+ * @deprecated Bu dosya artık kullanılmıyor.
+ *
+ *   - Overpass API (POI) sorguları için: poiService.js kullanın
+ *   - Wikipedia sorguları için: wikipediaService.js kullanın
+ *   - Otel/restoran işlemleri için: mapService.js kullanın
+ *
+ * Bu dosya ilerleyen sürümlerde silinecektir.
  */
+
 
 const OVERPASS_API_URL = 'https://overpass-api.de/api/interpreter';
 const WIKIPEDIA_API_URL = 'https://en.wikipedia.org/w/api.php';

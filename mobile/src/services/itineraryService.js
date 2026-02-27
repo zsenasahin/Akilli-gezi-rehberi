@@ -36,10 +36,6 @@ export const createItinerary = async ({
                 user_id: userId,
                 city_id: cityId,
                 days,
-                has_accommodation: hasAccommodation,
-                has_transport: hasTransport,
-                start_location_lat: startLocationLat,
-                start_location_lng: startLocationLng,
                 status: 'ongoing',
             },
         ])

@@ -1,108 +1,72 @@
 /**
- * Map Service — Supabase Edge Function'lar üzerinden
- * harita verilerine erişim sağlar.
- * 
- * Tüm API key'ler backend'de tutulur.
- * Frontend ASLA doğrudan Overpass/ORS'a istek atmaz.
+ * Map Service — harita tabanlı POI ve rota işlemleri.
+ *
+ * Yakın otel ve restoranlar için doğrudan Overpass API kullanır.
+ * Rota optimizasyonu için Supabase Edge Function'ı (optimize-route) çağırır.
  */
 
-import { supabase } from '../config/supabase';
+import {
+    getNearbyHotels as overpassHotels,
+    getNearbyRestaurants as overpassRestaurants,
+} from './poiService';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '../config/secrets';
 
+
 /**
- * Belirli bir koordinatın çevresindeki otelleri getirir.
- * Backend: Overpass API → Supabase Edge Function
- * 
- * @param {number} lat - Enlem
- * @param {number} lng - Boylam
- * @param {number} radius - Yarıçap (metre, varsayılan 2000)
+ * Belirli bir koordinat çevresindeki otelleri getirir (Overpass API).
+ *
+ * @param {number} lat
+ * @param {number} lng
+ * @param {number} [radius=2000] – metre cinsinden
  * @returns {Promise<{ data: Array, error: string|null }>}
  */
-export async function getNearbyHotels(lat, lng, radius = 2000) {
-    try {
-        const response = await fetch(`${SUPABASE_URL}/functions/v1/nearby-hotels`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-            },
-            body: JSON.stringify({ lat, lng, radius }),
-        });
+export const getNearbyHotels = (lat, lng, radius = 2000) =>
+    overpassHotels(lat, lng, radius);
 
-        if (!response.ok) {
-            const errorText = await response.text();
-            console.error('Hotel API error:', errorText);
-            return { data: null, error: 'Oteller yüklenirken hata oluştu.' };
-        }
-
-        const data = await response.json();
-        return { data: data.hotels || [], error: null };
-    } catch (err) {
-        console.error('getNearbyHotels error:', err);
-        return { data: null, error: 'Bağlantı hatası.' };
-    }
-}
 
 /**
- * Konaklama noktasının çevresindeki restoranları getirir.
- * 
- * @param {number} lat - Enlem
- * @param {number} lng - Boylam
- * @param {number} radius - Yarıçap (metre, varsayılan 1000)
+ * Belirli bir koordinat çevresindeki restoranları getirir (Overpass API).
+ *
+ * @param {number} lat
+ * @param {number} lng
+ * @param {number} [radius=1000] – metre cinsinden
  * @returns {Promise<{ data: Array, error: string|null }>}
  */
-export async function getNearbyRestaurants(lat, lng, radius = 1000) {
-    try {
-        const response = await fetch(`${SUPABASE_URL}/functions/v1/nearby-restaurants`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-            },
-            body: JSON.stringify({ lat, lng, radius }),
-        });
-
-        if (!response.ok) {
-            return { data: null, error: 'Restoranlar yüklenirken hata oluştu.' };
-        }
-
-        const data = await response.json();
-        return { data: data.restaurants || [], error: null };
-    } catch (err) {
-        console.error('getNearbyRestaurants error:', err);
-        return { data: null, error: 'Bağlantı hatası.' };
-    }
-}
+export const getNearbyRestaurants = (lat, lng, radius = 1000) =>
+    overpassRestaurants(lat, lng, radius);
 
 /**
- * Konaklama noktasından başlayarak gezi noktalarını optimize eder
- * ve OpenRouteService üzerinden rota polyline döndürür.
- * 
- * @param {{ lat: number, lng: number }} accommodation - Konaklama koordinatı
- * @param {Array<{ lat: number, lng: number, name: string }>} places - Gezi noktaları
- * @returns {Promise<{ data: { route: Array, distance: number, duration: number, orderedPlaces: Array }, error: string|null }>}
+ * Konaklama noktasından başlayarak gezi noktalarını optimize eder.
+ * Supabase Edge Function (optimize-route) → OpenRouteService API.
+ *
+ * Edge Function erişilemez olursa null döner; çağıran kod haversine
+ * fallback'ini devreye almalıdır.
+ *
+ * @param {{ lat: number, lng: number }} accommodation
+ * @param {Array<{ lat: number, lng: number, name: string }>} places
+ * @returns {Promise<{ data: object|null, error: string|null }>}
  */
-export async function getOptimizedRoute(accommodation, places) {
+export const getOptimizedRoute = async (accommodation, places) => {
     try {
         const response = await fetch(`${SUPABASE_URL}/functions/v1/optimize-route`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+                Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
             },
             body: JSON.stringify({ accommodation, places }),
         });
 
         if (!response.ok) {
             const errorText = await response.text();
-            console.error('Route API error:', errorText);
+            console.warn('optimize-route Edge Function error:', errorText);
             return { data: null, error: 'Rota hesaplanırken hata oluştu.' };
         }
 
         const data = await response.json();
         return { data, error: null };
     } catch (err) {
-        console.error('getOptimizedRoute error:', err);
+        console.warn('getOptimizedRoute network error:', err.message);
         return { data: null, error: 'Bağlantı hatası.' };
     }
-}
+};

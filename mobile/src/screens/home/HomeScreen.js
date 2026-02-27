@@ -95,7 +95,7 @@ const HomeScreen = ({ navigation }) => {
     const recentAnim = useFadeIn(800);
 
     const handleCityPress = (city) => {
-        navigation.navigate('CreateItinerary', { city });
+        navigation.navigate('CityDetail', { city });
     };
 
     if (loading) return <LoadingSpinner message="Yükleniyor..." />;
@@ -143,15 +143,11 @@ const HomeScreen = ({ navigation }) => {
                     </Text>
                     <TouchableOpacity
                         style={styles.heroCTA}
-                        onPress={() => {
-                            if (cities.length > 0) {
-                                navigation.navigate('CreateItinerary', { city: cities[0] });
-                            }
-                        }}
+                        onPress={() => navigation.navigate('Discover')}
                         activeOpacity={0.85}
                     >
-                        <Ionicons name="navigate" size={18} color="#fff" />
-                        <Text style={styles.heroCTAText}>Şehir Seç, Planla</Text>
+                        <Ionicons name="compass" size={18} color="#fff" />
+                        <Text style={styles.heroCTAText}>Şehirleri Keşfet</Text>
                         <Ionicons name="arrow-forward" size={18} color="#fff" />
                     </TouchableOpacity>
                 </Animated.View>
@@ -159,26 +155,6 @@ const HomeScreen = ({ navigation }) => {
 
             {error && <ErrorMessage message={error} onRetry={fetchData} />}
 
-            {/* ═══ NEDEN AKILLI GEZI ═══ */}
-            <Animated.View style={[styles.whySection, whyAnim]}>
-                <Text style={styles.sectionTitle}>Neden Akıllı Gezi?</Text>
-                <View style={styles.featureGrid}>
-                    {[
-                        { icon: 'compass', title: 'Akıllı Rotalar', desc: 'Optimum sıralama' },
-                        { icon: 'time', title: 'Zaman Tasarrufu', desc: 'Hızlı planlama' },
-                        { icon: 'heart', title: 'Kişiselleştirilmiş', desc: 'Size özel' },
-                        { icon: 'map', title: 'Detaylı Bilgi', desc: 'Wikipedia verisi' },
-                    ].map((feature) => (
-                        <View key={feature.title} style={styles.featureCard}>
-                            <View style={styles.featureIconContainer}>
-                                <Ionicons name={feature.icon} size={22} color={COLORS.primary} />
-                            </View>
-                            <Text style={styles.featureTitle}>{feature.title}</Text>
-                            <Text style={styles.featureDesc}>{feature.desc}</Text>
-                        </View>
-                    ))}
-                </View>
-            </Animated.View>
 
             {/* ═══ ACTIVE PLAN BANNER ═══ */}
             {ongoingCount > 0 && (
@@ -212,7 +188,7 @@ const HomeScreen = ({ navigation }) => {
             <Animated.View style={[styles.section, cityAnim]}>
                 <Text style={styles.sectionTitle}>🏙️ Popüler Şehirler</Text>
                 <Text style={styles.sectionSubtitle}>
-                    Bir şehir seçerek gezi planınızı oluşturun
+                    Bir şehre dokun, içini keşfet
                 </Text>
                 <View style={styles.cityGrid}>
                     {cities.map((city) => {
@@ -238,13 +214,13 @@ const HomeScreen = ({ navigation }) => {
                                     <Text style={styles.cityCardName}>{city.name}</Text>
                                     <Text style={styles.cityCardRegion}>{city.region}</Text>
                                 </View>
-                                {/* Harita ikonu */}
+                                {/* Hızlı rota butonu */}
                                 <TouchableOpacity
                                     style={styles.cityMapButton}
                                     onPress={() => navigation.navigate('MapScreen', { city })}
                                     hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                                 >
-                                    <Ionicons name="map" size={16} color="#fff" />
+                                    <Ionicons name="navigate" size={16} color="#fff" />
                                 </TouchableOpacity>
                             </TouchableOpacity>
                         );

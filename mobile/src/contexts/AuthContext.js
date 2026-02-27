@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { onAuthStateChange, getSession } from '../services/authService';
+import { supabase } from '../config/supabase';
 
 /**
  * AuthContext provides the current user session and loading state
@@ -18,8 +19,20 @@ export const AuthProvider = ({ children }) => {
     useEffect(() => {
         // 1. Check for an existing session on app launch
         const initSession = async () => {
-            const { data } = await getSession();
-            setSession(data?.session ?? null);
+            try {
+                const { data, error } = await getSession();
+                if (error) {
+                    // Geçersiz refresh token — eski oturumu temizle
+                    console.warn('Session hatası, oturum temizleniyor:', error.message);
+                    await supabase.auth.signOut();
+                    setSession(null);
+                } else {
+                    setSession(data?.session ?? null);
+                }
+            } catch (err) {
+                console.warn('Session kontrol hatası:', err);
+                setSession(null);
+            }
             setIsLoading(false);
         };
 

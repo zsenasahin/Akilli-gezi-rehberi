@@ -39,6 +39,25 @@ export const getFavorites = async (userId) => {
 };
 
 /**
+ * Get a Set of all favorited place IDs for a user.
+ * Single DB query — use this instead of calling checkIsFavorite in a loop.
+ *
+ * @param {string} userId
+ * @returns {Promise<{ favoriteIds: Set<number>, error: object|null }>}
+ */
+export const getFavoriteIds = async (userId) => {
+    const { data, error } = await supabase
+        .from('favorites')
+        .select('place_id')
+        .eq('user_id', userId);
+
+    const favoriteIds = new Set((data || []).map((f) => f.place_id));
+    return { favoriteIds, error };
+};
+
+
+
+/**
  * Check if a place is in the user's favorites.
  * @param {string} userId
  * @param {number} placeId
