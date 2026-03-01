@@ -8,6 +8,21 @@ const corsHeaders = {
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+// ─── Tipler ───
+interface Coordinate {
+    lat: number
+    lng: number
+}
+
+interface Place extends Coordinate {
+    name: string
+    id: number
+}
+
+interface OrderedPlace extends Place {
+    distanceFromPrev: number
+}
+
 // ─── Haversine ───
 function haversineDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
     const R = 6371
@@ -22,13 +37,10 @@ function haversineDistance(lat1: number, lon1: number, lat2: number, lon2: numbe
 }
 
 // ─── Nearest Neighbor Sıralama ───
-function sortByNearest(
-    start: { lat: number; lng: number },
-    places: Array<{ lat: number; lng: number; name: string; id: number }>
-) {
+function sortByNearest(start: Coordinate, places: Place[]): OrderedPlace[] {
     const remaining = [...places]
-    const sorted: any[] = []
-    let current = { lat: start.lat, lng: start.lng }
+    const sorted: OrderedPlace[] = []
+    let current: Coordinate = { lat: start.lat, lng: start.lng }
 
     while (remaining.length > 0) {
         let nearestIdx = 0
@@ -50,13 +62,14 @@ function sortByNearest(
     return sorted
 }
 
-serve(async (req) => {
+serve(async (req: Request) => {
     if (req.method === 'OPTIONS') {
         return new Response('ok', { headers: corsHeaders })
     }
 
     try {
-        const { accommodation, places } = await req.json()
+        const body = await req.json() as { accommodation?: Coordinate; places?: Place[] }
+        const { accommodation, places } = body
 
         if (!accommodation || !places || places.length === 0) {
             return new Response(
@@ -75,13 +88,10 @@ serve(async (req) => {
             // ORS key yoksa sadece Haversine sonuçlarını döndür
             const fallbackRoute = [
                 [accommodation.lng, accommodation.lat],
-                ...orderedPlaces.map((p: any) => [p.lng, p.lat]),
+                ...orderedPlaces.map((p) => [p.lng, p.lat]),
             ]
 
-            let totalDist = 0
-            for (let i = 0; i < orderedPlaces.length; i++) {
-                totalDist += orderedPlaces[i].distanceFromPrev
-            }
+            const totalDist = orderedPlaces.reduce((sum, p) => sum + p.distanceFromPrev, 0)
 
             return new Response(
                 JSON.stringify({
@@ -98,7 +108,7 @@ serve(async (req) => {
         // Waypoints: [start, ...places]
         const coordinates = [
             [accommodation.lng, accommodation.lat],
-            ...orderedPlaces.map((p: any) => [p.lng, p.lat]),
+            ...orderedPlaces.map((p) => [p.lng, p.lat]),
         ]
 
         // ORS Directions API
@@ -126,7 +136,7 @@ serve(async (req) => {
             return new Response(
                 JSON.stringify({
                     route: coordinates,
-                    distance: orderedPlaces.reduce((sum: number, p: any) => sum + p.distanceFromPrev, 0) / 1000,
+                    distance: orderedPlaces.reduce((sum, p) => sum + p.distanceFromPrev, 0) / 1000,
                     duration: null,
                     orderedPlaces,
                     source: 'haversine-fallback',
@@ -135,23 +145,29 @@ serve(async (req) => {
             )
         }
 
-        const orsData = await orsResponse.json()
+        const orsData = await orsResponse.json() as {
+            features?: Array<{
+                geometry?: { coordinates: number[][] }
+                properties?: { summary?: { distance?: number; duration?: number } }
+            }>
+        }
         const feature = orsData.features?.[0]
 
         return new Response(
             JSON.stringify({
-                route: feature?.geometry?.coordinates || coordinates,
-                distance: (feature?.properties?.summary?.distance || 0) / 1000, // km
-                duration: feature?.properties?.summary?.duration || null, // saniye
+                route: feature?.geometry?.coordinates ?? coordinates,
+                distance: (feature?.properties?.summary?.distance ?? 0) / 1000, // km
+                duration: feature?.properties?.summary?.duration ?? null,        // saniye
                 orderedPlaces,
                 source: 'openrouteservice',
             }),
             { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         )
 
-    } catch (error) {
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Beklenmeyen hata'
         return new Response(
-            JSON.stringify({ error: error.message }),
+            JSON.stringify({ error: message }),
             { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         )
     }

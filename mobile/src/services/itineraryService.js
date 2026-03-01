@@ -37,6 +37,10 @@ export const createItinerary = async ({
                 city_id: cityId,
                 days,
                 status: 'ongoing',
+                has_accommodation: hasAccommodation,
+                has_transport: hasTransport,
+                start_location_lat: startLocationLat,
+                start_location_lng: startLocationLng,
             },
         ])
         .select()
@@ -90,7 +94,10 @@ export const getItineraryById = async (itineraryId) => {
     const { data, error } = await supabase
         .from('itineraries')
         .select(`
-            *,
+            id, user_id, city_id, days, status,
+            has_accommodation, has_transport,
+            start_location_lat, start_location_lng,
+            total_budget, plan, created_at,
             cities ( name ),
             itinerary_items (
                 id,

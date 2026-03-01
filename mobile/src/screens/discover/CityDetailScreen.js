@@ -157,7 +157,11 @@ const CityDetailScreen = ({ route, navigation }) => {
             Alert.alert('Giriş Gerekli', 'Favorilere eklemek için giriş yapmalısınız.');
             return;
         }
-        const { isFavorite } = await toggleFavorite(user.id, placeId);
+        const { isFavorite, error } = await toggleFavorite(user.id, placeId);
+        if (error) {
+            Alert.alert('Hata', 'Favori işlemi gerçekleştirilemedi: ' + (error.message || 'Bilinmeyen hata'));
+            return;
+        }
         setFavorites(prev => ({ ...prev, [placeId]: isFavorite }));
     };
 
