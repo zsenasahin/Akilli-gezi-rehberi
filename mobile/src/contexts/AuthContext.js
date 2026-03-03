@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { onAuthStateChange, getSession } from '../services/authService';
+import { onAuthStateChange, getSession } from '../data/repositories/authRepository';
 import { supabase } from '../config/supabase';
 
 /**

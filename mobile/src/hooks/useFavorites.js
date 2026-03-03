@@ -4,7 +4,7 @@ import {
     getFavorites,
     toggleFavorite,
     checkIsFavorite,
-} from '../services/favoriteService';
+} from '../data/repositories/favoriteRepository';
 
 /**
  * Custom hook for managing favorites state.

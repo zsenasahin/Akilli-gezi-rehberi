@@ -214,13 +214,12 @@ const HomeScreen = ({ navigation }) => {
                                     <Text style={styles.cityCardName}>{city.name}</Text>
                                     <Text style={styles.cityCardRegion}>{city.region}</Text>
                                 </View>
-                                {/* Hızlı rota butonu */}
                                 <TouchableOpacity
                                     style={styles.cityMapButton}
-                                    onPress={() => navigation.navigate('MapScreen', { city })}
+                                    onPress={() => navigation.navigate('CreateItinerary', { preselectedCity: city })}
                                     hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                                 >
-                                    <Ionicons name="navigate" size={16} color="#fff" />
+                                    <Ionicons name="add" size={16} color="#fff" />
                                 </TouchableOpacity>
                             </TouchableOpacity>
                         );

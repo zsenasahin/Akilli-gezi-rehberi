@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { getPlaces } from '../services/placeService';
+import { getPlaces } from '../data/repositories/placeRepository';
 
 /**
  * Custom hook for fetching and filtering places.

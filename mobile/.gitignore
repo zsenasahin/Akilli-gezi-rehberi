@@ -33,6 +33,10 @@ yarn-error.*
 # local env files
 .env*.local
 
+# Gizli API anahtarları — git'e GÖNDERİLMEZ
+src/config/secrets.js
+secrets.js
+
 # typescript
 *.tsbuildinfo
 
