@@ -21,6 +21,7 @@ import {
     Linking,
     Alert,
     Platform,
+    TextInput,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -37,6 +38,7 @@ import { toggleFavorite, getFavoriteIds } from '../../services/favoriteService';
 import { useAuth } from '../../contexts/AuthContext';
 import { getCityCenter } from '../../constants/cities';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
+import WeatherWidget from '../../components/discover/WeatherWidget';
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 
@@ -68,6 +70,7 @@ const CityDetailScreen = ({ route, navigation }) => {
     const [selectedItem, setSelectedItem] = useState(null);
     const [wikiInfo, setWikiInfo] = useState(null);
     const [wikiLoading, setWikiLoading] = useState(false);
+    const [placeSearch, setPlaceSearch] = useState('');
 
     // Animation
     const scrollY = useRef(new Animated.Value(0)).current;
@@ -533,9 +536,43 @@ const CityDetailScreen = ({ route, navigation }) => {
                     </View>
                 );
             }
+
+            const filteredPlaces = placeSearch.trim()
+                ? places.filter(p =>
+                    p.name.toLowerCase().includes(placeSearch.toLowerCase()) ||
+                    p.category?.toLowerCase().includes(placeSearch.toLowerCase())
+                )
+                : places;
+
             return (
-                <View style={styles.placesGrid}>
-                    {places.map(renderPlaceCard)}
+                <View>
+                    {/* Arama kutusu */}
+                    <View style={styles.placeSearchContainer}>
+                        <Ionicons name="search" size={16} color={COLORS.textLight} />
+                        <TextInput
+                            style={styles.placeSearchInput}
+                            placeholder="Yer ara..."
+                            placeholderTextColor={COLORS.textLight}
+                            value={placeSearch}
+                            onChangeText={setPlaceSearch}
+                        />
+                        {placeSearch.length > 0 && (
+                            <TouchableOpacity onPress={() => setPlaceSearch('')}>
+                                <Ionicons name="close-circle" size={16} color={COLORS.textLight} />
+                            </TouchableOpacity>
+                        )}
+                    </View>
+
+                    {filteredPlaces.length === 0 ? (
+                        <View style={styles.emptyState}>
+                            <Text style={styles.emptyEmoji}>🔍</Text>
+                            <Text style={styles.emptyText}>"{placeSearch}" ile eşleşen yer bulunamadı</Text>
+                        </View>
+                    ) : (
+                        <View style={styles.placesGrid}>
+                            {filteredPlaces.map(renderPlaceCard)}
+                        </View>
+                    )}
                 </View>
             );
         }
@@ -660,6 +697,9 @@ const CityDetailScreen = ({ route, navigation }) => {
                         </Text>
                     </View>
                 ) : null}
+
+                {/* ═══ Hava Durumu ═══ */}
+                <WeatherWidget cityName={cityName} />
 
                 {/* ═══ Hızlı aksiyonlar ═══ */}
                 <View style={styles.quickActions}>
@@ -803,6 +843,27 @@ const styles = StyleSheet.create({
         color: COLORS.textSecondary, lineHeight: 22,
     },
     descLoading: { padding: SPACING.md, alignItems: 'center' },
+
+    // ─── Yer Arama ───
+    placeSearchContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: COLORS.surfaceAlt,
+        borderRadius: BORDER_RADIUS.lg,
+        paddingHorizontal: SPACING.md,
+        paddingVertical: 9,
+        gap: SPACING.sm,
+        marginBottom: SPACING.sm,
+        marginHorizontal: SPACING.lg,
+        borderWidth: 1,
+        borderColor: COLORS.border,
+    },
+    placeSearchInput: {
+        flex: 1,
+        fontFamily: 'Inter_400Regular',
+        fontSize: FONT_SIZES.sm,
+        color: COLORS.textPrimary,
+    },
 
     // Quick actions
     quickActions: {

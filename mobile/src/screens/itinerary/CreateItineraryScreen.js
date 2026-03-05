@@ -14,7 +14,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { getCities } from '../../data/repositories/cityRepository';
 import { getPlacesByCity } from '../../data/repositories/placeRepository';
 import { createItinerary } from '../../data/repositories/itineraryRepository';
-import { getNearbyHotels } from '../../data/api/overpassApi';
+import { getNearbyHotels, getNearbyRestaurants } from '../../data/api/overpassApi';
 import { getOptimizedRoute } from '../../data/api/edgeFunctionApi';
 import { generateItinerary } from '../../domain/itineraryGenerator';
 import { haversineDistance, sortPlacesByNearest, calculateTotalDistance } from '../../utils/haversine';
@@ -79,8 +79,19 @@ const CreateItineraryScreen = ({ navigation, route }) => {
     const [citiesLoading, setCitiesLoading] = useState(true);
     const [placesLoading, setPlacesLoading] = useState(false);
 
-    // Adım 1: Süre
+    // Adım 1: Süre + Tarih
     const [days, setDays] = useState(2);
+    const [startDate, setStartDate] = useState(() => {
+        // Bugünden başlasın
+        const d = new Date();
+        d.setHours(0, 0, 0, 0);
+        return d;
+    });
+    const [showCalendar, setShowCalendar] = useState(false);
+    const [calendarMonth, setCalendarMonth] = useState(() => {
+        const d = new Date();
+        return { year: d.getFullYear(), month: d.getMonth() };
+    });
 
     // Adım 2: Konaklama
     const [hasAccommodation, setHasAccommodation] = useState(true);
@@ -97,6 +108,7 @@ const CreateItineraryScreen = ({ navigation, route }) => {
     // Adım 4: Plan
     const [generatedPlan, setGeneratedPlan] = useState(null);
     const [routeData, setRouteData] = useState(null);
+    const [nearbyRestaurants, setNearbyRestaurants] = useState([]);
     const [saving, setSaving] = useState(false);
     const [planLoading, setPlanLoading] = useState(false);
 
@@ -218,6 +230,14 @@ const CreateItineraryScreen = ({ navigation, route }) => {
         }
 
         setPlanLoading(false);
+
+        // Yakın restoranları yükle (paralel — planı yavaşlatmaz)
+        const center = getCityCenter(selectedCity?.name || 'İstanbul');
+        getNearbyRestaurants(center.lat, center.lng, 1500).then(({ data: rests }) => {
+            if (rests && rests.length > 0) {
+                setNearbyRestaurants(rests.slice(0, 5));
+            }
+        });
         return true;
     }, [places, selectedPlaces, autoSelect, days, accommodation]);
 
@@ -230,6 +250,7 @@ const CreateItineraryScreen = ({ navigation, route }) => {
             userId: user.id,
             cityId: selectedCity.id,
             days,
+            startDate: startDate.toISOString().split('T')[0],
             hasAccommodation: hasAccommodation || !!accommodation,
             hasTransport,
             startLocationLat: accommodation?.lat ?? null,
@@ -393,12 +414,13 @@ const CreateItineraryScreen = ({ navigation, route }) => {
                     </View>
                 )}
 
-                {/* ── ADIM 1: SÜRE ── */}
+                {/* ── ADIM 1: SÜRE + TARİH ── */}
                 {step === 1 && (
                     <View>
-                        <Text style={styles.stepTitle}>📅 Kaç gün?</Text>
-                        <Text style={styles.stepDesc}>Gezi planınız kaç gün sürsün?</Text>
+                        <Text style={styles.stepTitle}>📅 Kaç gün & ne zaman?</Text>
+                        <Text style={styles.stepDesc}>Gezi sürenizi ve başlangıç tarihinizi seçin.</Text>
 
+                        {/* Gün sayısı */}
                         <View style={styles.daySelectorRow}>
                             <TouchableOpacity onPress={() => setDays(d => Math.max(1, d - 1))} disabled={days <= 1}>
                                 <Ionicons name="remove-circle-outline" size={44} color={days <= 1 ? COLORS.textLight : COLORS.primary} />
@@ -419,6 +441,146 @@ const CreateItineraryScreen = ({ navigation, route }) => {
                                 </TouchableOpacity>
                             ))}
                         </View>
+
+                        {/* Başlangıç tarihi */}
+                        <TouchableOpacity
+                            style={styles.datePickerButton}
+                            onPress={() => setShowCalendar(!showCalendar)}
+                            activeOpacity={0.8}
+                        >
+                            <Ionicons name="calendar-outline" size={20} color={COLORS.primary} />
+                            <View style={{ flex: 1 }}>
+                                <Text style={styles.datePickerLabel}>Başlangıç Tarihi</Text>
+                                <Text style={styles.datePickerValue}>
+                                    {startDate.toLocaleDateString('tr-TR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+                                </Text>
+                            </View>
+                            <Ionicons
+                                name={showCalendar ? 'chevron-up' : 'chevron-down'}
+                                size={18} color={COLORS.textLight}
+                            />
+                        </TouchableOpacity>
+
+                        {/* Bitiş tarihi hesapla */}
+                        <View style={styles.dateRangeRow}>
+                            <View style={styles.dateRangeItem}>
+                                <Text style={styles.dateRangeLabel}>Başlangıç</Text>
+                                <Text style={styles.dateRangeValue}>
+                                    {startDate.toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' })}
+                                </Text>
+                            </View>
+                            <Ionicons name="arrow-forward" size={16} color={COLORS.textLight} />
+                            <View style={styles.dateRangeItem}>
+                                <Text style={styles.dateRangeLabel}>Bitiş</Text>
+                                <Text style={styles.dateRangeValue}>
+                                    {(() => {
+                                        const end = new Date(startDate);
+                                        end.setDate(end.getDate() + days - 1);
+                                        return end.toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' });
+                                    })()}
+                                </Text>
+                            </View>
+                            <View style={styles.dateRangeDivider} />
+                            <View style={styles.dateRangeItem}>
+                                <Text style={styles.dateRangeLabel}>Toplam</Text>
+                                <Text style={[styles.dateRangeValue, { color: COLORS.primary }]}>{days} gün</Text>
+                            </View>
+                        </View>
+
+                        {/* Inline Takvim */}
+                        {showCalendar && (() => {
+                            const MONTHS_TR = ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran',
+                                'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'];
+                            const DAYS_TR = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'];
+                            const today = new Date(); today.setHours(0, 0, 0, 0);
+                            const { year, month } = calendarMonth;
+                            const firstDay = new Date(year, month, 1);
+                            // Pazartesi başlangıçlı: 0=Pzt...6=Paz
+                            const startOffset = (firstDay.getDay() + 6) % 7;
+                            const daysInMonth = new Date(year, month + 1, 0).getDate();
+                            const cells = [];
+                            for (let i = 0; i < startOffset; i++) cells.push(null);
+                            for (let d = 1; d <= daysInMonth; d++) cells.push(d);
+
+                            const isSelected = (d) => {
+                                if (!d) return false;
+                                const cell = new Date(year, month, d);
+                                return cell.toDateString() === startDate.toDateString();
+                            };
+                            const isInRange = (d) => {
+                                if (!d) return false;
+                                const cell = new Date(year, month, d);
+                                const end = new Date(startDate);
+                                end.setDate(startDate.getDate() + days - 1);
+                                return cell > startDate && cell <= end;
+                            };
+                            const isPast = (d) => {
+                                if (!d) return false;
+                                return new Date(year, month, d) < today;
+                            };
+
+                            return (
+                                <View style={styles.calendarContainer}>
+                                    {/* Ay navigasyonu */}
+                                    <View style={styles.calendarHeader}>
+                                        <TouchableOpacity onPress={() => {
+                                            const prev = new Date(year, month - 1, 1);
+                                            setCalendarMonth({ year: prev.getFullYear(), month: prev.getMonth() });
+                                        }}>
+                                            <Ionicons name="chevron-back" size={22} color={COLORS.primary} />
+                                        </TouchableOpacity>
+                                        <Text style={styles.calendarMonthLabel}>
+                                            {MONTHS_TR[month]} {year}
+                                        </Text>
+                                        <TouchableOpacity onPress={() => {
+                                            const next = new Date(year, month + 1, 1);
+                                            setCalendarMonth({ year: next.getFullYear(), month: next.getMonth() });
+                                        }}>
+                                            <Ionicons name="chevron-forward" size={22} color={COLORS.primary} />
+                                        </TouchableOpacity>
+                                    </View>
+
+                                    {/* Haftanın günleri */}
+                                    <View style={styles.calendarDayNames}>
+                                        {DAYS_TR.map(n => (
+                                            <Text key={n} style={styles.calendarDayName}>{n}</Text>
+                                        ))}
+                                    </View>
+
+                                    {/* Günler */}
+                                    <View style={styles.calendarGrid}>
+                                        {cells.map((d, i) => (
+                                            <TouchableOpacity
+                                                key={i}
+                                                style={[
+                                                    styles.calendarCell,
+                                                    isSelected(d) && styles.calendarCellSelected,
+                                                    isInRange(d) && styles.calendarCellInRange,
+                                                    !d && { backgroundColor: 'transparent' },
+                                                ]}
+                                                onPress={() => {
+                                                    if (!d || isPast(d)) return;
+                                                    const picked = new Date(year, month, d);
+                                                    setStartDate(picked);
+                                                    setShowCalendar(false);
+                                                }}
+                                                disabled={!d || isPast(d)}
+                                                activeOpacity={0.7}
+                                            >
+                                                {d ? (
+                                                    <Text style={[
+                                                        styles.calendarCellText,
+                                                        isSelected(d) && styles.calendarCellTextSelected,
+                                                        isInRange(d) && styles.calendarCellTextInRange,
+                                                        isPast(d) && styles.calendarCellTextPast,
+                                                    ]}>{d}</Text>
+                                                ) : null}
+                                            </TouchableOpacity>
+                                        ))}
+                                    </View>
+                                </View>
+                            );
+                        })()}
                     </View>
                 )}
 
@@ -747,6 +909,39 @@ const CreateItineraryScreen = ({ navigation, route }) => {
                                     </View>
                                 ))}
 
+                                {/* ── Yemek Molaları ── */}
+                                {nearbyRestaurants.length > 0 && (
+                                    <View style={styles.restaurantSection}>
+                                        <Text style={styles.sectionLabel}>🍽️ Yakın Restoranlar</Text>
+                                        <Text style={styles.sectionSubLabel}>
+                                            Şehir merkezinden ~1.5 km içindeki restoranlar
+                                        </Text>
+                                        {nearbyRestaurants.map((rest, i) => (
+                                            <TouchableOpacity
+                                                key={rest.id || i}
+                                                style={styles.restaurantCard}
+                                                onPress={() => {
+                                                    const url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(rest.name)}&center=${rest.lat},${rest.lng}`;
+                                                    Linking.openURL(url);
+                                                }}
+                                                activeOpacity={0.8}
+                                            >
+                                                <Text style={styles.restaurantEmoji}>{rest.emoji || '🍽️'}</Text>
+                                                <View style={styles.restaurantInfo}>
+                                                    <Text style={styles.restaurantName} numberOfLines={1}>{rest.name}</Text>
+                                                    <Text style={styles.restaurantMeta}>
+                                                        {[rest.cuisine, rest.address].filter(Boolean).join(' · ') || rest.categoryLabel}
+                                                    </Text>
+                                                </View>
+                                                {rest.priceRange ? (
+                                                    <Text style={styles.restaurantPrice}>{rest.priceRange}</Text>
+                                                ) : null}
+                                                <Ionicons name="open-outline" size={14} color={COLORS.textLight} />
+                                            </TouchableOpacity>
+                                        ))}
+                                    </View>
+                                )}
+
                                 <Button title="Planı Kaydet 💾" onPress={handleSave} loading={saving} style={{ marginTop: SPACING.md }} />
                             </>
                         ) : (
@@ -998,6 +1193,126 @@ const styles = StyleSheet.create({
     },
     navBtn: { flex: 1 },
     navBtnFull: { flex: 1 },
+
+    // ─── Tarih Seçici ───
+    datePickerButton: {
+        flexDirection: 'row', alignItems: 'center', gap: SPACING.sm,
+        backgroundColor: COLORS.surface, borderRadius: BORDER_RADIUS.md,
+        padding: SPACING.md, marginTop: SPACING.md,
+        borderWidth: 1.5, borderColor: COLORS.primary + '40',
+        shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.04, shadowRadius: 4, elevation: 1,
+    },
+    datePickerLabel: {
+        fontSize: FONT_SIZES.xs, color: COLORS.textSecondary,
+        fontFamily: 'Inter_400Regular',
+    },
+    datePickerValue: {
+        fontSize: FONT_SIZES.sm, color: COLORS.textPrimary,
+        fontFamily: 'Inter_600SemiBold', marginTop: 2,
+    },
+    dateRangeRow: {
+        flexDirection: 'row', alignItems: 'center', gap: SPACING.sm,
+        backgroundColor: COLORS.primaryMuted, borderRadius: BORDER_RADIUS.md,
+        padding: SPACING.md, marginTop: SPACING.sm,
+    },
+    dateRangeItem: { alignItems: 'center', flex: 1 },
+    dateRangeLabel: {
+        fontSize: 10, color: COLORS.textSecondary,
+        fontFamily: 'Inter_400Regular', marginBottom: 2,
+    },
+    dateRangeValue: {
+        fontSize: FONT_SIZES.sm, fontFamily: 'Inter_700Bold',
+        color: COLORS.textPrimary,
+    },
+    dateRangeDivider: { width: 1, height: 28, backgroundColor: COLORS.border },
+
+    // ─── Inline Takvim ───
+    calendarContainer: {
+        backgroundColor: COLORS.surface, borderRadius: BORDER_RADIUS.lg,
+        padding: SPACING.md, marginTop: SPACING.sm,
+        borderWidth: 1, borderColor: COLORS.border,
+        shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.06, shadowRadius: 8, elevation: 3,
+    },
+    calendarHeader: {
+        flexDirection: 'row', justifyContent: 'space-between',
+        alignItems: 'center', marginBottom: SPACING.md,
+    },
+    calendarMonthLabel: {
+        fontFamily: 'Inter_600SemiBold', fontSize: FONT_SIZES.md,
+        color: COLORS.textPrimary,
+    },
+    calendarDayNames: {
+        flexDirection: 'row', marginBottom: SPACING.xs,
+    },
+    calendarDayName: {
+        flex: 1, textAlign: 'center', fontSize: FONT_SIZES.xs,
+        fontFamily: 'Inter_600SemiBold', color: COLORS.textSecondary,
+    },
+    calendarGrid: {
+        flexDirection: 'row', flexWrap: 'wrap',
+    },
+    calendarCell: {
+        width: `${100 / 7}%`, aspectRatio: 1,
+        justifyContent: 'center', alignItems: 'center',
+        borderRadius: BORDER_RADIUS.sm,
+    },
+    calendarCellSelected: {
+        backgroundColor: COLORS.primary, borderRadius: BORDER_RADIUS.md,
+    },
+    calendarCellInRange: {
+        backgroundColor: COLORS.primaryMuted,
+    },
+    calendarCellText: {
+        fontSize: FONT_SIZES.sm, fontFamily: 'Inter_400Regular',
+        color: COLORS.textPrimary,
+    },
+    calendarCellTextSelected: {
+        color: '#fff', fontFamily: 'Inter_700Bold',
+    },
+    calendarCellTextInRange: {
+        color: COLORS.primary, fontFamily: 'Inter_500Medium',
+    },
+    calendarCellTextPast: {
+        color: COLORS.textLight, opacity: 0.4,
+    },
+
+    // ─── Restoran Önerileri ───
+    restaurantSection: {
+        marginTop: SPACING.md,
+        backgroundColor: COLORS.surface,
+        borderRadius: BORDER_RADIUS.lg,
+        padding: SPACING.md,
+        borderWidth: 1, borderColor: COLORS.border,
+    },
+    sectionLabel: {
+        fontFamily: 'Inter_600SemiBold', fontSize: FONT_SIZES.md,
+        color: COLORS.textPrimary, marginBottom: 2,
+    },
+    sectionSubLabel: {
+        fontFamily: 'Inter_400Regular', fontSize: FONT_SIZES.xs,
+        color: COLORS.textSecondary, marginBottom: SPACING.sm,
+    },
+    restaurantCard: {
+        flexDirection: 'row', alignItems: 'center', gap: SPACING.sm,
+        paddingVertical: SPACING.sm,
+        borderTopWidth: 1, borderTopColor: COLORS.divider,
+    },
+    restaurantEmoji: { fontSize: 22, width: 30, textAlign: 'center' },
+    restaurantInfo: { flex: 1 },
+    restaurantName: {
+        fontFamily: 'Inter_600SemiBold', fontSize: FONT_SIZES.sm,
+        color: COLORS.textPrimary,
+    },
+    restaurantMeta: {
+        fontFamily: 'Inter_400Regular', fontSize: FONT_SIZES.xs,
+        color: COLORS.textSecondary, marginTop: 2,
+    },
+    restaurantPrice: {
+        fontFamily: 'Inter_600SemiBold', fontSize: FONT_SIZES.xs,
+        color: COLORS.success,
+    },
 });
 
 export default CreateItineraryScreen;

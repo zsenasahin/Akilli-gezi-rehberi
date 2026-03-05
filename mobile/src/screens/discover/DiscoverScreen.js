@@ -48,6 +48,17 @@ const DiscoverScreen = () => {
     const [wikiLoading, setWikiLoading] = useState(false);
     const [favorites, setFavorites] = useState({});
     const [cityModalVisible, setCityModalVisible] = useState(false);
+    const [categoryFilter, setCategoryFilter] = useState(null); // null = Tüm kategoriler
+
+    const CATEGORY_CHIPS = [
+        { key: null, label: 'Tümü', emoji: '🌍' },
+        { key: 'historical', label: 'Tarihi', emoji: '🏛️' },
+        { key: 'museum', label: 'Müze', emoji: '🎨' },
+        { key: 'nature', label: 'Doğa', emoji: '🌿' },
+        { key: 'religious', label: 'Dini', emoji: '🕌' },
+        { key: 'shopping', label: 'Alışveriş', emoji: '🛍️' },
+        { key: 'beach', label: 'Plaj', emoji: '🏖️' },
+    ];
 
     const fetchPlaces = useCallback(async () => {
         setError(null);
@@ -104,13 +115,19 @@ const DiscoverScreen = () => {
         setFailedImages((prev) => ({ ...prev, [placeId]: true }));
     };
 
-    // Filter by search
-    const filteredPlaces = searchQuery.trim()
-        ? places.filter((p) =>
-            p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            p.cities?.name?.toLowerCase().includes(searchQuery.toLowerCase())
-        )
-        : places;
+    // Arama + şehir + kategori filtresi
+    const filteredPlaces = places.filter((p) => {
+        const q = searchQuery.trim().toLowerCase();
+        const matchesSearch = !q ||
+            p.name.toLowerCase().includes(q) ||
+            p.cities?.name?.toLowerCase().includes(q) ||
+            p.category?.toLowerCase().includes(q);
+        const matchesCity = !selectedCity || p.city_id === selectedCity;
+        const matchesCategory = !categoryFilter || p.category === categoryFilter;
+        return matchesSearch && matchesCity && matchesCategory;
+    });
+
+    const activeFilterCount = (selectedCity ? 1 : 0) + (categoryFilter ? 1 : 0);
 
     const getCategoryEmoji = (category) => {
         const map = {
@@ -381,8 +398,19 @@ const DiscoverScreen = () => {
         <View style={styles.container}>
             {/* Header */}
             <View style={styles.header}>
-                <Text style={styles.headerTitle}>Keşfet</Text>
-                <Text style={styles.headerSubtitle}>{filteredPlaces.length} popüler yer</Text>
+                <View style={styles.headerRow}>
+                    <Text style={styles.headerTitle}>Keşfet</Text>
+                    {activeFilterCount > 0 && (
+                        <TouchableOpacity
+                            style={styles.clearFiltersBtn}
+                            onPress={() => { setSelectedCity(null); setCategoryFilter(null); setSearchQuery(''); }}
+                        >
+                            <Ionicons name="close-circle" size={14} color={COLORS.error} />
+                            <Text style={styles.clearFiltersText}>Filtreleri Temizle</Text>
+                        </TouchableOpacity>
+                    )}
+                </View>
+                <Text style={styles.headerSubtitle}>{filteredPlaces.length} yer bulundu</Text>
             </View>
 
             {/* Search bar */}
@@ -403,6 +431,31 @@ const DiscoverScreen = () => {
             </View>
 
             {renderCityFilter()}
+
+            {/* Kategori Chip'leri */}
+            <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.categoryChipsRow}
+            >
+                {CATEGORY_CHIPS.map(chip => (
+                    <TouchableOpacity
+                        key={String(chip.key)}
+                        style={[
+                            styles.categoryChip,
+                            categoryFilter === chip.key && styles.categoryChipActive,
+                        ]}
+                        onPress={() => setCategoryFilter(chip.key)}
+                        activeOpacity={0.75}
+                    >
+                        <Text style={styles.categoryChipEmoji}>{chip.emoji}</Text>
+                        <Text style={[
+                            styles.categoryChipLabel,
+                            categoryFilter === chip.key && styles.categoryChipLabelActive,
+                        ]}>{chip.label}</Text>
+                    </TouchableOpacity>
+                ))}
+            </ScrollView>
 
             {error && <ErrorMessage message={error} onRetry={fetchPlaces} />}
 
@@ -444,6 +497,25 @@ const styles = StyleSheet.create({
         paddingBottom: SPACING.xs,
         backgroundColor: COLORS.surface,
     },
+    headerRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+    },
+    clearFiltersBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        backgroundColor: COLORS.error + '12',
+        paddingHorizontal: 10,
+        paddingVertical: 5,
+        borderRadius: BORDER_RADIUS.full,
+    },
+    clearFiltersText: {
+        fontFamily: 'Inter_500Medium',
+        fontSize: FONT_SIZES.xs,
+        color: COLORS.error,
+    },
     headerTitle: {
         fontFamily: 'PlayfairDisplay_700Bold',
         fontSize: 28,
@@ -473,6 +545,39 @@ const styles = StyleSheet.create({
         fontFamily: 'Inter_400Regular',
         fontSize: FONT_SIZES.md,
         color: COLORS.textPrimary,
+    },
+
+    // ─── Kategori Chip'leri ───
+    categoryChipsRow: {
+        flexDirection: 'row',
+        gap: SPACING.xs,
+        paddingHorizontal: SPACING.lg,
+        paddingBottom: SPACING.sm,
+    },
+    categoryChip: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        paddingHorizontal: 12,
+        paddingVertical: 7,
+        borderRadius: BORDER_RADIUS.full,
+        backgroundColor: COLORS.surface,
+        borderWidth: 1.5,
+        borderColor: COLORS.border,
+    },
+    categoryChipActive: {
+        backgroundColor: COLORS.primary,
+        borderColor: COLORS.primary,
+    },
+    categoryChipEmoji: { fontSize: 14 },
+    categoryChipLabel: {
+        fontFamily: 'Inter_500Medium',
+        fontSize: FONT_SIZES.xs,
+        color: COLORS.textSecondary,
+    },
+    categoryChipLabelActive: {
+        color: '#fff',
+        fontFamily: 'Inter_600SemiBold',
     },
 
     // ─── City Dropdown ───

@@ -17,6 +17,7 @@ import ItineraryDetailScreen from '../screens/itinerary/ItineraryDetailScreen';
 import FavoritesScreen from '../screens/favorites/FavoritesScreen';
 import ProfileScreen from '../screens/profile/ProfileScreen';
 import MapScreen from '../screens/map/MapScreen';
+import TravelAssistantScreen from '../screens/assistant/TravelAssistantScreen';
 
 const Tab = createBottomTabNavigator();
 const HomeStack = createNativeStackNavigator();
@@ -67,6 +68,11 @@ const HomeStackNavigator = () => (
             component={CityDetailScreen}
             options={{ headerShown: false }}
         />
+        <HomeStack.Screen
+            name="TravelAssistant"
+            component={TravelAssistantScreen}
+            options={{ headerShown: false }}
+        />
     </HomeStack.Navigator>
 );
 
@@ -96,6 +102,11 @@ const DiscoverStackNavigator = () => (
             component={CreateItineraryScreen}
             options={{ title: 'Gezi Planla' }}
         />
+        <DiscoverStack.Screen
+            name="TravelAssistant"
+            component={TravelAssistantScreen}
+            options={{ headerShown: false }}
+        />
     </DiscoverStack.Navigator>
 );
 
@@ -113,6 +124,11 @@ const SavedStackNavigator = () => (
             name="ItineraryDetail"
             component={ItineraryDetailScreen}
             options={{ title: 'Plan Detayları' }}
+        />
+        <SavedStack.Screen
+            name="TravelAssistant"
+            component={TravelAssistantScreen}
+            options={{ headerShown: false }}
         />
     </SavedStack.Navigator>
 );

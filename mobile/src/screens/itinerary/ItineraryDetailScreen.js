@@ -382,6 +382,40 @@ const ItineraryDetailScreen = ({ route, navigation }) => {
                     style={styles.completeButton}
                 />
             )}
+
+            {/* AI Asistan Butonu */}
+            <TouchableOpacity
+                style={styles.assistantBtn}
+                onPress={() => {
+                    const completedPlaces = itinerary.itinerary_items
+                        .filter(i => i.is_completed)
+                        .map(i => i.places?.name)
+                        .filter(Boolean);
+
+                    const allPlaces = itinerary.itinerary_items.map(i => ({
+                        name: i.places?.name || '',
+                        category: i.places?.category || '',
+                        day: i.day_number,
+                    }));
+
+                    navigation.navigate('TravelAssistant', {
+                        context: {
+                            city: itinerary.cities?.name,
+                            days: itinerary.days,
+                            startDate: itinerary.start_date,
+                            currentDay: dayGroups.length > 0 ? dayGroups[0].day : 1,
+                            places: allPlaces,
+                            completedPlaces,
+                            remainingTime: null,
+                        },
+                    });
+                }}
+                activeOpacity={0.85}
+            >
+                <Text style={styles.assistantBtnEmoji}>✈️</Text>
+                <Text style={styles.assistantBtnText}>AI Asistan</Text>
+                <Ionicons name="chevron-forward" size={14} color="#fff" />
+            </TouchableOpacity>
         </ScrollView>
     );
 };
@@ -391,6 +425,29 @@ const styles = StyleSheet.create({
     contentContainer: {
         padding: SPACING.md,
         paddingBottom: SPACING.xxl,
+    },
+
+    // AI Asistan butonu
+    assistantBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: SPACING.sm,
+        backgroundColor: COLORS.accent,
+        borderRadius: BORDER_RADIUS.lg,
+        paddingVertical: 14,
+        marginTop: SPACING.sm,
+        shadowColor: COLORS.accent,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+        elevation: 5,
+    },
+    assistantBtnEmoji: { fontSize: 18 },
+    assistantBtnText: {
+        fontFamily: 'Inter_700Bold',
+        fontSize: FONT_SIZES.md,
+        color: '#fff',
     },
     // Header
     headerCard: {

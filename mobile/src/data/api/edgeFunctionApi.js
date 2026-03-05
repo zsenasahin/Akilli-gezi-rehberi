@@ -41,3 +41,36 @@ export const getOptimizedRoute = async (accommodation, places) => {
 // Overpass'tan gelen kolaylık fonksiyonlarını buradan da export et
 // (MapScreen gibi tek import noktası isteyen yerler için)
 export { getNearbyHotels, getNearbyRestaurants };
+
+/**
+ * travel-assistant Edge Function — Gemini 1.5 Flash destekli gezi asistanı.
+ *
+ * @param {string} message  – Kullanıcının mesajı
+ * @param {object} context  – Gezi bağlamı (şehir, gün, plan vb.)
+ * @param {Array}  history  – Önceki mesajlar [{ role, text }]
+ * @returns {{ data: { reply: string } | null, error: string | null }}
+ */
+export const askTravelAssistant = async (message, context = {}, history = []) => {
+    try {
+        const response = await fetch(`${SUPABASE_URL}/functions/v1/travel-assistant`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+            },
+            body: JSON.stringify({ message, context, history }),
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.warn('travel-assistant error:', errorText);
+            return { data: null, error: 'Asistan yanıt veremedi.' };
+        }
+
+        const data = await response.json();
+        return { data, error: null };
+    } catch (err) {
+        console.warn('askTravelAssistant network error:', err.message);
+        return { data: null, error: 'Bağlantı hatası.' };
+    }
+};
