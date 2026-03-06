@@ -588,41 +588,113 @@ const CreateItineraryScreen = ({ navigation, route }) => {
                 {step === 2 && (
                     <View>
                         <Text style={styles.stepTitle}>🏨 Konaklama</Text>
+                        <Text style={styles.stepDesc}>Konaklama konumunuzu belirleyin. Rota planlaması buradan başlar.</Text>
 
+                        {/* Toggle */}
                         <View style={styles.card}>
                             <View style={styles.rowBetween}>
                                 <View style={styles.prefInfo}>
                                     <Ionicons name="bed-outline" size={22} color={COLORS.primary} />
                                     <View style={{ flex: 1 }}>
                                         <Text style={styles.prefName}>Konaklama yerim var</Text>
-                                        <Text style={styles.prefDesc}>Rezervasyonunuz varsa haritadan konumunu seçin</Text>
+                                        <Text style={styles.prefDesc}>Otel/pansiyon rezervasyonunuz varsa konumunu belirleyin</Text>
                                     </View>
                                 </View>
-                                <Switch value={hasAccommodation} onValueChange={(v) => { setHasAccommodation(v); if (v) { setAccommodation(null); setHotels([]); } }}
+                                <Switch
+                                    value={hasAccommodation}
+                                    onValueChange={(v) => {
+                                        setHasAccommodation(v);
+                                        if (v) { setAccommodation(null); setHotels([]); }
+                                    }}
                                     trackColor={{ true: COLORS.primaryLight, false: COLORS.border }}
-                                    thumbColor={hasAccommodation ? COLORS.primary : COLORS.textLight} />
+                                    thumbColor={hasAccommodation ? COLORS.primary : COLORS.textLight}
+                                />
                             </View>
                         </View>
 
-                        {/* Seçilen konaklama göster */}
+                        {/* Seçilen konaklama */}
                         {accommodation && (
                             <View style={styles.selectedBadge}>
                                 <Ionicons name="checkmark-circle" size={18} color={COLORS.success} />
                                 <Text style={styles.selectedText}>{accommodation.name}</Text>
+                                <Text style={styles.selectedCoord}>{accommodation.lat?.toFixed(4)}, {accommodation.lng?.toFixed(4)}</Text>
                                 <TouchableOpacity onPress={() => setAccommodation(null)}>
                                     <Ionicons name="close-circle" size={18} color={COLORS.textLight} />
                                 </TouchableOpacity>
                             </View>
                         )}
 
-                        {/* Harita — uzun basarak konum seç */}
                         {selectedCity && (
                             <>
-                                <Text style={styles.sectionLabel}>
-                                    {hasAccommodation
-                                        ? '📌 Haritada uzun basarak konaklama konumunuzu işaretleyin'
-                                        : '🏨 Otel seçin veya haritada uzun basarak konum işaretleyin'}
-                                </Text>
+                                {/* ─ Google Maps ile Konum Seç ─ */}
+                                <View style={styles.card}>
+                                    <Text style={styles.sectionLabel}>📌 Konum Seçimi</Text>
+                                    <Text style={styles.cardDesc}>Google Haritalar'da yerinizi arayıp koordinatları buraya girin.</Text>
+
+                                    <TouchableOpacity
+                                        style={styles.googleMapsPickerBtn}
+                                        onPress={() => {
+                                            const center = getCityCenter(selectedCity?.name || 'İstanbul');
+                                            const url = `https://www.google.com/maps/search/?api=1&query=${center.lat},${center.lng}`;
+                                            Linking.openURL(url).catch(() =>
+                                                Linking.openURL(`https://maps.google.com/?q=${center.lat},${center.lng}`)
+                                            );
+                                        }}
+                                        activeOpacity={0.85}
+                                    >
+                                        <Ionicons name="logo-google" size={18} color="#fff" />
+                                        <Text style={styles.googleMapsPickerBtnText}>Google Maps'te Ara</Text>
+                                        <Ionicons name="open-outline" size={16} color="rgba(255,255,255,0.8)" />
+                                    </TouchableOpacity>
+
+                                    <Text style={styles.orText}>— veya koordinat girin —</Text>
+
+                                    <View style={styles.coordInputRow}>
+                                        <View style={styles.coordInputWrap}>
+                                            <Text style={styles.coordLabel}>Enlem (Lat)</Text>
+                                            <TextInput
+                                                style={styles.coordInput}
+                                                placeholder="37.8746"
+                                                placeholderTextColor={COLORS.textLight}
+                                                keyboardType="numeric"
+                                                onChangeText={(v) => {
+                                                    const lat = parseFloat(v);
+                                                    if (!isNaN(lat)) {
+                                                        setAccommodation(prev => ({
+                                                            ...(prev || {}),
+                                                            lat,
+                                                            name: prev?.name || 'Konaklama Yerim',
+                                                            lng: prev?.lng ?? getCityCenter(selectedCity.name).lng,
+                                                        }));
+                                                    }
+                                                }}
+                                            />
+                                        </View>
+                                        <View style={styles.coordInputWrap}>
+                                            <Text style={styles.coordLabel}>Boylam (Lng)</Text>
+                                            <TextInput
+                                                style={styles.coordInput}
+                                                placeholder="32.4932"
+                                                placeholderTextColor={COLORS.textLight}
+                                                keyboardType="numeric"
+                                                onChangeText={(v) => {
+                                                    const lng = parseFloat(v);
+                                                    if (!isNaN(lng)) {
+                                                        setAccommodation(prev => ({
+                                                            ...(prev || {}),
+                                                            lng,
+                                                            name: prev?.name || 'Konaklama Yerim',
+                                                            lat: prev?.lat ?? getCityCenter(selectedCity.name).lat,
+                                                        }));
+                                                    }
+                                                }}
+                                            />
+                                        </View>
+                                    </View>
+                                </View>
+
+                                {/* ─ Haritada Görüntüle & Uzun Basarak Seç ─ */}
+                                <Text style={styles.sectionLabel}>🗺️ Haritada seçin (uzun basın)</Text>
                                 <View style={styles.mapContainer}>
                                     <WebView
                                         ref={webViewRef}
@@ -638,43 +710,46 @@ const CreateItineraryScreen = ({ navigation, route }) => {
                                         )}
                                     />
                                     <View style={styles.mapHint}>
-                                        <Text style={styles.mapHintText}>👆 Uzun basarak konaklama seçin</Text>
+                                        <Text style={styles.mapHintText}>👆 Haritada uzun basarak konaklama seçin</Text>
                                     </View>
                                 </View>
 
-                                {/* Oteller */}
+                                {/* ─ Yakın Oteller (hasAccommodation = false ise) ─ */}
                                 {!hasAccommodation && (
                                     <View style={{ marginTop: SPACING.md }}>
                                         <Text style={styles.sectionLabel}>🏨 Yakın Oteller</Text>
-                                        {hotelsLoading
-                                            ? <ActivityIndicator color={COLORS.primary} style={{ marginVertical: 12 }} />
-                                            : hotels.length === 0
-                                                ? <Text style={styles.emptyText}>Yakında otel bulunamadı. Haritadan konum seçebilirsiniz.</Text>
-                                                : hotels.map((hotel, i) => {
-                                                    const selected = accommodation?.name === hotel.name && accommodation?.lat === hotel.lat;
-                                                    return (
-                                                        <TouchableOpacity
-                                                            key={i}
-                                                            style={[styles.hotelCard, selected && styles.hotelCardSelected]}
-                                                            onPress={() => selectHotel(hotel)}
-                                                            activeOpacity={0.8}
-                                                        >
-                                                            <View style={[styles.hotelIcon, selected && styles.hotelIconSelected]}>
-                                                                <Ionicons name="bed" size={18} color={selected ? '#fff' : COLORS.primary} />
-                                                            </View>
-                                                            <View style={styles.hotelInfo}>
-                                                                <Text style={styles.hotelName} numberOfLines={1}>{hotel.name}</Text>
-                                                                <View style={styles.hotelMeta}>
-                                                                    {hotel.stars > 0 && <Text style={styles.hotelStars}>{'⭐'.repeat(Math.min(hotel.stars, 5))}</Text>}
-                                                                    {hotel.distance && <Text style={styles.hotelDist}> · {hotel.distance}m</Text>}
-                                                                </View>
-                                                                {hotel.address ? <Text style={styles.hotelAddr} numberOfLines={1}>{hotel.address}</Text> : null}
-                                                            </View>
-                                                            {selected && <Ionicons name="checkmark-circle" size={22} color={COLORS.primary} />}
-                                                        </TouchableOpacity>
-                                                    );
-                                                })
-                                        }
+                                        {hotelsLoading ? (
+                                            <ActivityIndicator color={COLORS.primary} style={{ marginVertical: 12 }} />
+                                        ) : hotels.length === 0 ? (
+                                            <View style={styles.emptyCard}>
+                                                <Ionicons name="bed-outline" size={32} color={COLORS.textLight} />
+                                                <Text style={styles.emptyText}>Yakında otel bulunamadı.</Text>
+                                                <Text style={styles.emptySubText}>Yukarıdan koordinat girerek veya haritadan seçebilirsiniz.</Text>
+                                            </View>
+                                        ) : hotels.map((hotel, i) => {
+                                            const selected = accommodation?.name === hotel.name && accommodation?.lat === hotel.lat;
+                                            return (
+                                                <TouchableOpacity
+                                                    key={i}
+                                                    style={[styles.hotelCard, selected && styles.hotelCardSelected]}
+                                                    onPress={() => selectHotel(hotel)}
+                                                    activeOpacity={0.8}
+                                                >
+                                                    <View style={[styles.hotelIcon, selected && styles.hotelIconSelected]}>
+                                                        <Ionicons name="bed" size={18} color={selected ? '#fff' : COLORS.primary} />
+                                                    </View>
+                                                    <View style={styles.hotelInfo}>
+                                                        <Text style={styles.hotelName} numberOfLines={1}>{hotel.name}</Text>
+                                                        <View style={styles.hotelMeta}>
+                                                            {hotel.stars > 0 && <Text style={styles.hotelStars}>{'⭐'.repeat(Math.min(hotel.stars, 5))}</Text>}
+                                                            {hotel.distance && <Text style={styles.hotelDist}> · {hotel.distance}m</Text>}
+                                                        </View>
+                                                        {hotel.address ? <Text style={styles.hotelAddr} numberOfLines={1}>{hotel.address}</Text> : null}
+                                                    </View>
+                                                    {selected && <Ionicons name="checkmark-circle" size={22} color={COLORS.primary} />}
+                                                </TouchableOpacity>
+                                            );
+                                        })}
                                     </View>
                                 )}
                             </>
@@ -1074,6 +1149,35 @@ const styles = StyleSheet.create({
         borderRadius: BORDER_RADIUS.md, marginBottom: SPACING.sm,
     },
     selectedText: { flex: 1, fontSize: FONT_SIZES.sm, fontFamily: 'Inter_500Medium', color: COLORS.success },
+    selectedCoord: { fontSize: 10, color: COLORS.textLight, fontFamily: 'Inter_400Regular' },
+
+    // Google Maps Picker
+    googleMapsPickerBtn: {
+        flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+        backgroundColor: '#4285F4',
+        borderRadius: BORDER_RADIUS.md, paddingVertical: 12, paddingHorizontal: 16,
+        marginTop: SPACING.sm,
+        shadowColor: '#4285F4', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.3, shadowRadius: 6, elevation: 4,
+    },
+    googleMapsPickerBtnText: { fontSize: FONT_SIZES.md, fontFamily: 'Inter_600SemiBold', color: '#fff', flex: 1, textAlign: 'center' },
+    orText: { textAlign: 'center', fontSize: FONT_SIZES.xs, color: COLORS.textLight, fontFamily: 'Inter_400Regular', marginVertical: SPACING.sm },
+    coordInputRow: { flexDirection: 'row', gap: SPACING.sm },
+    coordInputWrap: { flex: 1 },
+    coordLabel: { fontSize: FONT_SIZES.xs, color: COLORS.textSecondary, fontFamily: 'Inter_500Medium', marginBottom: 4 },
+    coordInput: {
+        borderWidth: 1.5, borderColor: COLORS.border, borderRadius: BORDER_RADIUS.md,
+        paddingHorizontal: 12, paddingVertical: 10,
+        fontSize: FONT_SIZES.sm, fontFamily: 'Inter_400Regular', color: COLORS.textPrimary,
+        backgroundColor: COLORS.background,
+    },
+    cardDesc: { fontSize: FONT_SIZES.xs, color: COLORS.textSecondary, fontFamily: 'Inter_400Regular', marginBottom: SPACING.sm },
+
+    // Empty card
+    emptyCard: {
+        alignItems: 'center', paddingVertical: SPACING.lg,
+        backgroundColor: COLORS.surfaceAlt, borderRadius: BORDER_RADIUS.md,
+    },
+    emptySubText: { fontSize: FONT_SIZES.xs, color: COLORS.textLight, fontFamily: 'Inter_400Regular', textAlign: 'center', marginTop: 4, paddingHorizontal: SPACING.md },
 
     // Hotels
     hotelCard: {

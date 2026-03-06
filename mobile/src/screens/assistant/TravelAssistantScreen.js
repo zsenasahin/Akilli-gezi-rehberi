@@ -8,7 +8,7 @@
  *   - context: { city, days, startDate, currentDay, places, completedPlaces, remainingTime }
  */
 
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import {
     View, Text, StyleSheet, ScrollView, TextInput,
     TouchableOpacity, KeyboardAvoidingView, Platform,
@@ -19,6 +19,7 @@ import { COLORS } from '../../constants/colors';
 import { FONTS, FONT_SIZES } from '../../constants/typography';
 import { SPACING, BORDER_RADIUS } from '../../constants/layout';
 import { askTravelAssistant } from '../../data/api/edgeFunctionApi';
+import { getWeatherForecast } from '../../services/weatherService';
 
 // ─── Hazır sorular ─────────────────────────────────────────────────────────────
 const QUICK_REPLIES = [
@@ -45,10 +46,30 @@ const TravelAssistantScreen = ({ route, navigation }) => {
     const [input, setInput] = useState('');
     const [loading, setLoading] = useState(false);
     const [showQuickReplies, setShowQuickReplies] = useState(true);
+    // Gerçek hava verisi — Gemini'ye context olarak iletiliyor
+    const [weatherContext, setWeatherContext] = useState(null);
 
     const scrollRef = useRef(null);
     const inputRef = useRef(null);
     const sendBtnScale = useRef(new Animated.Value(1)).current;
+
+    // Açılışta gerçek hava verisini çek
+    useEffect(() => {
+        if (!context.city) return;
+        getWeatherForecast(context.city).then(({ data }) => {
+            if (!data || data.length === 0) return;
+            const today = data[0];
+            const forecast = data.map(d =>
+                `${d.date}: ${d.label} ${d.emoji}, ${d.tempMin}-${d.tempMax}°C, yağış %${d.rainChance}`
+            ).join(' | ');
+            setWeatherContext(
+                `GÜNCEL HAVA DURUMU (Open-Meteo gerçek verisi): Bugün ${today.label} ${today.emoji}, ` +
+                `${today.tempMin}-${today.tempMax}°C, yağış ihtimali %${today.rainChance}. ` +
+                `5 günlük tahmin: ${forecast}. ` +
+                `Bu veriyi kullan, tahmin etme!`
+            );
+        });
+    }, [context.city]);
 
     // Mesajları scroll'un altına tut
     const scrollToBottom = useCallback((animated = true) => {
@@ -80,13 +101,17 @@ const TravelAssistantScreen = ({ route, navigation }) => {
 
         setLoading(true);
 
-        // Geçmiş (user + assistant alterner)
         const history = updatedMessages.slice(1).map(m => ({
             role: m.role,
             text: m.text,
         }));
 
-        const { data, error } = await askTravelAssistant(trimmed, context, history);
+        // Hava verisini context'e ekle (varsa)
+        const enrichedContext = weatherContext
+            ? { ...context, weatherInfo: weatherContext }
+            : context;
+
+        const { data, error } = await askTravelAssistant(trimmed, enrichedContext, history);
         setLoading(false);
 
         const replyText = error

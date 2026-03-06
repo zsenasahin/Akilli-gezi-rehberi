@@ -39,38 +39,98 @@ export const getOptimizedRoute = async (accommodation, places) => {
 };
 
 // Overpass'tan gelen kolaylık fonksiyonlarını buradan da export et
-// (MapScreen gibi tek import noktası isteyen yerler için)
 export { getNearbyHotels, getNearbyRestaurants };
 
 /**
- * travel-assistant Edge Function — Gemini 1.5 Flash destekli gezi asistanı.
- *
- * @param {string} message  – Kullanıcının mesajı
- * @param {object} context  – Gezi bağlamı (şehir, gün, plan vb.)
- * @param {Array}  history  – Önceki mesajlar [{ role, text }]
- * @returns {{ data: { reply: string } | null, error: string | null }}
+ * Gemini 1.5 Flash — Doğrudan API çağrısı (Edge Function yok)
+ * API key secrets.js'den gelir (.gitignore'da, güvende)
  */
 export const askTravelAssistant = async (message, context = {}, history = []) => {
     try {
-        const response = await fetch(`${SUPABASE_URL}/functions/v1/travel-assistant`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-            },
-            body: JSON.stringify({ message, context, history }),
-        });
+        const { GEMINI_API_KEY } = await import('../../config/secrets');
+
+        if (!GEMINI_API_KEY || GEMINI_API_KEY === 'BURAYA_KEY_YAZ') {
+            return { data: { reply: '⚙️ Gemini API key henüz ayarlanmamış.' }, error: null };
+        }
+
+        const systemText = buildSystemPrompt(context);
+
+        // Sistem promptu ilk user/model çifti olarak ekliyoruz
+        // (systemInstruction bu model versiyonunda desteklenmiyor)
+        const systemTurn = [
+            { role: 'user', parts: [{ text: systemText }] },
+            { role: 'model', parts: [{ text: 'Anladım, Türkçe olarak yardımcı olmaya hazırım! 👋' }] },
+        ];
+
+        const historyTurns = history.map(h => ({
+            role: h.role === 'assistant' ? 'model' : 'user',
+            parts: [{ text: h.text }],
+        }));
+
+        const contents = [
+            ...systemTurn,
+            ...historyTurns,
+            { role: 'user', parts: [{ text: message }] },
+        ];
+
+        const response = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${GEMINI_API_KEY}`,
+            {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    contents,
+                    generationConfig: {
+                        temperature: 0.7,
+                        maxOutputTokens: 1024,
+                        topP: 0.9,
+                    },
+                }),
+            }
+        );
 
         if (!response.ok) {
-            const errorText = await response.text();
-            console.warn('travel-assistant error:', errorText);
+            const errText = await response.text();
+            console.warn('Gemini API error:', errText);
             return { data: null, error: 'Asistan yanıt veremedi.' };
         }
 
         const data = await response.json();
-        return { data, error: null };
+        const reply = data.candidates?.[0]?.content?.parts?.[0]?.text ?? 'Yanıt alınamadı.';
+        return { data: { reply }, error: null };
+
     } catch (err) {
-        console.warn('askTravelAssistant network error:', err.message);
+        console.warn('askTravelAssistant error:', err.message);
         return { data: null, error: 'Bağlantı hatası.' };
     }
 };
+
+// ─── Sistem Prompt ────────────────────────────────────────────────────────────
+function buildSystemPrompt(context = {}) {
+    let prompt = `Sen "Gezi Asistanı" adlı, Türkiye'yi seven ve bilen samimi bir seyahat rehberisin.
+Kısa, net ve pratik yanıtlar verirsin. Emoji kullanmaktan çekinmezsin.
+Yanıtlarını Türkçe verirsin.
+Yalnızca seyahat, gezi, yemek, konaklama ve şehir rehberliği konularında yardımcı olursun.
+ÖNEMLİ: Hava durumu sorusunda ASLA tahmin yapma. Sadece sana verilen gerçek veriyi kullan.
+`;
+    if (context.city) prompt += `\nKullanıcı şu an ${context.city} şehrinde gezi planlıyor veya gezide.`;
+    if (context.days) prompt += ` Gezi toplam ${context.days} gün.`;
+    if (context.startDate) prompt += ` Başlangıç tarihi: ${context.startDate}.`;
+    if (context.currentDay) prompt += ` Şu an ${context.currentDay}. günde.`;
+    if (context.remainingTime > 0) prompt += ` Bugünkü planında yaklaşık ${context.remainingTime} dakika boş vakti var.`;
+    if (context.places?.length) {
+        const todayPlaces = context.places.filter(p => p.day === context.currentDay).map(p => p.name);
+        if (todayPlaces.length) prompt += ` Bugünkü plan: ${todayPlaces.join(', ')}.`;
+    }
+    if (context.completedPlaces?.length) {
+        prompt += ` Tamamlanan yerler: ${context.completedPlaces.join(', ')}.`;
+    }
+    if (context.weatherInfo) {
+        prompt += `\n\n${context.weatherInfo}`;
+    } else {
+        prompt += `\n\nHava durumu sorusunda: "Gerçek zamanlı hava verim yok, uygulamadaki Hava Durumu widget'ına bakabilirsiniz 🌤️" de.`;
+    }
+    prompt += `\n\nKullanıcının sorusuna göre pratik, özgün ve eğlenceli öneriler sun.
+Yanıtların 2-4 cümle olsun, çok uzun yazma.`;
+    return prompt;
+}

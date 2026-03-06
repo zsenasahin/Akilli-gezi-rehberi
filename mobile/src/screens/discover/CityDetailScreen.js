@@ -708,9 +708,9 @@ const CityDetailScreen = ({ route, navigation }) => {
                         onPress={() => navigation.navigate('MapScreen', { city })}
                     >
                         <View style={[styles.quickActionIcon, { backgroundColor: COLORS.primary + '15' }]}>
-                            <Ionicons name="navigate" size={20} color={COLORS.primary} />
+                            <Ionicons name="map" size={20} color={COLORS.primary} />
                         </View>
-                        <Text style={styles.quickActionLabel}>Rota Oluştur</Text>
+                        <Text style={styles.quickActionLabel}>Haritada Gör</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                         style={styles.quickActionBtn}
@@ -720,6 +720,17 @@ const CityDetailScreen = ({ route, navigation }) => {
                             <Ionicons name="calendar" size={20} color={COLORS.accent} />
                         </View>
                         <Text style={styles.quickActionLabel}>Gezi Planla</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        style={styles.quickActionBtn}
+                        onPress={() => navigation.navigate('TravelAssistant', {
+                            context: { city: cityName },
+                        })}
+                    >
+                        <View style={[styles.quickActionIcon, { backgroundColor: '#6C63FF15' }]}>
+                            <Ionicons name="sparkles" size={20} color="#6C63FF" />
+                        </View>
+                        <Text style={styles.quickActionLabel}>AI Asistan</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                         style={styles.quickActionBtn}
