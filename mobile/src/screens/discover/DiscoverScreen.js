@@ -11,8 +11,9 @@ import {
     Dimensions,
     TextInput,
     Alert,
+    Platform,
 } from 'react-native';
-import { Image } from 'expo-image';
+import SmartImage from '../../components/common/SmartImage';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
@@ -26,11 +27,21 @@ import { toggleFavorite, getFavoriteIds } from '../../services/favoriteService';
 import { getCities } from '../../services/cityService';
 import { getPlaces } from '../../services/placeService';
 import { useAuth } from '../../contexts/AuthContext';
-import LoadingSpinner from '../../components/common/LoadingSpinner';
+import { DiscoverSkeleton } from '../../components/common/SkeletonLoader';
 import ErrorMessage from '../../components/common/ErrorMessage';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const CARD_WIDTH = (SCREEN_WIDTH - SPACING.lg * 2 - SPACING.sm) / 2;
+
+const CATEGORIES = [
+    { key: null, label: 'Tüm Kategoriler', emoji: '🌍' },
+    { key: 'historical', label: 'Tarihi', emoji: '🏛️' },
+    { key: 'museum', label: 'Müze', emoji: '🎨' },
+    { key: 'nature', label: 'Doğa', emoji: '🌿' },
+    { key: 'religious', label: 'Dini', emoji: '🕌' },
+    { key: 'shopping', label: 'Alışveriş', emoji: '🛍️' },
+    { key: 'beach', label: 'Plaj', emoji: '🏖️' },
+];
 
 const DiscoverScreen = () => {
     const navigation = useNavigation();
@@ -47,18 +58,11 @@ const DiscoverScreen = () => {
     const [wikiInfo, setWikiInfo] = useState(null);
     const [wikiLoading, setWikiLoading] = useState(false);
     const [favorites, setFavorites] = useState({});
-    const [cityModalVisible, setCityModalVisible] = useState(false);
-    const [categoryFilter, setCategoryFilter] = useState(null); // null = Tüm kategoriler
+    const [categoryFilter, setCategoryFilter] = useState(null);
 
-    const CATEGORY_CHIPS = [
-        { key: null, label: 'Tümü', emoji: '🌍' },
-        { key: 'historical', label: 'Tarihi', emoji: '🏛️' },
-        { key: 'museum', label: 'Müze', emoji: '🎨' },
-        { key: 'nature', label: 'Doğa', emoji: '🌿' },
-        { key: 'religious', label: 'Dini', emoji: '🕌' },
-        { key: 'shopping', label: 'Alışveriş', emoji: '🛍️' },
-        { key: 'beach', label: 'Plaj', emoji: '🏖️' },
-    ];
+    // Dropdown görünürlük state'leri
+    const [cityDropdownOpen, setCityDropdownOpen] = useState(false);
+    const [catDropdownOpen, setCatDropdownOpen] = useState(false);
 
     const fetchPlaces = useCallback(async () => {
         setError(null);
@@ -67,15 +71,10 @@ const DiscoverScreen = () => {
                 getCities(),
                 getPlaces({ cityId: selectedCity, sortBy: 'popularity' }),
             ]);
-
-
             if (citiesResult.error) throw citiesResult.error;
             if (placesResult.error) throw placesResult.error;
-
             setCities(citiesResult.data || []);
             setPlaces(placesResult.data || []);
-
-            // Favorileri tek sorguda çek
             if (user) {
                 const { favoriteIds } = await getFavoriteIds(user.id);
                 const favMap = {};
@@ -83,25 +82,16 @@ const DiscoverScreen = () => {
                 setFavorites(favMap);
             }
         } catch (err) {
-            console.error('Fetch error:', err);
             setError('Veriler yüklenirken hata oluştu.');
         }
         setLoading(false);
         setRefreshing(false);
     }, [selectedCity, user]);
 
+    useEffect(() => { fetchPlaces(); }, [fetchPlaces]);
+
     useEffect(() => {
-        fetchPlaces();
-    }, [fetchPlaces]);
-
-
-
-    // Load Wikipedia info for selected place
-    useEffect(() => {
-        if (!selectedPlace) {
-            setWikiInfo(null);
-            return;
-        }
+        if (!selectedPlace) { setWikiInfo(null); return; }
         const loadWiki = async () => {
             setWikiLoading(true);
             const info = await getPlaceSummary(selectedPlace.name);
@@ -115,7 +105,6 @@ const DiscoverScreen = () => {
         setFailedImages((prev) => ({ ...prev, [placeId]: true }));
     };
 
-    // Arama + şehir + kategori filtresi
     const filteredPlaces = places.filter((p) => {
         const q = searchQuery.trim().toLowerCase();
         const matchesSearch = !q ||
@@ -130,14 +119,10 @@ const DiscoverScreen = () => {
     const activeFilterCount = (selectedCity ? 1 : 0) + (categoryFilter ? 1 : 0);
 
     const getCategoryEmoji = (category) => {
-        const map = {
-            historical: '🏛️', museum: '🎨', nature: '🌿',
-            religious: '🕌', shopping: '🛒', beach: '🏖️',
-        };
+        const map = { historical: '🏛️', museum: '🎨', nature: '🌿', religious: '🕌', shopping: '🛒', beach: '🏖️' };
         return map[category] || '📍';
     };
 
-    // Favori toggle
     const handleToggleFavorite = async (placeId) => {
         if (!user) {
             Alert.alert('Giriş Gerekli', 'Favorilere eklemek için giriş yapmalısınız.');
@@ -147,139 +132,85 @@ const DiscoverScreen = () => {
         setFavorites(prev => ({ ...prev, [placeId]: isFavorite }));
     };
 
-    // ─── Şehir seçici dropdown ───
     const selectedCityName = cities.find(c => c.id === selectedCity)?.name || 'Tüm Şehirler';
+    const selectedCatLabel = CATEGORIES.find(c => c.key === categoryFilter)?.label || 'Tüm Kategoriler';
+    const selectedCatEmoji = CATEGORIES.find(c => c.key === categoryFilter)?.emoji || '🌍';
 
-    const renderCityFilter = () => (
-        <View style={styles.cityFilterRow}>
-            <TouchableOpacity
-                style={styles.cityDropdown}
-                onPress={() => setCityModalVisible(true)}
-                activeOpacity={0.8}
-            >
-                <Ionicons name="location-outline" size={16} color={COLORS.primary} />
-                <Text style={styles.cityDropdownText}>{selectedCityName}</Text>
-                <Ionicons name="chevron-down" size={16} color={COLORS.textLight} />
-            </TouchableOpacity>
-            {selectedCity && (
-                <TouchableOpacity
-                    style={styles.cityResetBtn}
-                    onPress={() => setSelectedCity(null)}
-                >
-                    <Ionicons name="close-circle" size={20} color={COLORS.textLight} />
-                </TouchableOpacity>
-            )}
-
-            {/* Dropdown Modal */}
-            <Modal
-                visible={cityModalVisible}
-                transparent
-                animationType="fade"
-                onRequestClose={() => setCityModalVisible(false)}
-            >
-                <TouchableOpacity
-                    style={styles.cityModalBackdrop}
-                    activeOpacity={1}
-                    onPress={() => setCityModalVisible(false)}
-                >
-                    <View style={styles.cityModalBox}>
-                        <Text style={styles.cityModalTitle}>Bir Şehir Seçin</Text>
-
-                        <TouchableOpacity
-                            style={[styles.cityModalOption, !selectedCity && styles.cityModalOptionActive]}
-                            onPress={() => { setSelectedCity(null); setCityModalVisible(false); }}
-                        >
-                            <Text style={[styles.cityModalOptionText, !selectedCity && styles.cityModalOptionTextActive]}>
-                                Tüm Şehirler
-                            </Text>
-                            {!selectedCity && <Ionicons name="checkmark" size={18} color={COLORS.primary} />}
+    // ─── Dropdown bileşeni ───────────────────────────────────────────────────
+    const renderDropdownModal = ({ visible, onClose, title, children }) => (
+        <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+            <TouchableOpacity style={styles.dropdownBackdrop} activeOpacity={1} onPress={onClose}>
+                <View style={styles.dropdownBox}>
+                    <View style={styles.dropdownHeader}>
+                        <Text style={styles.dropdownTitle}>{title}</Text>
+                        <TouchableOpacity onPress={onClose} style={styles.dropdownClose}>
+                            <Ionicons name="close" size={20} color={COLORS.textSecondary} />
                         </TouchableOpacity>
-
-                        {cities.map(city => (
-                            <TouchableOpacity
-                                key={city.id}
-                                style={[styles.cityModalOption, selectedCity === city.id && styles.cityModalOptionActive]}
-                                onPress={() => { setSelectedCity(city.id); setCityModalVisible(false); }}
-                            >
-                                <View>
-                                    <Text style={[styles.cityModalOptionText, selectedCity === city.id && styles.cityModalOptionTextActive]}>
-                                        {city.name}
-                                    </Text>
-                                    <Text style={styles.cityModalOptionSub}>{city.region}</Text>
-                                </View>
-                                {selectedCity === city.id && <Ionicons name="checkmark" size={18} color={COLORS.primary} />}
-                            </TouchableOpacity>
-                        ))}
                     </View>
-                </TouchableOpacity>
-            </Modal>
-        </View>
+                    {children}
+                </View>
+            </TouchableOpacity>
+        </Modal>
     );
 
-    const renderPlaceCard = ({ item, index }) => {
+    // ─── Yer kartı ───────────────────────────────────────────────────────────
+    const renderPlaceCard = ({ item }) => {
         const imageUrl = failedImages[item.id]
             ? getCategoryImage(item.category)
             : getPlaceImage(item.name, item.image_url, item.category);
-
         const isFav = favorites[item.id];
 
         return (
-            <View>
-                <TouchableOpacity
-                    style={styles.card}
-                    activeOpacity={0.85}
-                    onPress={() => setSelectedPlace(item)}
-                >
-                    <View style={styles.cardImageContainer}>
-                        <Image
-                            source={{ uri: imageUrl }}
-                            style={styles.cardImage}
-                            contentFit="cover"
-                            transition={300}
-                            onError={() => handleImageError(item.id)}
-                        />
-                        <LinearGradient
-                            colors={['transparent', 'rgba(0,0,0,0.4)']}
-                            style={styles.cardImageOverlay}
-                        />
-                        <View style={styles.cardCategoryBadge}>
-                            <Text style={styles.cardCategoryEmoji}>
-                                {getCategoryEmoji(item.category)}
-                            </Text>
-                        </View>
-                        {/* Favori butonu */}
-                        <TouchableOpacity
-                            style={styles.cardFavButton}
-                            onPress={() => handleToggleFavorite(item.id)}
-                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                        >
-                            <Ionicons
-                                name={isFav ? 'heart' : 'heart-outline'}
-                                size={18}
-                                color={isFav ? '#EF4444' : '#fff'}
-                            />
-                        </TouchableOpacity>
+            <TouchableOpacity
+                style={styles.card}
+                activeOpacity={0.88}
+                onPress={() => setSelectedPlace(item)}
+            >
+                <View style={styles.cardImageContainer}>
+                    <SmartImage
+                        uri={imageUrl}
+                        fallbackUri={getCategoryImage(item.category)}
+                        style={styles.cardImage}
+                        contentFit="cover"
+                        transition={300}
+                    />
+                    <LinearGradient
+                        colors={['transparent', 'rgba(0,0,0,0.45)']}
+                        style={styles.cardImageOverlay}
+                    />
+                    {/* Kategori badge */}
+                    <View style={styles.cardCategoryBadge}>
+                        <Text style={styles.cardCategoryEmoji}>{getCategoryEmoji(item.category)}</Text>
                     </View>
-                    <View style={styles.cardContent}>
-                        <Text style={styles.cardTitle} numberOfLines={1}>{item.name}</Text>
-                        <Text style={styles.cardCity} numberOfLines={1}>
-                            📍 {item.cities?.name}
-                        </Text>
-                        <View style={styles.cardMeta}>
-                            {item.entry_fee > 0 ? (
-                                <Text style={styles.cardFee}>₺{item.entry_fee}</Text>
-                            ) : (
-                                <Text style={styles.cardFree}>Ücretsiz</Text>
-                            )}
-                            <Text style={styles.cardDuration}>⏱ {item.avg_duration}s</Text>
-                        </View>
+                    {/* Favori */}
+                    <TouchableOpacity
+                        style={styles.cardFavButton}
+                        onPress={() => handleToggleFavorite(item.id)}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                        <Ionicons
+                            name={isFav ? 'heart' : 'heart-outline'}
+                            size={16}
+                            color={isFav ? '#EF4444' : '#fff'}
+                        />
+                    </TouchableOpacity>
+                </View>
+                <View style={styles.cardContent}>
+                    <Text style={styles.cardTitle} numberOfLines={1}>{item.name}</Text>
+                    <Text style={styles.cardCity} numberOfLines={1}>📍 {item.cities?.name}</Text>
+                    <View style={styles.cardMeta}>
+                        {item.entry_fee > 0
+                            ? <Text style={styles.cardFee}>₺{item.entry_fee}</Text>
+                            : <Text style={styles.cardFree}>Ücretsiz</Text>
+                        }
+                        <Text style={styles.cardDuration}>⏱ {item.avg_duration}s</Text>
                     </View>
-                </TouchableOpacity>
-            </View>
+                </View>
+            </TouchableOpacity>
         );
     };
 
-    // ─── Detail modal ───
+    // ─── Detay modal ─────────────────────────────────────────────────────────
     const renderDetailModal = () => {
         if (!selectedPlace) return null;
         const p = selectedPlace;
@@ -288,39 +219,25 @@ const DiscoverScreen = () => {
         const description = wikiInfo?.description || p.description || p.short_description;
 
         return (
-            <Modal
-                visible={!!selectedPlace}
-                transparent
-                animationType="slide"
-                onRequestClose={() => setSelectedPlace(null)}
-            >
+            <Modal visible={!!selectedPlace} transparent animationType="slide" onRequestClose={() => setSelectedPlace(null)}>
                 <View style={styles.modalOverlay}>
                     <View style={styles.modalContent}>
-                        <TouchableOpacity
-                            style={styles.modalClose}
-                            onPress={() => setSelectedPlace(null)}
-                        >
+                        <TouchableOpacity style={styles.modalClose} onPress={() => setSelectedPlace(null)}>
                             <Ionicons name="close" size={22} color={COLORS.textPrimary} />
                         </TouchableOpacity>
 
                         <ScrollView showsVerticalScrollIndicator={false}>
                             {/* Hero Image */}
                             <View style={styles.modalImageContainer}>
-                                <Image
-                                    source={{ uri: hasImage ? p.image_url : fallbackImage }}
+                                <SmartImage
+                                    uri={hasImage ? p.image_url : fallbackImage}
+                                    fallbackUri={fallbackImage}
                                     style={styles.modalImage}
                                     contentFit="cover"
                                     transition={400}
                                 />
-                                <LinearGradient
-                                    colors={COLORS.gradient.card}
-                                    style={styles.modalImageGradient}
-                                />
-                                {/* Favori butonu modal içinde */}
-                                <TouchableOpacity
-                                    style={styles.modalFavButton}
-                                    onPress={() => handleToggleFavorite(p.id)}
-                                >
+                                <LinearGradient colors={COLORS.gradient.card} style={styles.modalImageGradient} />
+                                <TouchableOpacity style={styles.modalFavButton} onPress={() => handleToggleFavorite(p.id)}>
                                     <Ionicons
                                         name={favorites[p.id] ? 'heart' : 'heart-outline'}
                                         size={24}
@@ -347,9 +264,7 @@ const DiscoverScreen = () => {
                                         <View style={[styles.modalStatIcon, { backgroundColor: COLORS.success + '15' }]}>
                                             <Ionicons name="cash-outline" size={18} color={COLORS.success} />
                                         </View>
-                                        <Text style={styles.modalStatValue}>
-                                            {p.entry_fee > 0 ? `₺${p.entry_fee}` : 'Ücretsiz'}
-                                        </Text>
+                                        <Text style={styles.modalStatValue}>{p.entry_fee > 0 ? `₺${p.entry_fee}` : 'Ücretsiz'}</Text>
                                         <Text style={styles.modalStatLabel}>Giriş</Text>
                                     </View>
                                     <View style={styles.modalStat}>
@@ -357,33 +272,49 @@ const DiscoverScreen = () => {
                                             <Ionicons name="star" size={18} color={COLORS.warning} />
                                         </View>
                                         <Text style={styles.modalStatValue}>{p.popularity_score}</Text>
-                                        <Text style={styles.modalStatLabel}>Popülerlik</Text>
+                                        <Text style={styles.modalStatLabel}>Populerlik</Text>
                                     </View>
                                 </View>
 
-                                {/* Description from Wikipedia */}
-                                {wikiLoading ? (
-                                    <View style={styles.wikiLoading}>
-                                        <Text style={styles.wikiLoadingText}>📖 Bilgi yükleniyor...</Text>
-                                    </View>
-                                ) : description ? (
-                                    <View style={styles.descriptionSection}>
-                                        <View style={styles.descriptionHeader}>
-                                            <Ionicons name="book-outline" size={18} color={COLORS.primary} />
-                                            <Text style={styles.modalSectionTitle}>Hakkında</Text>
-                                            {wikiInfo && (
-                                                <View style={styles.wikiBadge}>
-                                                    <Text style={styles.wikiBadgeText}>Wikipedia</Text>
+                                {/* Wikipedia */}
+                                {wikiLoading
+                                    ? <View style={styles.wikiLoading}><Text style={styles.wikiLoadingText}>📖 Bilgi yükleniyor...</Text></View>
+                                    : description
+                                        ? (
+                                            <View style={styles.descriptionSection}>
+                                                <View style={styles.descriptionHeader}>
+                                                    <Ionicons name="book-outline" size={18} color={COLORS.primary} />
+                                                    <Text style={styles.modalSectionTitle}>Hakkında</Text>
+                                                    {wikiInfo && (
+                                                        <View style={styles.wikiBadge}>
+                                                            <Text style={styles.wikiBadgeText}>Wikipedia</Text>
+                                                        </View>
+                                                    )}
                                                 </View>
-                                            )}
-                                        </View>
-                                        <Text style={styles.modalDesc}>{description}</Text>
-                                    </View>
-                                ) : null}
+                                                <Text style={styles.modalDesc}>{description}</Text>
+                                            </View>
+                                        )
+                                        : null
+                                }
 
-                                {p.short_description && !wikiInfo?.description ? (
-                                    <Text style={styles.modalShortDesc}>{p.short_description}</Text>
-                                ) : null}
+                                {/* Navigasyon */}
+                                {p.lat && p.lng && (
+                                    <TouchableOpacity
+                                        style={styles.modalNavBtn}
+                                        onPress={() => {
+                                            setSelectedPlace(null);
+                                            navigation.navigate('MapScreen', {
+                                                city: { id: p.city_id, name: p.cities?.name },
+                                                focusLat: p.lat,
+                                                focusLng: p.lng,
+                                                viewItem: { name: p.name },
+                                            });
+                                        }}
+                                    >
+                                        <Ionicons name="navigate" size={18} color="#fff" />
+                                        <Text style={styles.modalNavBtnText}>Haritada Gör</Text>
+                                    </TouchableOpacity>
+                                )}
                             </View>
                         </ScrollView>
                     </View>
@@ -392,33 +323,35 @@ const DiscoverScreen = () => {
         );
     };
 
-    if (loading) return <LoadingSpinner message="Yerler yükleniyor..." />;
+    if (loading) return <DiscoverSkeleton />;
 
     return (
         <View style={styles.container}>
-            {/* Header */}
+            {/* ─── Header ─── */}
             <View style={styles.header}>
                 <View style={styles.headerRow}>
-                    <Text style={styles.headerTitle}>Keşfet</Text>
+                    <View>
+                        <Text style={styles.headerTitle}>Keşfet</Text>
+                        <Text style={styles.headerSubtitle}>{filteredPlaces.length} yer bulundu</Text>
+                    </View>
                     {activeFilterCount > 0 && (
                         <TouchableOpacity
                             style={styles.clearFiltersBtn}
                             onPress={() => { setSelectedCity(null); setCategoryFilter(null); setSearchQuery(''); }}
                         >
-                            <Ionicons name="close-circle" size={14} color={COLORS.error} />
-                            <Text style={styles.clearFiltersText}>Filtreleri Temizle</Text>
+                            <Ionicons name="close-circle" size={13} color={COLORS.error} />
+                            <Text style={styles.clearFiltersText}>Temizle</Text>
                         </TouchableOpacity>
                     )}
                 </View>
-                <Text style={styles.headerSubtitle}>{filteredPlaces.length} yer bulundu</Text>
             </View>
 
-            {/* Search bar */}
+            {/* ─── Arama ─── */}
             <View style={styles.searchContainer}>
                 <Ionicons name="search" size={18} color={COLORS.textLight} />
                 <TextInput
                     style={styles.searchInput}
-                    placeholder="Yer veya şehir ara..."
+                    placeholder="Yer, şehir veya kategori ara..."
                     placeholderTextColor={COLORS.textLight}
                     value={searchQuery}
                     onChangeText={setSearchQuery}
@@ -430,32 +363,34 @@ const DiscoverScreen = () => {
                 )}
             </View>
 
-            {renderCityFilter()}
+            {/* ─── Filtreler (Şehir + Kategori yan yana) ─── */}
+            <View style={styles.filterRow}>
+                {/* Şehir dropdown */}
+                <TouchableOpacity
+                    style={[styles.filterDropdown, selectedCity && styles.filterDropdownActive]}
+                    onPress={() => { setCityDropdownOpen(true); setCatDropdownOpen(false); }}
+                    activeOpacity={0.8}
+                >
+                    <Ionicons name="location-outline" size={15} color={selectedCity ? COLORS.primary : COLORS.textSecondary} />
+                    <Text style={[styles.filterDropdownText, selectedCity && styles.filterDropdownTextActive]} numberOfLines={1}>
+                        {selectedCityName}
+                    </Text>
+                    <Ionicons name="chevron-down" size={14} color={selectedCity ? COLORS.primary : COLORS.textLight} />
+                </TouchableOpacity>
 
-            {/* Kategori Chip'leri */}
-            <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.categoryChipsRow}
-            >
-                {CATEGORY_CHIPS.map(chip => (
-                    <TouchableOpacity
-                        key={String(chip.key)}
-                        style={[
-                            styles.categoryChip,
-                            categoryFilter === chip.key && styles.categoryChipActive,
-                        ]}
-                        onPress={() => setCategoryFilter(chip.key)}
-                        activeOpacity={0.75}
-                    >
-                        <Text style={styles.categoryChipEmoji}>{chip.emoji}</Text>
-                        <Text style={[
-                            styles.categoryChipLabel,
-                            categoryFilter === chip.key && styles.categoryChipLabelActive,
-                        ]}>{chip.label}</Text>
-                    </TouchableOpacity>
-                ))}
-            </ScrollView>
+                {/* Kategori dropdown */}
+                <TouchableOpacity
+                    style={[styles.filterDropdown, categoryFilter && styles.filterDropdownActive]}
+                    onPress={() => { setCatDropdownOpen(true); setCityDropdownOpen(false); }}
+                    activeOpacity={0.8}
+                >
+                    <Text style={{ fontSize: 14 }}>{selectedCatEmoji}</Text>
+                    <Text style={[styles.filterDropdownText, categoryFilter && styles.filterDropdownTextActive]} numberOfLines={1}>
+                        {categoryFilter ? selectedCatLabel : 'Kategori'}
+                    </Text>
+                    <Ionicons name="chevron-down" size={14} color={categoryFilter ? COLORS.primary : COLORS.textLight} />
+                </TouchableOpacity>
+            </View>
 
             {error && <ErrorMessage message={error} onRetry={fetchPlaces} />}
 
@@ -478,28 +413,100 @@ const DiscoverScreen = () => {
                     !error ? (
                         <View style={styles.emptyContainer}>
                             <Text style={styles.emptyEmoji}>🔍</Text>
-                            <Text style={styles.emptyText}>Henüz yer bulunamadı</Text>
+                            <Text style={styles.emptyTitle}>Yer bulunamadı</Text>
+                            <Text style={styles.emptySubText}>Filtrelerinizi değiştirmeyi deneyin</Text>
                         </View>
                     ) : null
                 }
             />
 
             {renderDetailModal()}
+
+            {/* ─── Şehir Dropdown Modal ─── */}
+            {renderDropdownModal({
+                visible: cityDropdownOpen,
+                onClose: () => setCityDropdownOpen(false),
+                title: 'Şehir Seçin',
+                children: (
+                    <ScrollView bounces={false} showsVerticalScrollIndicator={false}>
+                        <TouchableOpacity
+                            style={[styles.dropdownOption, !selectedCity && styles.dropdownOptionActive]}
+                            onPress={() => { setSelectedCity(null); setCityDropdownOpen(false); }}
+                        >
+                            <View style={styles.dropdownOptionLeft}>
+                                <Text style={styles.dropdownOptionEmoji}>🌍</Text>
+                                <Text style={[styles.dropdownOptionText, !selectedCity && styles.dropdownOptionTextActive]}>
+                                    Tüm Şehirler
+                                </Text>
+                            </View>
+                            {!selectedCity && <Ionicons name="checkmark-circle" size={18} color={COLORS.primary} />}
+                        </TouchableOpacity>
+                        {cities.map(city => (
+                            <TouchableOpacity
+                                key={city.id}
+                                style={[styles.dropdownOption, selectedCity === city.id && styles.dropdownOptionActive]}
+                                onPress={() => { setSelectedCity(city.id); setCityDropdownOpen(false); }}
+                            >
+                                <View style={styles.dropdownOptionLeft}>
+                                    <Text style={styles.dropdownOptionEmoji}>📍</Text>
+                                    <View>
+                                        <Text style={[styles.dropdownOptionText, selectedCity === city.id && styles.dropdownOptionTextActive]}>
+                                            {city.name}
+                                        </Text>
+                                        <Text style={styles.dropdownOptionSub}>{city.region}</Text>
+                                    </View>
+                                </View>
+                                {selectedCity === city.id && <Ionicons name="checkmark-circle" size={18} color={COLORS.primary} />}
+                            </TouchableOpacity>
+                        ))}
+                    </ScrollView>
+                ),
+            })}
+
+            {/* ─── Kategori Dropdown Modal ─── */}
+            {renderDropdownModal({
+                visible: catDropdownOpen,
+                onClose: () => setCatDropdownOpen(false),
+                title: 'Kategori Seçin',
+                children: (
+                    <ScrollView bounces={false} showsVerticalScrollIndicator={false}>
+                        {CATEGORIES.map(cat => (
+                            <TouchableOpacity
+                                key={String(cat.key)}
+                                style={[styles.dropdownOption, categoryFilter === cat.key && styles.dropdownOptionActive]}
+                                onPress={() => { setCategoryFilter(cat.key); setCatDropdownOpen(false); }}
+                            >
+                                <View style={styles.dropdownOptionLeft}>
+                                    <Text style={styles.dropdownOptionEmoji}>{cat.emoji}</Text>
+                                    <Text style={[styles.dropdownOptionText, categoryFilter === cat.key && styles.dropdownOptionTextActive]}>
+                                        {cat.label}
+                                    </Text>
+                                </View>
+                                {categoryFilter === cat.key && <Ionicons name="checkmark-circle" size={18} color={COLORS.primary} />}
+                            </TouchableOpacity>
+                        ))}
+                    </ScrollView>
+                ),
+            })}
         </View>
     );
 };
 
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: COLORS.background },
+
+    // ─── Header ───
     header: {
         paddingHorizontal: SPACING.lg,
-        paddingTop: SPACING.xxl + 8,
-        paddingBottom: SPACING.xs,
+        paddingTop: Platform.OS === 'ios' ? 56 : SPACING.xxl + 8,
+        paddingBottom: SPACING.sm,
         backgroundColor: COLORS.surface,
+        borderBottomWidth: 1,
+        borderBottomColor: COLORS.divider,
     },
     headerRow: {
         flexDirection: 'row',
-        alignItems: 'center',
+        alignItems: 'flex-end',
         justifyContent: 'space-between',
     },
     clearFiltersBtn: {
@@ -510,6 +517,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: 10,
         paddingVertical: 5,
         borderRadius: BORDER_RADIUS.full,
+        marginBottom: 4,
     },
     clearFiltersText: {
         fontFamily: 'Inter_500Medium',
@@ -520,6 +528,7 @@ const styles = StyleSheet.create({
         fontFamily: 'PlayfairDisplay_700Bold',
         fontSize: 28,
         color: COLORS.textPrimary,
+        letterSpacing: -0.5,
     },
     headerSubtitle: {
         fontFamily: 'Inter_400Regular',
@@ -528,7 +537,7 @@ const styles = StyleSheet.create({
         marginTop: 2,
     },
 
-    // ─── Search ───
+    // ─── Arama ───
     searchContainer: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -537,8 +546,10 @@ const styles = StyleSheet.create({
         marginVertical: SPACING.sm,
         borderRadius: BORDER_RADIUS.lg,
         paddingHorizontal: SPACING.md,
-        paddingVertical: 10,
+        paddingVertical: 11,
         gap: SPACING.sm,
+        borderWidth: 1,
+        borderColor: COLORS.border,
     },
     searchInput: {
         flex: 1,
@@ -547,121 +558,117 @@ const styles = StyleSheet.create({
         color: COLORS.textPrimary,
     },
 
-    // ─── Kategori Chip'leri ───
-    categoryChipsRow: {
+    // ─── Filtre Dropdown'ları ───
+    filterRow: {
         flexDirection: 'row',
-        gap: SPACING.sm,
         paddingHorizontal: SPACING.lg,
-        paddingBottom: SPACING.md,
-        paddingTop: SPACING.xs,
+        gap: SPACING.sm,
+        marginBottom: SPACING.sm,
     },
-    categoryChip: {
+    filterDropdown: {
+        flex: 1,
         flexDirection: 'row',
         alignItems: 'center',
         gap: 6,
-        paddingHorizontal: 14,
-        paddingVertical: 9,
-        borderRadius: BORDER_RADIUS.full,
         backgroundColor: COLORS.surface,
+        borderRadius: BORDER_RADIUS.lg,
+        paddingHorizontal: SPACING.sm + 4,
+        paddingVertical: 10,
         borderWidth: 1.5,
         borderColor: COLORS.border,
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.06,
+        shadowOpacity: 0.05,
         shadowRadius: 4,
         elevation: 2,
     },
-    categoryChipActive: {
-        backgroundColor: COLORS.primary,
+    filterDropdownActive: {
         borderColor: COLORS.primary,
-        shadowColor: COLORS.primary,
-        shadowOpacity: 0.25,
-        elevation: 4,
+        backgroundColor: COLORS.primaryMuted,
     },
-    categoryChipEmoji: { fontSize: 16 },
-    categoryChipLabel: {
-        fontFamily: 'Inter_600SemiBold',
+    filterDropdownText: {
+        flex: 1,
+        fontFamily: 'Inter_500Medium',
         fontSize: FONT_SIZES.sm,
         color: COLORS.textSecondary,
     },
-    categoryChipLabelActive: {
-        color: '#fff',
+    filterDropdownTextActive: {
+        color: COLORS.primary,
+        fontFamily: 'Inter_600SemiBold',
     },
 
-    // ─── City Dropdown ───
-    cityFilterRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingHorizontal: SPACING.lg,
-        marginBottom: SPACING.sm,
-        gap: SPACING.xs,
-    },
-    cityDropdown: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: SPACING.xs,
-        backgroundColor: COLORS.surface,
-        borderRadius: BORDER_RADIUS.full,
-        paddingHorizontal: SPACING.md,
-        paddingVertical: 8,
-        borderWidth: 1.5,
-        borderColor: COLORS.border,
-        flex: 1,
-    },
-    cityDropdownText: {
-        fontFamily: 'Inter_600SemiBold',
-        fontSize: FONT_SIZES.sm,
-        color: COLORS.textPrimary,
-        flex: 1,
-    },
-    cityResetBtn: { padding: 4 },
-    cityModalBackdrop: {
+    // ─── Dropdown Modal ───
+    dropdownBackdrop: {
         flex: 1,
         backgroundColor: 'rgba(0,0,0,0.45)',
         justifyContent: 'center',
-        paddingHorizontal: SPACING.xl,
+        padding: SPACING.lg,
     },
-    cityModalBox: {
+    dropdownBox: {
         backgroundColor: COLORS.surface,
         borderRadius: BORDER_RADIUS.xl,
-        padding: SPACING.lg,
+        maxHeight: '70%',
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 8 },
         shadowOpacity: 0.2,
-        shadowRadius: 16,
-        elevation: 10,
+        shadowRadius: 24,
+        elevation: 12,
+        overflow: 'hidden',
     },
-    cityModalTitle: {
-        fontFamily: 'PlayfairDisplay_700Bold',
-        fontSize: FONT_SIZES.lg,
-        color: COLORS.textPrimary,
-        marginBottom: SPACING.md,
-        textAlign: 'center',
-    },
-    cityModalOption: {
+    dropdownHeader: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        paddingVertical: SPACING.sm,
-        paddingHorizontal: SPACING.sm,
-        borderRadius: BORDER_RADIUS.md,
-        marginBottom: 4,
+        padding: SPACING.md,
+        borderBottomWidth: 1,
+        borderBottomColor: COLORS.divider,
     },
-    cityModalOptionActive: { backgroundColor: COLORS.primary + '15' },
-    cityModalOptionText: {
+    dropdownTitle: {
+        fontFamily: 'PlayfairDisplay_700Bold',
+        fontSize: FONT_SIZES.lg,
+        color: COLORS.textPrimary,
+    },
+    dropdownClose: {
+        width: 32,
+        height: 32,
+        borderRadius: 16,
+        backgroundColor: COLORS.surfaceAlt,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    dropdownOption: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingVertical: SPACING.sm + 2,
+        paddingHorizontal: SPACING.md,
+        borderBottomWidth: 1,
+        borderBottomColor: COLORS.divider,
+    },
+    dropdownOptionActive: {
+        backgroundColor: COLORS.primaryMuted,
+    },
+    dropdownOptionLeft: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: SPACING.sm,
+        flex: 1,
+    },
+    dropdownOptionEmoji: { fontSize: 18 },
+    dropdownOptionText: {
         fontFamily: 'Inter_500Medium',
         fontSize: FONT_SIZES.md,
         color: COLORS.textPrimary,
     },
-    cityModalOptionTextActive: {
+    dropdownOptionTextActive: {
         color: COLORS.primary,
-        fontFamily: 'Inter_700Bold',
+        fontFamily: 'Inter_600SemiBold',
     },
-    cityModalOptionSub: {
+    dropdownOptionSub: {
         fontFamily: 'Inter_400Regular',
         fontSize: FONT_SIZES.xs,
         color: COLORS.textLight,
-        marginTop: 2,
+        marginTop: 1,
     },
 
     // ─── Grid ───
@@ -674,7 +681,7 @@ const styles = StyleSheet.create({
         paddingBottom: SPACING.xxl,
     },
 
-    // ─── Card ───
+    // ─── Kart ───
     card: {
         width: CARD_WIDTH,
         backgroundColor: COLORS.surface,
@@ -687,50 +694,30 @@ const styles = StyleSheet.create({
         shadowRadius: 12,
         elevation: 4,
     },
-    cardImageContainer: {
-        position: 'relative',
-    },
-    cardImage: {
-        width: '100%',
-        height: CARD_WIDTH * 0.8,
-    },
+    cardImageContainer: { position: 'relative' },
+    cardImage: { width: '100%', height: CARD_WIDTH * 0.8 },
     cardImageOverlay: {
-        position: 'absolute',
-        bottom: 0,
-        left: 0,
-        right: 0,
-        height: 40,
+        position: 'absolute', bottom: 0, left: 0, right: 0, height: 40,
     },
     cardCategoryBadge: {
-        position: 'absolute',
-        top: 8,
-        right: 8,
-        backgroundColor: 'rgba(255,255,255,0.9)',
-        borderRadius: 8,
-        width: 28,
-        height: 28,
-        justifyContent: 'center',
-        alignItems: 'center',
+        position: 'absolute', top: 8, right: 8,
+        backgroundColor: 'rgba(255,255,255,0.92)',
+        borderRadius: 8, width: 30, height: 30,
+        justifyContent: 'center', alignItems: 'center',
     },
-    cardCategoryEmoji: { fontSize: 14 },
+    cardCategoryEmoji: { fontSize: 15 },
     cardFavButton: {
-        position: 'absolute',
-        top: 8,
-        left: 8,
-        backgroundColor: 'rgba(0,0,0,0.3)',
-        borderRadius: 14,
-        width: 28,
-        height: 28,
-        justifyContent: 'center',
-        alignItems: 'center',
+        position: 'absolute', top: 8, left: 8,
+        backgroundColor: 'rgba(0,0,0,0.35)',
+        borderRadius: 14, width: 28, height: 28,
+        justifyContent: 'center', alignItems: 'center',
     },
-    cardContent: {
-        padding: SPACING.sm,
-    },
+    cardContent: { padding: SPACING.sm },
     cardTitle: {
         fontFamily: 'Inter_600SemiBold',
         fontSize: FONT_SIZES.sm,
         color: COLORS.textPrimary,
+        letterSpacing: -0.2,
     },
     cardCity: {
         fontFamily: 'Inter_400Regular',
@@ -744,37 +731,31 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         marginTop: SPACING.xs,
     },
-    cardFee: {
-        fontFamily: 'Inter_600SemiBold',
-        fontSize: FONT_SIZES.xs,
-        color: COLORS.primary,
-    },
-    cardFree: {
-        fontFamily: 'Inter_600SemiBold',
-        fontSize: FONT_SIZES.xs,
-        color: COLORS.success,
-    },
-    cardDuration: {
-        fontFamily: 'Inter_400Regular',
-        fontSize: FONT_SIZES.xs,
-        color: COLORS.textLight,
-    },
+    cardFee: { fontFamily: 'Inter_600SemiBold', fontSize: FONT_SIZES.xs, color: COLORS.primary },
+    cardFree: { fontFamily: 'Inter_600SemiBold', fontSize: FONT_SIZES.xs, color: COLORS.success },
+    cardDuration: { fontFamily: 'Inter_400Regular', fontSize: FONT_SIZES.xs, color: COLORS.textLight },
 
-    // ─── Empty ───
+    // ─── Boş durum ───
     emptyContainer: {
         alignItems: 'center',
         paddingTop: SPACING.xxl * 2,
         paddingHorizontal: SPACING.lg,
     },
-    emptyEmoji: { fontSize: 56, marginBottom: SPACING.md },
-    emptyText: {
-        fontFamily: 'Inter_500Medium',
+    emptyEmoji: { fontSize: 52, marginBottom: SPACING.md },
+    emptyTitle: {
+        fontFamily: 'Inter_600SemiBold',
         fontSize: FONT_SIZES.lg,
         color: COLORS.textPrimary,
+        marginBottom: 6,
+    },
+    emptySubText: {
+        fontFamily: 'Inter_400Regular',
+        fontSize: FONT_SIZES.sm,
+        color: COLORS.textSecondary,
         textAlign: 'center',
     },
 
-    // ─── Modal ───
+    // ─── Detay Modal ───
     modalOverlay: {
         flex: 1,
         backgroundColor: 'rgba(0,0,0,0.5)',
@@ -786,103 +767,82 @@ const styles = StyleSheet.create({
         borderTopRightRadius: BORDER_RADIUS.xl,
         maxHeight: '92%',
     },
-    modalFavButton: {
-        position: 'absolute',
-        top: SPACING.sm,
-        left: SPACING.sm,
-        zIndex: 10,
-        backgroundColor: 'rgba(0,0,0,0.4)',
-        borderRadius: 20,
-        width: 40,
-        height: 40,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
     modalClose: {
-        position: 'absolute',
-        top: SPACING.sm,
-        right: SPACING.sm,
-        zIndex: 10,
-        backgroundColor: 'rgba(255,255,255,0.9)',
-        borderRadius: 20,
-        width: 36,
-        height: 36,
-        justifyContent: 'center',
-        alignItems: 'center',
+        position: 'absolute', top: SPACING.sm, right: SPACING.sm,
+        zIndex: 10, backgroundColor: COLORS.surface,
+        borderRadius: 20, width: 36, height: 36,
+        justifyContent: 'center', alignItems: 'center',
+        shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1, shadowRadius: 4, elevation: 4,
     },
-    modalImageContainer: {
-        position: 'relative',
+    modalFavButton: {
+        position: 'absolute', top: SPACING.sm, left: SPACING.sm, zIndex: 10,
+        backgroundColor: 'rgba(0,0,0,0.4)',
+        borderRadius: 20, width: 40, height: 40,
+        justifyContent: 'center', alignItems: 'center',
     },
-    modalImage: {
-        width: '100%',
-        height: 260,
-        borderTopLeftRadius: BORDER_RADIUS.xl,
-        borderTopRightRadius: BORDER_RADIUS.xl,
-    },
+    modalImageContainer: { height: 240, position: 'relative' },
+    modalImage: { ...StyleSheet.absoluteFillObject },
     modalImageGradient: {
-        position: 'absolute',
-        bottom: 0,
-        left: 0,
-        right: 0,
-        height: 120,
+        position: 'absolute', bottom: 0, left: 0, right: 0, height: 120,
     },
     modalImageOverlayContent: {
-        position: 'absolute',
-        bottom: SPACING.md,
-        left: SPACING.md,
+        position: 'absolute', bottom: 0, left: 0, right: 0,
+        padding: SPACING.md,
     },
     modalOverlayTitle: {
         fontFamily: 'PlayfairDisplay_700Bold',
-        fontSize: 24,
+        fontSize: FONT_SIZES.xl,
         color: '#fff',
     },
     modalOverlayCity: {
         fontFamily: 'Inter_400Regular',
         fontSize: FONT_SIZES.sm,
         color: 'rgba(255,255,255,0.85)',
-        marginTop: 4,
+        marginTop: 2,
     },
-    modalBody: {
-        padding: SPACING.lg,
-        paddingBottom: SPACING.xxl,
-    },
+    modalBody: { padding: SPACING.md },
     modalStats: {
         flexDirection: 'row',
         justifyContent: 'space-around',
         backgroundColor: COLORS.surfaceAlt,
         borderRadius: BORDER_RADIUS.lg,
-        paddingVertical: SPACING.md,
-        marginBottom: SPACING.lg,
+        padding: SPACING.md,
+        marginBottom: SPACING.md,
     },
-    modalStat: {
-        alignItems: 'center',
-    },
+    modalStat: { alignItems: 'center', flex: 1 },
     modalStatIcon: {
-        width: 36,
-        height: 36,
-        borderRadius: 10,
-        justifyContent: 'center',
-        alignItems: 'center',
+        width: 40, height: 40, borderRadius: 12,
+        justifyContent: 'center', alignItems: 'center',
         marginBottom: 6,
     },
     modalStatValue: {
-        fontFamily: 'Inter_600SemiBold',
+        fontFamily: 'Inter_700Bold',
         fontSize: FONT_SIZES.sm,
         color: COLORS.textPrimary,
     },
     modalStatLabel: {
         fontFamily: 'Inter_400Regular',
-        fontSize: FONT_SIZES.xs,
+        fontSize: 10,
         color: COLORS.textSecondary,
         marginTop: 2,
     },
+    wikiLoading: { paddingVertical: SPACING.md, alignItems: 'center' },
+    wikiLoadingText: {
+        fontFamily: 'Inter_400Regular',
+        fontSize: FONT_SIZES.sm,
+        color: COLORS.textSecondary,
+    },
     descriptionSection: {
+        backgroundColor: COLORS.surfaceAlt,
+        borderRadius: BORDER_RADIUS.lg,
+        padding: SPACING.md,
         marginBottom: SPACING.md,
     },
     descriptionHeader: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 8,
+        gap: 6,
         marginBottom: SPACING.sm,
     },
     modalSectionTitle: {
@@ -892,38 +852,41 @@ const styles = StyleSheet.create({
         flex: 1,
     },
     wikiBadge: {
-        backgroundColor: COLORS.primaryMuted,
+        backgroundColor: COLORS.primary + '15',
         paddingHorizontal: 8,
-        paddingVertical: 3,
-        borderRadius: BORDER_RADIUS.sm,
+        paddingVertical: 2,
+        borderRadius: BORDER_RADIUS.full,
     },
     wikiBadgeText: {
         fontFamily: 'Inter_500Medium',
         fontSize: 10,
         color: COLORS.primary,
     },
-    wikiLoading: {
-        paddingVertical: SPACING.md,
-        alignItems: 'center',
-    },
-    wikiLoadingText: {
-        fontFamily: 'Inter_400Regular',
-        fontSize: FONT_SIZES.sm,
-        color: COLORS.textSecondary,
-    },
-    modalShortDesc: {
-        fontFamily: 'Inter_500Medium',
-        fontSize: FONT_SIZES.md,
-        color: COLORS.textPrimary,
-        fontStyle: 'italic',
-        marginBottom: SPACING.md,
-        lineHeight: 22,
-    },
     modalDesc: {
         fontFamily: 'Inter_400Regular',
         fontSize: FONT_SIZES.sm,
         color: COLORS.textSecondary,
         lineHeight: 22,
+    },
+    modalNavBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
+        backgroundColor: COLORS.primary,
+        borderRadius: BORDER_RADIUS.lg,
+        paddingVertical: 14,
+        marginTop: SPACING.xs,
+        shadowColor: COLORS.primary,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+        elevation: 5,
+    },
+    modalNavBtnText: {
+        fontFamily: 'Inter_600SemiBold',
+        fontSize: FONT_SIZES.md,
+        color: '#fff',
     },
 });
 

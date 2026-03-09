@@ -140,11 +140,13 @@ const TravelAssistantScreen = ({ route, navigation }) => {
                     <Ionicons name="arrow-back" size={22} color={COLORS.textPrimary} />
                 </TouchableOpacity>
                 <View style={styles.headerCenter}>
-                    <View style={styles.avatarDot} />
+                    <View style={styles.avatarDot}>
+                        <Text style={{ fontSize: 18 }}>🐱</Text>
+                    </View>
                     <View>
                         <Text style={styles.headerTitle}>Gezi Asistanı</Text>
                         <Text style={styles.headerSub}>
-                            {context.city ? `${context.city} · ${context.days || '?'} gün` : 'AI Rehber'}
+                            {context.city ? `${context.city} · ${context.days || '?'} gün` : 'Türkiye Rehberi'}
                         </Text>
                     </View>
                 </View>
@@ -172,7 +174,7 @@ const TravelAssistantScreen = ({ route, navigation }) => {
                     >
                         {msg.role === 'assistant' && (
                             <View style={styles.assistantAvatar}>
-                                <Text style={styles.assistantAvatarEmoji}>✈️</Text>
+                                <Text style={styles.assistantAvatarEmoji}>🐱</Text>
                             </View>
                         )}
                         <View style={[

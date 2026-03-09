@@ -37,7 +37,7 @@ import { getPlaceSummary } from '../../services/wikipediaService';
 import { toggleFavorite, getFavoriteIds } from '../../services/favoriteService';
 import { useAuth } from '../../contexts/AuthContext';
 import { getCityCenter } from '../../constants/cities';
-import LoadingSpinner from '../../components/common/LoadingSpinner';
+import { CityDetailSkeleton, SkeletonLoader } from '../../components/common/SkeletonLoader';
 import WeatherWidget from '../../components/discover/WeatherWidget';
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
@@ -527,7 +527,7 @@ const CityDetailScreen = ({ route, navigation }) => {
     // ═══════════════════════════════════════
     const renderCategoryContent = () => {
         if (activeCategory === 'places') {
-            if (loading) return <ActivityIndicator size="large" color={COLORS.primary} style={{ marginTop: 40 }} />;
+            if (loading) return <CityDetailSkeleton />;
             if (places.length === 0) {
                 return (
                     <View style={styles.emptyState}>
@@ -582,15 +582,18 @@ const CityDetailScreen = ({ route, navigation }) => {
 
         if (poiLoading) {
             return (
-                <View style={styles.loadingPOI}>
-                    <ActivityIndicator size="large" color={COLORS.primary} />
-                    <Text style={styles.loadingText}>
-                        {activeCategory === 'restaurant' ? 'Restoranlar aranıyor...'
-                            : activeCategory === 'cafe' ? 'Kafeler aranıyor...'
-                                : activeCategory === 'hotel' ? 'Oteller aranıyor...'
-                                    : activeCategory === 'bar' ? 'Barlar aranıyor...'
-                                        : 'Mekanlar aranıyor...'}
-                    </Text>
+                <View style={styles.poiSkeletonList}>
+                    {[0, 1, 2, 3, 4].map(i => (
+                        <View key={i} style={styles.poiSkeletonRow}>
+                            <SkeletonLoader width={44} height={44} radius={12} />
+                            <View style={{ flex: 1, marginLeft: 12 }}>
+                                <SkeletonLoader width="65%" height={14} radius={6} style={{ marginBottom: 6 }} />
+                                <SkeletonLoader width="45%" height={12} radius={6} style={{ marginBottom: 4 }} />
+                                <SkeletonLoader width="30%" height={11} radius={6} />
+                            </View>
+                            <SkeletonLoader width={24} height={24} radius={12} />
+                        </View>
+                    ))}
                 </View>
             );
         }
@@ -1051,6 +1054,22 @@ const styles = StyleSheet.create({
     loadingText: {
         fontFamily: 'Inter_400Regular', fontSize: FONT_SIZES.sm,
         color: COLORS.textSecondary, marginTop: SPACING.sm,
+    },
+    poiSkeletonList: {
+        paddingTop: SPACING.sm,
+    },
+    poiSkeletonRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: COLORS.surface,
+        borderRadius: BORDER_RADIUS.lg,
+        padding: SPACING.md,
+        marginBottom: SPACING.sm,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.04,
+        shadowRadius: 4,
+        elevation: 1,
     },
 
     // Detail modal

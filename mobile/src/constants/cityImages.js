@@ -85,12 +85,11 @@ export function getCityImages(cityName) {
     const images = CITY_IMAGES[key];
     if (images) return images;
 
-    // Fallback: Unsplash Source API (random image for the city)
-    const encoded = encodeURIComponent(cityName);
+    // Fallback: bilinmeyen şehirler için genel Türkiye fotoğrafı
     return {
-        hero: `https://source.unsplash.com/800x600/?${encoded},turkey,city`,
-        card: `https://source.unsplash.com/400x300/?${encoded},turkey,city`,
-        gallery: [`https://source.unsplash.com/600x400/?${encoded},turkey`],
+        hero: DEFAULT_HERO,
+        card: DEFAULT_CARD,
+        gallery: [DEFAULT_HERO],
     };
 }
 

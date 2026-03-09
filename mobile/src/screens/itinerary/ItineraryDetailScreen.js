@@ -18,7 +18,7 @@ import { getPlacesByCity } from '../../services/placeService';
 import { suggestAlternative } from '../../logic/itineraryGenerator';
 import { formatDate } from '../../utils/formatters';
 import Button from '../../components/common/Button';
-import LoadingSpinner from '../../components/common/LoadingSpinner';
+import { ItineraryDetailSkeleton } from '../../components/common/SkeletonLoader';
 import ErrorMessage from '../../components/common/ErrorMessage';
 
 const ItineraryDetailScreen = ({ route, navigation }) => {
@@ -186,7 +186,7 @@ const ItineraryDetailScreen = ({ route, navigation }) => {
         });
     };
 
-    if (loading) return <LoadingSpinner message="Plan yükleniyor..." />;
+    if (loading) return <ItineraryDetailSkeleton />;
     if (!itinerary) return <ErrorMessage message="Plan bulunamadı." />;
 
     const isCompleted = itinerary.status === 'completed';

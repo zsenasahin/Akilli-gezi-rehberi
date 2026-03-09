@@ -10,7 +10,7 @@ import {
     Animated,
     Easing,
 } from 'react-native';
-import { Image } from 'expo-image';
+import SmartImage from '../../components/common/SmartImage';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -22,7 +22,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { getCities } from '../../services/cityService';
 import { getProfile } from '../../services/profileService';
 import { getItinerariesByUser } from '../../services/itineraryService';
-import LoadingSpinner from '../../components/common/LoadingSpinner';
+import { HomeScreenSkeleton } from '../../components/common/SkeletonLoader';
 import ErrorMessage from '../../components/common/ErrorMessage';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
@@ -98,7 +98,7 @@ const HomeScreen = ({ navigation }) => {
         navigation.navigate('CityDetail', { city });
     };
 
-    if (loading) return <LoadingSpinner message="Yükleniyor..." />;
+    if (loading) return <HomeScreenSkeleton />;
 
     const ongoingCount = recentItineraries.filter((i) => i.status === 'ongoing').length;
 
@@ -120,8 +120,8 @@ const HomeScreen = ({ navigation }) => {
         >
             {/* ═══ HERO SECTION ═══ */}
             <View style={styles.heroSection}>
-                <Image
-                    source={{ uri: HERO_IMAGE }}
+                <SmartImage
+                    uri={HERO_IMAGE}
                     style={styles.heroImage}
                     contentFit="cover"
                     transition={500}
@@ -155,29 +155,34 @@ const HomeScreen = ({ navigation }) => {
 
             {error && <ErrorMessage message={error} onRetry={fetchData} />}
 
-
             {/* ═══ ACTIVE PLAN BANNER ═══ */}
             {ongoingCount > 0 && (
                 <Animated.View style={bannerAnim}>
                     <TouchableOpacity
                         style={styles.activePlanBanner}
                         onPress={() => navigation.navigate('Saved')}
-                        activeOpacity={0.85}
+                        activeOpacity={0.88}
                     >
                         <LinearGradient
-                            colors={COLORS.gradient.primary}
+                            colors={['#0891B2', '#0E7490', '#14B8A6']}
                             style={styles.bannerGradient}
                             start={{ x: 0, y: 0 }}
                             end={{ x: 1, y: 0 }}
                         >
-                            <Ionicons name="map-outline" size={24} color="#fff" />
+                            <View style={styles.bannerIconContainer}>
+                                <Ionicons name="map" size={22} color="#fff" />
+                            </View>
                             <View style={styles.bannerTextContainer}>
+                                <Text style={styles.bannerLabel}>AKTİF PLAN</Text>
                                 <Text style={styles.bannerTitle}>
-                                    {ongoingCount} aktif gezi planın var!
+                                    {ongoingCount} gezi planın seni bekliyor!
                                 </Text>
                                 <Text style={styles.bannerSubtitle}>
                                     Devam etmek için dokun →
                                 </Text>
+                            </View>
+                            <View style={styles.bannerChevron}>
+                                <Ionicons name="chevron-forward" size={20} color="rgba(255,255,255,0.7)" />
                             </View>
                         </LinearGradient>
                     </TouchableOpacity>
@@ -186,10 +191,19 @@ const HomeScreen = ({ navigation }) => {
 
             {/* ═══ CITY SELECTION ═══ */}
             <Animated.View style={[styles.section, cityAnim]}>
-                <Text style={styles.sectionTitle}>🏙️ Popüler Şehirler</Text>
-                <Text style={styles.sectionSubtitle}>
-                    Bir şehre dokun, içini keşfet
-                </Text>
+                <View style={styles.sectionHeaderRow}>
+                    <View>
+                        <Text style={styles.sectionTitle}>Popüler Şehirler</Text>
+                        <Text style={styles.sectionSubtitle}>Bir şehre dokun, içini keşfet</Text>
+                    </View>
+                    <TouchableOpacity
+                        onPress={() => navigation.navigate('Discover')}
+                        style={styles.seeAllBtn}
+                    >
+                        <Text style={styles.seeAllText}>Tümü</Text>
+                        <Ionicons name="arrow-forward" size={14} color={COLORS.primary} />
+                    </TouchableOpacity>
+                </View>
                 <View style={styles.cityGrid}>
                     {cities.map((city) => {
                         const images = getCityImages(city.name);
@@ -198,16 +212,17 @@ const HomeScreen = ({ navigation }) => {
                                 key={city.id}
                                 style={styles.cityCard}
                                 onPress={() => handleCityPress(city)}
-                                activeOpacity={0.85}
+                                activeOpacity={0.88}
                             >
-                                <Image
-                                    source={{ uri: images.card }}
+                                <SmartImage
+                                    uri={images.card}
+                                    fallbackUri="https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?w=400&h=300&fit=crop&q=80"
                                     style={styles.cityCardImage}
                                     contentFit="cover"
                                     transition={400}
                                 />
                                 <LinearGradient
-                                    colors={COLORS.gradient.card}
+                                    colors={['transparent', 'rgba(0,0,0,0.55)', 'rgba(0,0,0,0.85)']}
                                     style={styles.cityCardGradient}
                                 />
                                 <View style={styles.cityCardContent}>
@@ -231,51 +246,67 @@ const HomeScreen = ({ navigation }) => {
             {recentItineraries.length > 0 && (
                 <Animated.View style={[styles.section, recentAnim]}>
                     <View style={styles.sectionHeaderRow}>
-                        <Text style={styles.sectionTitle}>📋 Son Planlarım</Text>
-                        <TouchableOpacity onPress={() => navigation.navigate('Saved')}>
-                            <Text style={styles.seeAllText}>Tümü →</Text>
+                        <View>
+                            <Text style={styles.sectionTitle}>Son Planlarım</Text>
+                            <Text style={styles.sectionSubtitle}>{recentItineraries.length} plan</Text>
+                        </View>
+                        <TouchableOpacity
+                            onPress={() => navigation.navigate('Saved')}
+                            style={styles.seeAllBtn}
+                        >
+                            <Text style={styles.seeAllText}>Tümü</Text>
+                            <Ionicons name="arrow-forward" size={14} color={COLORS.primary} />
                         </TouchableOpacity>
                     </View>
-                    {recentItineraries.map((itin) => (
-                        <TouchableOpacity
-                            key={itin.id}
-                            style={styles.recentCard}
-                            onPress={() =>
-                                navigation.navigate('Saved', {
-                                    screen: 'ItineraryDetail',
-                                    params: { itineraryId: itin.id },
-                                })
-                            }
-                            activeOpacity={0.85}
-                        >
-                            <View style={styles.recentIconContainer}>
-                                <Ionicons name="map" size={20} color={COLORS.primary} />
-                            </View>
-                            <View style={styles.recentInfo}>
-                                <Text style={styles.recentCity}>
-                                    {itin.cities?.name}
-                                </Text>
-                                <Text style={styles.recentMeta}>
-                                    {itin.days} gün · {itin.itinerary_items?.length || 0} yer
-                                </Text>
-                            </View>
-                            <View
-                                style={[
-                                    styles.recentStatus,
-                                    itin.status === 'completed' && styles.recentStatusCompleted,
-                                ]}
+                    {recentItineraries.map((itin) => {
+                        const imgs = getCityImages(itin.cities?.name);
+                        const isCompleted = itin.status === 'completed';
+                        return (
+                            <TouchableOpacity
+                                key={itin.id}
+                                style={styles.recentCard}
+                                onPress={() =>
+                                    navigation.navigate('ItineraryDetail', { itineraryId: itin.id })
+                                }
+                                activeOpacity={0.88}
                             >
-                                <Text style={styles.recentStatusText}>
-                                    {itin.status === 'completed' ? '✅' : '🔄'}
-                                </Text>
-                            </View>
-                        </TouchableOpacity>
-                    ))}
+                                <View style={styles.recentThumb}>
+                                    <SmartImage
+                                        uri={imgs.card}
+                                        fallbackUri="https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?w=400&h=300&fit=crop&q=80"
+                                        style={StyleSheet.absoluteFill}
+                                        contentFit="cover"
+                                        transition={300}
+                                    />
+                                    <LinearGradient
+                                        colors={['transparent', 'rgba(0,0,0,0.5)']}
+                                        style={StyleSheet.absoluteFill}
+                                    />
+                                </View>
+                                <View style={styles.recentInfo}>
+                                    <Text style={styles.recentCity}>
+                                        {itin.cities?.name}
+                                    </Text>
+                                    <Text style={styles.recentMeta}>
+                                        {itin.days} gün · {itin.itinerary_items?.length || 0} yer
+                                    </Text>
+                                </View>
+                                <View style={[styles.recentStatus, isCompleted && styles.recentStatusCompleted]}>
+                                    <Ionicons
+                                        name={isCompleted ? 'checkmark' : 'time-outline'}
+                                        size={14}
+                                        color={isCompleted ? COLORS.success : COLORS.primary}
+                                    />
+                                </View>
+                            </TouchableOpacity>
+                        );
+                    })}
                 </Animated.View>
             )}
         </ScrollView>
     );
 };
+
 
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: COLORS.background },
@@ -391,9 +422,15 @@ const styles = StyleSheet.create({
     // ─── BANNER ───
     activePlanBanner: {
         marginHorizontal: SPACING.lg,
-        borderRadius: BORDER_RADIUS.lg,
+        marginTop: SPACING.lg,
+        borderRadius: BORDER_RADIUS.xl,
         overflow: 'hidden',
         marginBottom: SPACING.md,
+        shadowColor: COLORS.primary,
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.25,
+        shadowRadius: 16,
+        elevation: 6,
     },
     bannerGradient: {
         flexDirection: 'row',
@@ -401,7 +438,22 @@ const styles = StyleSheet.create({
         padding: SPACING.md,
         gap: SPACING.sm,
     },
+    bannerIconContainer: {
+        width: 44,
+        height: 44,
+        borderRadius: 13,
+        backgroundColor: 'rgba(255,255,255,0.2)',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
     bannerTextContainer: { flex: 1 },
+    bannerLabel: {
+        fontFamily: FONTS.bodySemiBold,
+        fontSize: 9,
+        color: 'rgba(255,255,255,0.7)',
+        letterSpacing: 1.5,
+        marginBottom: 2,
+    },
     bannerTitle: {
         fontFamily: FONTS.bodySemiBold,
         fontSize: FONT_SIZES.md,
@@ -413,33 +465,48 @@ const styles = StyleSheet.create({
         color: 'rgba(255,255,255,0.8)',
         marginTop: 2,
     },
+    bannerChevron: {
+        backgroundColor: 'rgba(255,255,255,0.15)',
+        borderRadius: 10,
+        padding: 6,
+    },
 
     // ─── SECTIONS ───
     section: {
         paddingHorizontal: SPACING.lg,
         marginBottom: SPACING.lg,
+        marginTop: SPACING.md,
     },
     sectionHeaderRow: {
         flexDirection: 'row',
         justifyContent: 'space-between',
-        alignItems: 'center',
+        alignItems: 'flex-end',
         marginBottom: SPACING.sm,
     },
     sectionTitle: {
         fontFamily: FONTS.heading,
         fontSize: FONT_SIZES.xl,
         color: COLORS.textPrimary,
-        marginBottom: SPACING.xs,
+        letterSpacing: -0.3,
+        marginBottom: 2,
     },
     sectionSubtitle: {
         fontFamily: FONTS.body,
-        fontSize: FONT_SIZES.sm,
+        fontSize: FONT_SIZES.xs,
         color: COLORS.textSecondary,
-        marginBottom: SPACING.md,
+    },
+    seeAllBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        backgroundColor: COLORS.primaryMuted,
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: BORDER_RADIUS.full,
     },
     seeAllText: {
         fontFamily: FONTS.bodySemiBold,
-        fontSize: FONT_SIZES.sm,
+        fontSize: FONT_SIZES.xs,
         color: COLORS.primary,
     },
 
@@ -497,28 +564,41 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         backgroundColor: COLORS.surface,
         borderRadius: BORDER_RADIUS.lg,
-        padding: SPACING.sm,
-        marginBottom: SPACING.xs,
+        marginBottom: SPACING.xs + 2,
+        overflow: 'hidden',
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.04,
-        shadowRadius: 4,
-        elevation: 1,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.06,
+        shadowRadius: 8,
+        elevation: 2,
+    },
+    recentThumb: {
+        width: 64,
+        height: 64,
+        position: 'relative',
+        overflow: 'hidden',
+        flexShrink: 0,
     },
     recentIconContainer: {
-        width: 40,
-        height: 40,
+        width: 44,
+        height: 44,
         borderRadius: 12,
         backgroundColor: COLORS.primaryMuted,
         justifyContent: 'center',
         alignItems: 'center',
         marginRight: SPACING.sm,
+        marginLeft: SPACING.sm,
     },
-    recentInfo: { flex: 1 },
+    recentInfo: {
+        flex: 1,
+        paddingVertical: SPACING.sm,
+        paddingHorizontal: SPACING.sm,
+    },
     recentCity: {
         fontFamily: FONTS.bodySemiBold,
         fontSize: FONT_SIZES.sm,
         color: COLORS.textPrimary,
+        letterSpacing: -0.1,
     },
     recentMeta: {
         fontFamily: FONTS.body,
@@ -530,14 +610,14 @@ const styles = StyleSheet.create({
         width: 32,
         height: 32,
         borderRadius: 16,
-        backgroundColor: COLORS.accent + '20',
+        backgroundColor: COLORS.primaryMuted,
         justifyContent: 'center',
         alignItems: 'center',
+        marginRight: SPACING.sm,
     },
     recentStatusCompleted: {
         backgroundColor: COLORS.success + '20',
     },
-    recentStatusText: { fontSize: 14 },
 });
 
 export default HomeScreen;

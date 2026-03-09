@@ -1,10 +1,12 @@
 import React from 'react';
-import { Platform } from 'react-native';
+import { View, Platform, StyleSheet } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
 import { COLORS } from '../constants/colors';
 import { FONT_SIZES, FONTS } from '../constants/typography';
+import FloatingAssistant from '../components/common/FloatingAssistant';
 
 // Screens
 import HomeScreen from '../screens/home/HomeScreen';
@@ -24,6 +26,7 @@ const HomeStack = createNativeStackNavigator();
 const DiscoverStack = createNativeStackNavigator();
 const SavedStack = createNativeStackNavigator();
 const FavoritesStack = createNativeStackNavigator();
+const ProfileStack = createNativeStackNavigator();
 
 const stackScreenOptions = {
     headerStyle: {
@@ -37,10 +40,6 @@ const stackScreenOptions = {
     headerShadowVisible: false,
 };
 
-/**
- * Home stack – trip planning flow:
- *   Home → Create Itinerary → Itinerary Result → Map
- */
 const HomeStackNavigator = () => (
     <HomeStack.Navigator screenOptions={stackScreenOptions}>
         <HomeStack.Screen
@@ -73,13 +72,14 @@ const HomeStackNavigator = () => (
             component={TravelAssistantScreen}
             options={{ headerShown: false }}
         />
+        <HomeStack.Screen
+            name="ItineraryDetail"
+            component={ItineraryDetailScreen}
+            options={{ title: 'Plan Detayları' }}
+        />
     </HomeStack.Navigator>
 );
 
-/**
- * Discover stack – browsing places and city details
- *   Discover → CityDetail → MapScreen
- */
 const DiscoverStackNavigator = () => (
     <DiscoverStack.Navigator screenOptions={stackScreenOptions}>
         <DiscoverStack.Screen
@@ -110,9 +110,6 @@ const DiscoverStackNavigator = () => (
     </DiscoverStack.Navigator>
 );
 
-/**
- * Saved stack – itinerary list + detail
- */
 const SavedStackNavigator = () => (
     <SavedStack.Navigator screenOptions={stackScreenOptions}>
         <SavedStack.Screen
@@ -133,9 +130,6 @@ const SavedStackNavigator = () => (
     </SavedStack.Navigator>
 );
 
-/**
- * Favorites stack
- */
 const FavoritesStackNavigator = () => (
     <FavoritesStack.Navigator screenOptions={stackScreenOptions}>
         <FavoritesStack.Screen
@@ -146,85 +140,91 @@ const FavoritesStackNavigator = () => (
     </FavoritesStack.Navigator>
 );
 
-/**
- * Main tab navigator – shown when the user IS logged in.
- * 5 Tabs: Ana Sayfa | Keşfet | Planlar | Favoriler | Profil
- */
-const MainNavigator = () => {
+const ProfileStackNavigator = () => (
+    <ProfileStack.Navigator screenOptions={stackScreenOptions}>
+        <ProfileStack.Screen
+            name="ProfileMain"
+            component={ProfileScreen}
+            options={{ headerShown: false }}
+        />
+        <ProfileStack.Screen
+            name="TravelAssistant"
+            component={TravelAssistantScreen}
+            options={{ headerShown: false }}
+        />
+    </ProfileStack.Navigator>
+);
+
+// ─── Tab Navigatör + Floating Assistant Wrapper ────────────────────────────
+const TabsWithFloating = () => {
+    const navigation = useNavigation();
     const bottomPadding = Platform.OS === 'android' ? 16 : 8;
     const tabBarHeight = Platform.OS === 'android' ? 72 : 64;
 
     return (
-        <Tab.Navigator
-            screenOptions={({ route }) => ({
-                headerShown: false,
-                tabBarActiveTintColor: COLORS.primary,
-                tabBarInactiveTintColor: COLORS.textLight,
-                tabBarStyle: {
-                    backgroundColor: COLORS.tabBarBackground,
-                    borderTopColor: COLORS.tabBarBorder,
-                    borderTopWidth: 1,
-                    paddingBottom: bottomPadding,
-                    paddingTop: 8,
-                    height: tabBarHeight,
-                    shadowColor: '#000',
-                    shadowOffset: { width: 0, height: -2 },
-                    shadowOpacity: 0.06,
-                    shadowRadius: 8,
-                    elevation: 8,
-                },
-                tabBarLabelStyle: {
-                    fontFamily: 'Inter_500Medium',
-                    fontSize: 10,
-                    marginTop: 2,
-                },
-                tabBarIcon: ({ focused, color, size }) => {
-                    let iconName;
-                    if (route.name === 'Home') {
-                        iconName = focused ? 'home' : 'home-outline';
-                    } else if (route.name === 'Discover') {
-                        iconName = focused ? 'compass' : 'compass-outline';
-                    } else if (route.name === 'Saved') {
-                        iconName = focused ? 'map' : 'map-outline';
-                    } else if (route.name === 'Favorites') {
-                        iconName = focused ? 'heart' : 'heart-outline';
-                    } else if (route.name === 'Profile') {
-                        iconName = focused ? 'person' : 'person-outline';
-                    }
-                    return <Ionicons name={iconName} size={22} color={color} />;
-                },
-            })}
-        >
-            <Tab.Screen
-                name="Home"
-                component={HomeStackNavigator}
-                options={{ tabBarLabel: 'Ana Sayfa' }}
-            />
-            <Tab.Screen
-                name="Discover"
-                component={DiscoverStackNavigator}
-                options={{ tabBarLabel: 'Keşfet' }}
-            />
-            <Tab.Screen
-                name="Saved"
-                component={SavedStackNavigator}
-                options={{ tabBarLabel: 'Planlar' }}
-            />
-            <Tab.Screen
-                name="Favorites"
-                component={FavoritesStackNavigator}
-                options={{ tabBarLabel: 'Favoriler' }}
-            />
-            <Tab.Screen
-                name="Profile"
-                component={ProfileScreen}
-                options={{
-                    tabBarLabel: 'Profil',
+        <View style={styles.root}>
+            <Tab.Navigator
+                screenOptions={({ route }) => ({
                     headerShown: false,
-                }}
-            />
-        </Tab.Navigator>
+                    tabBarActiveTintColor: COLORS.primary,
+                    tabBarInactiveTintColor: COLORS.textLight,
+                    tabBarStyle: {
+                        backgroundColor: COLORS.tabBarBackground,
+                        borderTopColor: COLORS.tabBarBorder,
+                        borderTopWidth: 1,
+                        paddingBottom: bottomPadding,
+                        paddingTop: 8,
+                        height: tabBarHeight,
+                        shadowColor: '#000',
+                        shadowOffset: { width: 0, height: -2 },
+                        shadowOpacity: 0.06,
+                        shadowRadius: 8,
+                        elevation: 8,
+                    },
+                    tabBarLabelStyle: {
+                        fontFamily: 'Inter_500Medium',
+                        fontSize: 10,
+                        marginTop: 2,
+                    },
+                    tabBarIcon: ({ focused, color }) => {
+                        let iconName;
+                        if (route.name === 'Home') iconName = focused ? 'home' : 'home-outline';
+                        else if (route.name === 'Discover') iconName = focused ? 'compass' : 'compass-outline';
+                        else if (route.name === 'Saved') iconName = focused ? 'map' : 'map-outline';
+                        else if (route.name === 'Favorites') iconName = focused ? 'heart' : 'heart-outline';
+                        else if (route.name === 'Profile') iconName = focused ? 'person' : 'person-outline';
+                        return <Ionicons name={iconName} size={22} color={color} />;
+                    },
+                })}
+            >
+                <Tab.Screen name="Home" component={HomeStackNavigator} options={{ tabBarLabel: 'Ana Sayfa' }} />
+                <Tab.Screen name="Discover" component={DiscoverStackNavigator} options={{ tabBarLabel: 'Keşfet' }} />
+                <Tab.Screen name="Saved" component={SavedStackNavigator} options={{ tabBarLabel: 'Planlar' }} />
+                <Tab.Screen name="Favorites" component={FavoritesStackNavigator} options={{ tabBarLabel: 'Favoriler' }} />
+                <Tab.Screen name="Profile" component={ProfileStackNavigator} options={{ tabBarLabel: 'Profil' }} />
+            </Tab.Navigator>
+
+            {/* 🐱 Floating AI Asistan — tüm tab'larda görünür */}
+            <FloatingAssistant navigation={navigation} context={{}} />
+        </View>
     );
 };
+
+/**
+ * Root navigatör — useNavigation'ın kullanılabilmesi için
+ * TabsWithFloating'i bir Stack içinde sarıyoruz.
+ */
+const RootStack = createNativeStackNavigator();
+
+const MainNavigator = () => (
+    <RootStack.Navigator screenOptions={{ headerShown: false }}>
+        <RootStack.Screen name="Main" component={TabsWithFloating} />
+        <RootStack.Screen name="TravelAssistant" component={TravelAssistantScreen} />
+    </RootStack.Navigator>
+);
+
+const styles = StyleSheet.create({
+    root: { flex: 1 },
+});
 
 export default MainNavigator;

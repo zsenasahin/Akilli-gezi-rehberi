@@ -23,7 +23,7 @@ import {
     deleteItinerary,
 } from '../../services/itineraryService';
 import { formatDate } from '../../utils/formatters';
-import LoadingSpinner from '../../components/common/LoadingSpinner';
+import { SkeletonLoader } from '../../components/common/SkeletonLoader';
 import ErrorMessage from '../../components/common/ErrorMessage';
 
 const SavedItinerariesScreen = ({ navigation }) => {
@@ -174,7 +174,26 @@ const SavedItinerariesScreen = ({ navigation }) => {
     };
 
     if (loading) {
-        return <LoadingSpinner message="Planlarınız yükleniyor..." />;
+        return (
+            <View style={styles.container}>
+                <View style={styles.filterRow}>
+                    {[0, 1, 2].map(i => (
+                        <SkeletonLoader key={i} width="30%" height={40} radius={BORDER_RADIUS.lg} />
+                    ))}
+                </View>
+                <View style={styles.listContent}>
+                    {[0, 1, 2, 3].map(i => (
+                        <View key={i} style={[styles.card, { overflow: 'visible', marginBottom: SPACING.md }]}>
+                            <SkeletonLoader width="100%" height={130} radius={BORDER_RADIUS.lg} style={{ borderBottomLeftRadius: 0, borderBottomRightRadius: 0 }} />
+                            <View style={{ padding: SPACING.sm + 2, backgroundColor: COLORS.surface, borderBottomLeftRadius: BORDER_RADIUS.lg, borderBottomRightRadius: BORDER_RADIUS.lg }}>
+                                <SkeletonLoader width="50%" height={12} radius={6} style={{ marginBottom: 8 }} />
+                                <SkeletonLoader width="35%" height={12} radius={6} />
+                            </View>
+                        </View>
+                    ))}
+                </View>
+            </View>
+        );
     }
 
     return (

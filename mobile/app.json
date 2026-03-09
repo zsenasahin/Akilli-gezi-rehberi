@@ -25,7 +25,14 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "expo-font"
+      "expo-font",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Akıllı Gezi Rehberi profil fotoğrafınızı güncellemek için galerinize erişmek istiyor.",
+          "cameraPermission": "Akıllı Gezi Rehberi profil fotoğrafı çekmek için kameranıza erişmek istiyor."
+        }
+      ]
     ]
   }
 }

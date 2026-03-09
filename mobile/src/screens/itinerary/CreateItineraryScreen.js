@@ -20,7 +20,7 @@ import { generateItinerary } from '../../domain/itineraryGenerator';
 import { haversineDistance, sortPlacesByNearest, calculateTotalDistance } from '../../utils/haversine';
 import { generateLeafletHtml } from '../../utils/leafletHtml';
 import Button from '../../components/common/Button';
-import LoadingSpinner from '../../components/common/LoadingSpinner';
+import { SkeletonLoader } from '../../components/common/SkeletonLoader';
 import ErrorMessage from '../../components/common/ErrorMessage';
 
 // ─── Wizard Adımları ──────────────────────────────────────────────────────────
@@ -312,7 +312,28 @@ const CreateItineraryScreen = ({ navigation, route }) => {
     const cityCenter = selectedCity ? getCityCenter(selectedCity.name) : { lat: 41.01, lng: 28.95 };
     const leafletHtml = generateLeafletHtml(cityCenter, 13);
 
-    if (citiesLoading) return <LoadingSpinner message="Yükleniyor..." />;
+    if (citiesLoading) {
+        return (
+            <View style={styles.flex}>
+                {/* Progress Bar Skeleton */}
+                <View style={{ flexDirection: 'row', padding: SPACING.md, paddingTop: SPACING.xxl + 8, backgroundColor: COLORS.surface, gap: SPACING.sm }}>
+                    {[0, 1, 2, 3, 4].map(i => (
+                        <SkeletonLoader key={i} width={48} height={48} radius={24} />
+                    ))}
+                </View>
+                <View style={{ padding: SPACING.lg }}>
+                    <SkeletonLoader width={220} height={24} radius={8} style={{ marginBottom: 8 }} />
+                    <SkeletonLoader width={280} height={14} radius={6} style={{ marginBottom: SPACING.lg }} />
+                    {/* City card skeletons */}
+                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.sm }}>
+                        {[0, 1, 2, 3, 4, 5].map(i => (
+                            <SkeletonLoader key={i} width="47%" height={90} radius={BORDER_RADIUS.lg} />
+                        ))}
+                    </View>
+                </View>
+            </View>
+        );
+    }
 
     // ─── RENDER ──────────────────────────────────────────────────────────────
     return (

@@ -27,7 +27,7 @@ import { getPlaceImage } from '../../constants/placeImages';
 import { getCategoryImage } from '../../constants/cityImages';
 import { useAuth } from '../../contexts/AuthContext';
 import { getFavorites, removeFavorite } from '../../services/favoriteService';
-import LoadingSpinner from '../../components/common/LoadingSpinner';
+import { SkeletonLoader } from '../../components/common/SkeletonLoader';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 const CARD_WIDTH = SCREEN_W - SPACING.lg * 2;
@@ -154,7 +154,27 @@ const FavoritesScreen = ({ navigation }) => {
         );
     };
 
-    if (loading) return <LoadingSpinner message="Favoriler yükleniyor..." />;
+    if (loading) {
+        return (
+            <View style={styles.container}>
+                <View style={styles.header}>
+                    <SkeletonLoader width={160} height={28} radius={8} style={{ marginBottom: 6 }} />
+                    <SkeletonLoader width={90} height={14} radius={6} />
+                </View>
+                <View style={styles.listContent}>
+                    {[0, 1, 2, 3].map(i => (
+                        <SkeletonLoader
+                            key={i}
+                            width={CARD_WIDTH}
+                            height={200}
+                            radius={BORDER_RADIUS.xl}
+                            style={{ marginBottom: SPACING.md }}
+                        />
+                    ))}
+                </View>
+            </View>
+        );
+    }
 
     return (
         <View style={styles.container}>
