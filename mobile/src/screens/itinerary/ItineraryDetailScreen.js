@@ -3,6 +3,7 @@ import {
     View, Text, StyleSheet, ScrollView,
     TouchableOpacity, Alert, RefreshControl, Platform, Linking,
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../../constants/colors';
 import { FONT_SIZES } from '../../constants/typography';
@@ -15,14 +16,16 @@ import {
     updateItineraryStatus,
 } from '../../services/itineraryService';
 import { getPlacesByCity } from '../../services/placeService';
-import { suggestAlternative } from '../../logic/itineraryGenerator';
+import { suggestAlternative, estimateTotalBudget } from '../../logic/itineraryGenerator';
 import { formatDate } from '../../utils/formatters';
 import Button from '../../components/common/Button';
 import { ItineraryDetailSkeleton } from '../../components/common/SkeletonLoader';
 import ErrorMessage from '../../components/common/ErrorMessage';
+import { useAssistantContext } from '../../contexts/AssistantContext';
 
 const ItineraryDetailScreen = ({ route, navigation }) => {
     const { itineraryId } = route.params;
+    const { setAssistantContext, clearAssistantContext } = useAssistantContext();
 
     const [itinerary, setItinerary] = useState(null);
     const [allCityPlaces, setAllCityPlaces] = useState([]);
@@ -49,6 +52,32 @@ const ItineraryDetailScreen = ({ route, navigation }) => {
 
     useEffect(() => { fetchData(); }, [fetchData]);
 
+    // Ekran odaklandığında asistan bağlamını güncelle
+    useFocusEffect(
+        useCallback(() => {
+            if (!itinerary) return;
+            const completedPlaces = itinerary.itinerary_items
+                .filter(i => i.is_completed).map(i => i.places?.name).filter(Boolean);
+            const allPlaces = itinerary.itinerary_items.map(i => ({
+                name: i.places?.name || '',
+                category: i.places?.category || '',
+                day: i.day_number,
+            }));
+            setAssistantContext({
+                screen: 'itinerary',
+                city: itinerary.cities?.name,
+                days: itinerary.days,
+                startDate: itinerary.start_date,
+                places: allPlaces,
+                completedPlaces,
+                completedCount: completedPlaces.length,
+                totalPlaces: itinerary.itinerary_items.length,
+                status: itinerary.status,
+            });
+            return () => clearAssistantContext();
+        }, [itinerary, setAssistantContext, clearAssistantContext])
+    );
+
     const dayGroups = React.useMemo(() => {
         if (!itinerary?.itinerary_items) return [];
         const groups = {};
@@ -66,6 +95,18 @@ const ItineraryDetailScreen = ({ route, navigation }) => {
         const total = itinerary.itinerary_items.length;
         const completed = itinerary.itinerary_items.filter((i) => i.is_completed).length;
         return { completed, total, percentage: total > 0 ? Math.round((completed / total) * 100) : 0 };
+    }, [itinerary]);
+
+    const budget = React.useMemo(() => {
+        if (!itinerary?.itinerary_items) return null;
+        const totalFee = itinerary.itinerary_items.reduce((s, i) => s + (i.places?.entry_fee ?? 0), 0);
+        return estimateTotalBudget({
+            entryFees: totalFee,
+            distanceKm: 0,
+            days: itinerary.days ?? 1,
+            hasTransport: itinerary.has_transport ?? false,
+            restaurantPerDay: 250,
+        });
     }, [itinerary]);
 
     const handleToggleCompletion = async (item) => {
@@ -100,8 +141,11 @@ const ItineraryDetailScreen = ({ route, navigation }) => {
     };
 
     const handleSuggestAlternative = async (item) => {
-        const usedIds = itinerary.itinerary_items.map((i) => i.place_id);
-        const suggestion = suggestAlternative(allCityPlaces, usedIds, item.places?.category);
+        const usedIds = itinerary.itinerary_items.map(i => i.place_id);
+        const suggestion = suggestAlternative(
+            allCityPlaces, usedIds, item.places?.category,
+            item.places?.lat, item.places?.lng    // mesafe tabanlı öneri
+        );
         if (!suggestion) { Alert.alert('Bilgi', 'Alternatif yer bulunamadı.'); return; }
         Alert.alert(
             'Alternatif Öneri',
@@ -175,12 +219,15 @@ const ItineraryDetailScreen = ({ route, navigation }) => {
         }));
         navigation.navigate('TravelAssistant', {
             context: {
+                screen: 'itinerary',
                 city: itinerary.cities?.name,
                 days: itinerary.days,
                 startDate: itinerary.start_date,
                 currentDay: dayGroups.length > 0 ? dayGroups[0].day : 1,
                 places: allPlaces,
                 completedPlaces,
+                completedCount: completedPlaces.length,
+                totalPlaces: itinerary.itinerary_items.length,
                 remainingTime: null,
             },
         });
@@ -250,6 +297,15 @@ const ItineraryDetailScreen = ({ route, navigation }) => {
                             <Text style={styles.headerStatValue}>{progress.percentage}%</Text>
                             <Text style={styles.headerStatLabel}>İlerleme</Text>
                         </View>
+                        {budget && (
+                            <>
+                                <View style={styles.headerStatDivider} />
+                                <View style={styles.headerStat}>
+                                    <Text style={styles.headerStatValue}>₺{budget.total}</Text>
+                                    <Text style={styles.headerStatLabel}>Tahmini</Text>
+                                </View>
+                            </>
+                        )}
                     </View>
 
                     <View style={styles.progressBarContainer}>
@@ -331,9 +387,32 @@ const ItineraryDetailScreen = ({ route, navigation }) => {
                     </View>
                 ))}
 
+                {/* ─── Bütçe Özeti ─── */}
+                {budget && (
+                    <View style={styles.budgetCard}>
+                        <Text style={styles.budgetTitle}>💰 Tahmini Bütçe</Text>
+                        {budget.breakdown.map((item) => (
+                            <View key={item.label} style={styles.budgetRow}>
+                                <Text style={styles.budgetEmoji}>{item.emoji}</Text>
+                                <Text style={styles.budgetLabel}>{item.label}</Text>
+                                <Text style={styles.budgetAmount}>₺{item.amount.toLocaleString('tr-TR')}</Text>
+                            </View>
+                        ))}
+                        <View style={styles.budgetDivider} />
+                        <View style={styles.budgetRow}>
+                            <Text style={styles.budgetEmoji}>📊</Text>
+                            <Text style={[styles.budgetLabel, { fontFamily: 'Inter_700Bold' }]}>Toplam Tahmini</Text>
+                            <Text style={[styles.budgetAmount, { fontFamily: 'Inter_700Bold', color: COLORS.primary }]}>
+                                ₺{budget.total.toLocaleString('tr-TR')}
+                            </Text>
+                        </View>
+                        <Text style={styles.budgetNote}>* Yemek tahmini kişi başı günlük ₺250 baz alınmıştır.</Text>
+                    </View>
+                )}
+
                 {/* Alt Butonlar */}
                 <TouchableOpacity style={styles.assistantBtn} onPress={openAssistant} activeOpacity={0.85}>
-                    <Text style={styles.assistantBtnEmoji}>✈️</Text>
+                    <Text style={styles.assistantBtnEmoji}>🐱</Text>
                     <Text style={styles.assistantBtnText}>AI Asistan</Text>
                     <Ionicons name="chevron-forward" size={14} color="#fff" />
                 </TouchableOpacity>
@@ -491,6 +570,57 @@ const styles = StyleSheet.create({
     assistantBtnEmoji: { fontSize: 18 },
     assistantBtnText: { fontFamily: 'Inter_700Bold', fontSize: FONT_SIZES.md, color: '#fff' },
     completeButton: { marginTop: SPACING.xs },
+
+    // ─── Bütçe Kartı ───
+    budgetCard: {
+        backgroundColor: COLORS.surface,
+        borderRadius: BORDER_RADIUS.lg,
+        padding: SPACING.md,
+        marginBottom: SPACING.md,
+        borderWidth: 1,
+        borderColor: COLORS.primary + '20',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 8,
+        elevation: 2,
+    },
+    budgetTitle: {
+        fontFamily: 'PlayfairDisplay_700Bold',
+        fontSize: FONT_SIZES.lg,
+        color: COLORS.textPrimary,
+        marginBottom: SPACING.sm,
+    },
+    budgetRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: 6,
+    },
+    budgetEmoji: { fontSize: 16, width: 28 },
+    budgetLabel: {
+        flex: 1,
+        fontFamily: 'Inter_400Regular',
+        fontSize: FONT_SIZES.sm,
+        color: COLORS.textSecondary,
+    },
+    budgetAmount: {
+        fontFamily: 'Inter_600SemiBold',
+        fontSize: FONT_SIZES.sm,
+        color: COLORS.textPrimary,
+    },
+    budgetDivider: {
+        height: 1,
+        backgroundColor: COLORS.divider,
+        marginVertical: 6,
+    },
+    budgetNote: {
+        fontFamily: 'Inter_400Regular',
+        fontSize: 10,
+        color: COLORS.textLight,
+        marginTop: 4,
+        fontStyle: 'italic',
+    },
 });
+
 
 export default ItineraryDetailScreen;

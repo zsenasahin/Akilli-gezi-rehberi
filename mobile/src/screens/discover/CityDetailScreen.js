@@ -35,10 +35,13 @@ import { getPlacesByCity } from '../../services/placeService';
 import { getCityPOIs } from '../../services/poiService';
 import { getPlaceSummary } from '../../services/wikipediaService';
 import { toggleFavorite, getFavoriteIds } from '../../services/favoriteService';
+import { useFocusEffect } from '@react-navigation/native';
+
 import { useAuth } from '../../contexts/AuthContext';
 import { getCityCenter } from '../../constants/cities';
 import { CityDetailSkeleton, SkeletonLoader } from '../../components/common/SkeletonLoader';
 import WeatherWidget from '../../components/discover/WeatherWidget';
+import { useAssistantContext } from '../../contexts/AssistantContext';
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 
@@ -57,6 +60,7 @@ const CityDetailScreen = ({ route, navigation }) => {
     const cityName = city?.name || 'İstanbul';
     const cityCenter = getCityCenter(cityName);
     const cityImages = getCityImages(cityName);
+    const { setAssistantContext, clearAssistantContext } = useAssistantContext();
 
     // State
     const [activeCategory, setActiveCategory] = useState('places');
@@ -79,6 +83,18 @@ const CityDetailScreen = ({ route, navigation }) => {
         outputRange: [0, 1],
         extrapolate: 'clamp',
     });
+
+    // ─── Asistan bağlamını güncelle ───
+    useFocusEffect(
+        useCallback(() => {
+            setAssistantContext({
+                screen: 'city',
+                city: cityName,
+                cityDescription,
+            });
+            return () => clearAssistantContext();
+        }, [cityName, cityDescription, setAssistantContext, clearAssistantContext])
+    );
 
     // ─── Şehir verileri yükle ───
     useEffect(() => {

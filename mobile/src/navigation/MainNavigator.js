@@ -3,7 +3,6 @@ import { View, Platform, StyleSheet } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
 import { COLORS } from '../constants/colors';
 import { FONT_SIZES, FONTS } from '../constants/typography';
 import FloatingAssistant from '../components/common/FloatingAssistant';
@@ -157,7 +156,6 @@ const ProfileStackNavigator = () => (
 
 // ─── Tab Navigatör + Floating Assistant Wrapper ────────────────────────────
 const TabsWithFloating = () => {
-    const navigation = useNavigation();
     const bottomPadding = Platform.OS === 'android' ? 16 : 8;
     const tabBarHeight = Platform.OS === 'android' ? 72 : 64;
 
@@ -204,8 +202,8 @@ const TabsWithFloating = () => {
                 <Tab.Screen name="Profile" component={ProfileStackNavigator} options={{ tabBarLabel: 'Profil' }} />
             </Tab.Navigator>
 
-            {/* 🐱 Floating AI Asistan — tüm tab'larda görünür */}
-            <FloatingAssistant navigation={navigation} context={{}} />
+            {/* 🐱 Floating AI Asistan — context'i AssistantContext'ten otomatik alır */}
+            <FloatingAssistant />
         </View>
     );
 };

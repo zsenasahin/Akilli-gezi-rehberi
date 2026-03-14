@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, memo } from 'react';
+
 import {
     View,
     Text,
@@ -42,6 +43,49 @@ const CATEGORIES = [
     { key: 'shopping', label: 'Alışveriş', emoji: '🛍️' },
     { key: 'beach', label: 'Plaj', emoji: '🏖️' },
 ];
+
+// ─── Memo'lu Yer Kartı — gereksiz re-render'ları önler ────────────────────
+const PlaceCard = memo(({ item, isFav, onPress, onFavToggle }) => {
+    const imageUrl = getPlaceImage(item.name, item.image_url, item.category);
+    return (
+        <TouchableOpacity style={styles.card} activeOpacity={0.88} onPress={onPress}>
+            <View style={styles.cardImageContainer}>
+                <SmartImage
+                    uri={imageUrl}
+                    fallbackUri={getCategoryImage(item.category)}
+                    style={styles.cardImage}
+                    contentFit="cover"
+                    transition={300}
+                />
+                <LinearGradient
+                    colors={['transparent', 'rgba(0,0,0,0.45)']}
+                    style={styles.cardImageOverlay}
+                />
+                <View style={styles.cardCategoryBadge}>
+                    <Text style={styles.cardCategoryEmoji}>{getCategoryEmoji(item.category)}</Text>
+                </View>
+                <TouchableOpacity
+                    style={styles.cardFavButton}
+                    onPress={onFavToggle}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                    <Ionicons name={isFav ? 'heart' : 'heart-outline'} size={16} color={isFav ? '#EF4444' : '#fff'} />
+                </TouchableOpacity>
+            </View>
+            <View style={styles.cardContent}>
+                <Text style={styles.cardTitle} numberOfLines={1}>{item.name}</Text>
+                <Text style={styles.cardCity} numberOfLines={1}>📍 {item.cities?.name}</Text>
+                <View style={styles.cardMeta}>
+                    {item.entry_fee > 0
+                        ? <Text style={styles.cardFee}>₺{item.entry_fee}</Text>
+                        : <Text style={styles.cardFree}>Ücretsiz</Text>
+                    }
+                    <Text style={styles.cardDuration}>⏱ {item.avg_duration}s</Text>
+                </View>
+            </View>
+        </TouchableOpacity>
+    );
+}, (prev, next) => prev.isFav === next.isFav && prev.item.id === next.item.id);
 
 const DiscoverScreen = () => {
     const navigation = useNavigation();
@@ -153,62 +197,16 @@ const DiscoverScreen = () => {
         </Modal>
     );
 
-    // ─── Yer kartı ───────────────────────────────────────────────────────────
-    const renderPlaceCard = ({ item }) => {
-        const imageUrl = failedImages[item.id]
-            ? getCategoryImage(item.category)
-            : getPlaceImage(item.name, item.image_url, item.category);
-        const isFav = favorites[item.id];
-
-        return (
-            <TouchableOpacity
-                style={styles.card}
-                activeOpacity={0.88}
-                onPress={() => setSelectedPlace(item)}
-            >
-                <View style={styles.cardImageContainer}>
-                    <SmartImage
-                        uri={imageUrl}
-                        fallbackUri={getCategoryImage(item.category)}
-                        style={styles.cardImage}
-                        contentFit="cover"
-                        transition={300}
-                    />
-                    <LinearGradient
-                        colors={['transparent', 'rgba(0,0,0,0.45)']}
-                        style={styles.cardImageOverlay}
-                    />
-                    {/* Kategori badge */}
-                    <View style={styles.cardCategoryBadge}>
-                        <Text style={styles.cardCategoryEmoji}>{getCategoryEmoji(item.category)}</Text>
-                    </View>
-                    {/* Favori */}
-                    <TouchableOpacity
-                        style={styles.cardFavButton}
-                        onPress={() => handleToggleFavorite(item.id)}
-                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                    >
-                        <Ionicons
-                            name={isFav ? 'heart' : 'heart-outline'}
-                            size={16}
-                            color={isFav ? '#EF4444' : '#fff'}
-                        />
-                    </TouchableOpacity>
-                </View>
-                <View style={styles.cardContent}>
-                    <Text style={styles.cardTitle} numberOfLines={1}>{item.name}</Text>
-                    <Text style={styles.cardCity} numberOfLines={1}>📍 {item.cities?.name}</Text>
-                    <View style={styles.cardMeta}>
-                        {item.entry_fee > 0
-                            ? <Text style={styles.cardFee}>₺{item.entry_fee}</Text>
-                            : <Text style={styles.cardFree}>Ücretsiz</Text>
-                        }
-                        <Text style={styles.cardDuration}>⏱ {item.avg_duration}s</Text>
-                    </View>
-                </View>
-            </TouchableOpacity>
-        );
-    };
+    // ─── Yer kartı (memo ile optimize) ──────────────────────────────────────
+    const renderPlaceCard = useCallback(({ item }) => (
+        <PlaceCard
+            item={item}
+            isFav={!!favorites[item.id]}
+            onPress={() => setSelectedPlace(item)}
+            onFavToggle={() => handleToggleFavorite(item.id)}
+            failedImages={failedImages}
+        />
+    ), [favorites, failedImages, handleToggleFavorite]);
 
     // ─── Detay modal ─────────────────────────────────────────────────────────
     const renderDetailModal = () => {
@@ -402,6 +400,16 @@ const DiscoverScreen = () => {
                 columnWrapperStyle={styles.row}
                 contentContainerStyle={styles.listContent}
                 showsVerticalScrollIndicator={false}
+                // ─── Performans optimizasyonları ───
+                initialNumToRender={8}
+                maxToRenderPerBatch={8}
+                windowSize={5}
+                removeClippedSubviews={true}
+                getItemLayout={(_, index) => ({
+                    length: CARD_WIDTH * 1.3 + SPACING.sm,
+                    offset: (CARD_WIDTH * 1.3 + SPACING.sm) * Math.floor(index / 2),
+                    index,
+                })}
                 refreshControl={
                     <RefreshControl
                         refreshing={refreshing}

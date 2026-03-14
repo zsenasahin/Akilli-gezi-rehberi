@@ -1,4 +1,5 @@
 import { supabase } from '../../config/supabase';
+import { cache, TTL } from '../../services/cacheService';
 
 /**
  * PlaceRepository – `places` tablosu okuma işlemleri.
@@ -39,8 +40,14 @@ export const getPlaces = async ({
     return { data, error };
 };
 
-export const getPlacesByCity = (cityId) =>
-    getPlaces({ cityId, sortBy: 'popularity' });
+export const getPlacesByCity = async (cityId) => {
+    const CACHE_KEY = `places_city_${cityId}`;
+    const cached = await cache.get(CACHE_KEY);
+    if (cached) return { data: cached, error: null, fromCache: true };
+    const result = await getPlaces({ cityId, sortBy: 'popularity', limit: 200 });
+    if (result.data) await cache.set(CACHE_KEY, result.data, TTL.LONG);
+    return { ...result, fromCache: false };
+};
 
 export const getPlacesByCityAndCategory = (cityId, category) =>
     getPlaces({ cityId, category, sortBy: 'popularity' });

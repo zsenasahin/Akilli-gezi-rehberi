@@ -20,27 +20,65 @@ import { FONTS, FONT_SIZES } from '../../constants/typography';
 import { SPACING, BORDER_RADIUS } from '../../constants/layout';
 import { askTravelAssistant } from '../../data/api/edgeFunctionApi';
 import { getWeatherForecast } from '../../services/weatherService';
+import { useAssistantContext } from '../../contexts/AssistantContext';
 
-// ─── Hazır sorular ─────────────────────────────────────────────────────────────
-const QUICK_REPLIES = [
-    { label: '1 saatim var, ne yapayım?', icon: 'time-outline' },
-    { label: 'Yakında bir kafe öner', icon: 'cafe-outline' },
-    { label: 'Bu şehirde mutlaka yenilmesi gereken yemek?', icon: 'restaurant-outline' },
-    { label: 'Bugünkü planım için ipuçları ver', icon: 'bulb-outline' },
-    { label: 'Toplu taşıma nasıl?', icon: 'bus-outline' },
-    { label: 'Yarın için hava durumu önerisi?', icon: 'partly-sunny-outline' },
-];
+// ─── Hazır sorular (bağlama göre dinamik)──────────────────────────────────────
+const getQuickReplies = (context) => {
+    if (context?.screen === 'itinerary' && context?.city) {
+        return [
+            { label: 'Rotamı optimize eder misin?', icon: 'git-branch-outline' },
+            { label: '1 saatim var, ne yapayım?', icon: 'time-outline' },
+            { label: 'Yakında bir kafe öner', icon: 'cafe-outline' },
+            { label: 'Hangi yerler atlanabilir?', icon: 'close-circle-outline' },
+            { label: `${context.city}'de mutlaka yenilmesi gereken yemek?`, icon: 'restaurant-outline' },
+            { label: 'Hava durumu için önerin?', icon: 'partly-sunny-outline' },
+        ];
+    }
+    if (context?.screen === 'city' && context?.city) {
+        return [
+            { label: `${context.city}'de en önemli 5 yer?`, icon: 'map-outline' },
+            { label: 'Yerel lezzetler neler?', icon: 'restaurant-outline' },
+            { label: 'Bütçe dostu seçenekler?', icon: 'wallet-outline' },
+            { label: 'Nasıl ulaşabilirim?', icon: 'bus-outline' },
+            { label: 'Gizli kalmış yerler?', icon: 'eye-off-outline' },
+            { label: 'Kaç gün ayırmalıyım?', icon: 'calendar-outline' },
+        ];
+    }
+    return [
+        { label: 'İstanbul\'da ne yapmalıyım?', icon: 'map-outline' },
+        { label: 'Bütçe seyahat önerileri', icon: 'wallet-outline' },
+        { label: 'En popüler şehirler?', icon: 'star-outline' },
+        { label: 'Yakında bir kafe öner', icon: 'cafe-outline' },
+        { label: 'Toplu taşıma nasıl?', icon: 'bus-outline' },
+        { label: 'Hava durumu önerisi?', icon: 'partly-sunny-outline' },
+    ];
+};
 
 const TravelAssistantScreen = ({ route, navigation }) => {
-    const context = route?.params?.context || {};
+    // route.params.context (direkt navigate) + AssistantContext (floating button)
+    const { context: globalContext } = useAssistantContext();
+    const routeContext = route?.params?.context || {};
+    // Merge: direkt navigate baskın gelir
+    const context = Object.keys(routeContext).length > 0 ? routeContext : globalContext;
+
+    const getWelcomeMessage = () => {
+        if (context?.screen === 'itinerary' && context?.city) {
+            const progress = context.totalPlaces > 0
+                ? ` ${context.completedCount || 0}/${context.totalPlaces} yeri tamamladın.`
+                : '';
+            return `Merhaba! 🐱 ${context.city} gezinı takip ediyorum.\n\n${context.days} günlük planında ${context.totalPlaces || 0} yer var.${progress}\n\nRota optimizasyonu, alternatif öneriler veya yakın mekanlar hakkında soru sorabilirsin!`;
+        }
+        if (context?.screen === 'city' && context?.city) {
+            return `Merhaba! 🐱 ${context.city} hakkında sana yardımcı olmak için buradayım.\n\nGezilecek yerler, yemek önerileri, ulaşım veya konaklama hakkında sorabilirsin!`;
+        }
+        return 'Merhaba! 🐱 Ben gezi asistanınım.\n\nTürkiye\'deki seyahatinde sana rehberlik edebilirim. Nerede olduğunu veya nasıl yardımcı olabileceğimi söyle!';
+    };
 
     const [messages, setMessages] = useState([
         {
             id: 0,
             role: 'assistant',
-            text: context.city
-                ? `Merhaba! 👋 ${context.city} geziniz için buradayım.\n\nBana seyahatinizle ilgili her şeyi sorabilirsiniz — alternatif yerler, yemek önerileri, yerel ipuçları veya boş vakit değerlendirmesi. Ne öğrenmek istersiniz?`
-                : 'Merhaba! 👋 Ben gezi asistanınızım.\n\nTürkiye\'deki seyahatinizde size rehberlik edebilirim. Nerede olduğunuzu veya nasıl yardımcı olabileceğimi söyleyin!',
+            text: getWelcomeMessage(),
         },
     ]);
     const [input, setInput] = useState('');
@@ -213,7 +251,7 @@ const TravelAssistantScreen = ({ route, navigation }) => {
                     contentContainerStyle={styles.quickRepliesContainer}
                     style={styles.quickRepliesScroll}
                 >
-                    {QUICK_REPLIES.map((qr, i) => (
+                    {getQuickReplies(context).map((qr, i) => (
                         <TouchableOpacity
                             key={i}
                             style={styles.quickReplyChip}

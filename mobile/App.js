@@ -4,6 +4,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useFonts, Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold } from '@expo-google-fonts/inter';
 import { PlayfairDisplay_500Medium, PlayfairDisplay_700Bold } from '@expo-google-fonts/playfair-display';
 import { AuthProvider } from './src/contexts/AuthContext';
+import { AssistantProvider } from './src/contexts/AssistantContext';
 import AppNavigator from './src/navigation/AppNavigator';
 import LoadingSpinner from './src/components/common/LoadingSpinner';
 
@@ -30,8 +31,10 @@ export default function App() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <AuthProvider>
-        <StatusBar style="light" />
-        <AppNavigator />
+        <AssistantProvider>
+          <StatusBar style="light" />
+          <AppNavigator />
+        </AssistantProvider>
       </AuthProvider>
     </GestureHandlerRootView>
   );
