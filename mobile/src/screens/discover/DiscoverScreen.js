@@ -44,6 +44,12 @@ const CATEGORIES = [
     { key: 'beach', label: 'Plaj', emoji: '🏖️' },
 ];
 
+// Modül seviyesinde tanımlandı — PlaceCard (memo) ve DiscoverScreen her ikisi de erişebilir
+const getCategoryEmoji = (category) => {
+    const map = { historical: '🏛️', museum: '🎨', nature: '🌿', religious: '🕌', shopping: '🛒', beach: '🏖️' };
+    return map[category] || '📍';
+};
+
 // ─── Memo'lu Yer Kartı — gereksiz re-render'ları önler ────────────────────
 const PlaceCard = memo(({ item, isFav, onPress, onFavToggle }) => {
     const imageUrl = getPlaceImage(item.name, item.image_url, item.category);
@@ -161,11 +167,6 @@ const DiscoverScreen = () => {
     });
 
     const activeFilterCount = (selectedCity ? 1 : 0) + (categoryFilter ? 1 : 0);
-
-    const getCategoryEmoji = (category) => {
-        const map = { historical: '🏛️', museum: '🎨', nature: '🌿', religious: '🕌', shopping: '🛒', beach: '🏖️' };
-        return map[category] || '📍';
-    };
 
     const handleToggleFavorite = async (placeId) => {
         if (!user) {
