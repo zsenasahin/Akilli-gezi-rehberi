@@ -34,6 +34,7 @@ import { getPlaceImage } from '../../constants/placeImages';
 import { getPlacesByCity } from '../../services/placeService';
 import { getCityPOIs } from '../../services/poiService';
 import { getPlaceSummary } from '../../services/wikipediaService';
+import { getBatchPlacePhotos } from '../../services/placePhotoService';
 import { toggleFavorite, getFavoriteIds } from '../../services/favoriteService';
 import { useFocusEffect } from '@react-navigation/native';
 
@@ -75,6 +76,8 @@ const CityDetailScreen = ({ route, navigation }) => {
     const [wikiInfo, setWikiInfo] = useState(null);
     const [wikiLoading, setWikiLoading] = useState(false);
     const [placeSearch, setPlaceSearch] = useState('');
+    // Gerçek Wikipedia/Commons fotoğrafları: { "Mevlana Müzesi": { imageUrl, source } }
+    const [placePhotos, setPlacePhotos] = useState({});
 
     // Animation
     const scrollY = useRef(new Animated.Value(0)).current;
@@ -112,6 +115,10 @@ const CityDetailScreen = ({ route, navigation }) => {
 
             if (placesResult.data) {
                 setPlaces(placesResult.data);
+                // Arka planda gerçek Wikipedia fotoğraflarını çek
+                getBatchPlacePhotos(placesResult.data).then(photos => {
+                    setPlacePhotos(photos);
+                }).catch(() => {}); // Sessizce başarısız ol
             }
             if (wikiResult) {
                 setCityDescription(wikiResult.description);
@@ -222,7 +229,10 @@ const CityDetailScreen = ({ route, navigation }) => {
     // ═══════════════════════════════════════
     const renderPlaceCard = (place) => {
         const isFav = favorites[place.id];
-        const imageUrl = getPlaceImage(place.name, place.image_url, place.category);
+        // Öncelik: Wikipedia gerçek fotoğraf > curated fallback
+        const wikiPhoto = placePhotos[place.name];
+        const imageUrl = wikiPhoto?.imageUrl || getPlaceImage(place.name, place.image_url, place.category);
+        const photoSource = wikiPhoto?.source;
 
         return (
             <TouchableOpacity
@@ -346,6 +356,16 @@ const CityDetailScreen = ({ route, navigation }) => {
         const item = selectedItem;
         const isDB = item.source === 'db';
 
+        // Fotoğraf: Wikipedia > wikiInfo.fullImageUrl > placePhotos > fallback
+        const photoResult = placePhotos[item.name];
+        const heroImageUrl =
+            wikiInfo?.fullImageUrl ||
+            wikiInfo?.imageUrl ||
+            photoResult?.imageUrl ||
+            getPlaceImage(item.name, item.image_url, item.category);
+        const photoSource = wikiInfo?.fullImageUrl ? 'wikipedia'
+            : photoResult?.source || 'fallback';
+
         return (
             <View style={styles.detailOverlay}>
                 <TouchableOpacity
@@ -353,13 +373,37 @@ const CityDetailScreen = ({ route, navigation }) => {
                     onPress={() => { setSelectedItem(null); setWikiInfo(null); }}
                 />
                 <View style={styles.detailSheet}>
-                    {/* Kapatma butonu */}
-                    <TouchableOpacity
-                        style={styles.detailClose}
-                        onPress={() => { setSelectedItem(null); setWikiInfo(null); }}
-                    >
-                        <Ionicons name="close" size={22} color={COLORS.textPrimary} />
-                    </TouchableOpacity>
+                    {/* Fotoğraf Hero */}
+                    <View style={styles.detailHero}>
+                        <Image
+                            source={{ uri: heroImageUrl }}
+                            style={styles.detailHeroImage}
+                            contentFit="cover"
+                            transition={400}
+                        />
+                        <LinearGradient
+                            colors={['transparent', 'rgba(0,0,0,0.6)']}
+                            style={StyleSheet.absoluteFillObject}
+                        />
+                        {/* Kaynak badge */}
+                        {photoSource === 'wikipedia' && (
+                            <View style={styles.photoSourceBadge}>
+                                <Text style={styles.photoSourceText}>📷 Wikipedia</Text>
+                            </View>
+                        )}
+                        {photoSource === 'commons' && (
+                            <View style={styles.photoSourceBadge}>
+                                <Text style={styles.photoSourceText}>📷 Wikimedia</Text>
+                            </View>
+                        )}
+                        {/* Kapatma */}
+                        <TouchableOpacity
+                            style={styles.detailClose}
+                            onPress={() => { setSelectedItem(null); setWikiInfo(null); }}
+                        >
+                            <Ionicons name="close" size={20} color="#fff" />
+                        </TouchableOpacity>
+                    </View>
 
                     <ScrollView showsVerticalScrollIndicator={false} bounces={false}>
                         {/* Başlık */}
@@ -384,6 +428,7 @@ const CityDetailScreen = ({ route, navigation }) => {
                                 </TouchableOpacity>
                             )}
                         </View>
+
 
                         {/* İstatistikler (DB yerleri için) */}
                         {isDB && (
@@ -777,7 +822,11 @@ const CityDetailScreen = ({ route, navigation }) => {
                             ]}
                             onPress={() => setActiveCategory(cat.key)}
                         >
-                            <Text style={styles.categoryTabEmoji}>{cat.emoji}</Text>
+                            <Ionicons
+                                name={activeCategory === cat.key ? cat.icon : `${cat.icon}-outline`}
+                                size={16}
+                                color={activeCategory === cat.key ? '#fff' : COLORS.textSecondary}
+                            />
                             <Text style={[
                                 styles.categoryTabLabel,
                                 activeCategory === cat.key && styles.categoryTabLabelActive,
@@ -818,7 +867,7 @@ const styles = StyleSheet.create({
     },
     backBtn: { padding: 6 },
     stickyTitle: {
-        flex: 1, fontFamily: 'PlayfairDisplay_700Bold',
+        flex: 1, fontFamily: FONTS.heading,
         fontSize: FONT_SIZES.lg, color: '#fff', marginLeft: SPACING.sm,
     },
     mapBtn: {
@@ -857,7 +906,7 @@ const styles = StyleSheet.create({
         position: 'absolute', bottom: SPACING.lg, left: SPACING.lg,
     },
     heroCity: {
-        fontFamily: 'PlayfairDisplay_700Bold', fontSize: 36, color: '#fff',
+        fontFamily: FONTS.heading, fontSize: 36, color: '#fff',
     },
     heroRegion: {
         fontFamily: 'Inter_400Regular', fontSize: FONT_SIZES.md,
@@ -937,7 +986,6 @@ const styles = StyleSheet.create({
         backgroundColor: COLORS.primary,
         borderColor: COLORS.primary,
     },
-    categoryTabEmoji: { fontSize: 16 },
     categoryTabLabel: {
         fontFamily: 'Inter_500Medium', fontSize: FONT_SIZES.sm,
         color: COLORS.textSecondary,
@@ -1106,9 +1154,35 @@ const styles = StyleSheet.create({
     },
     detailClose: {
         position: 'absolute', top: SPACING.sm, right: SPACING.sm, zIndex: 10,
-        width: 36, height: 36, borderRadius: 18,
-        backgroundColor: COLORS.surfaceAlt,
+        width: 32, height: 32, borderRadius: 16,
+        backgroundColor: 'rgba(0,0,0,0.45)',
         justifyContent: 'center', alignItems: 'center',
+    },
+    detailHero: {
+        width: '100%',
+        height: 200,
+        position: 'relative',
+        overflow: 'hidden',
+        borderTopLeftRadius: BORDER_RADIUS.xl,
+        borderTopRightRadius: BORDER_RADIUS.xl,
+    },
+    detailHeroImage: {
+        width: '100%',
+        height: '100%',
+    },
+    photoSourceBadge: {
+        position: 'absolute',
+        bottom: SPACING.sm,
+        left: SPACING.sm,
+        backgroundColor: 'rgba(0,0,0,0.55)',
+        paddingHorizontal: 8,
+        paddingVertical: 3,
+        borderRadius: BORDER_RADIUS.full,
+    },
+    photoSourceText: {
+        fontFamily: FONTS.body,
+        fontSize: 10,
+        color: 'rgba(255,255,255,0.85)',
     },
     detailHeader: {
         flexDirection: 'row', alignItems: 'center',
@@ -1116,7 +1190,7 @@ const styles = StyleSheet.create({
     },
     detailEmoji: { fontSize: 36 },
     detailName: {
-        fontFamily: 'PlayfairDisplay_700Bold', fontSize: FONT_SIZES.xl,
+        fontFamily: FONTS.heading, fontSize: FONT_SIZES.xl,
         color: COLORS.textPrimary,
     },
     detailCategory: {

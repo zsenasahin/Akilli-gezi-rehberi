@@ -123,6 +123,19 @@ const TravelAssistantScreen = ({ route, navigation }) => {
         ]).start();
     };
 
+    const handleBack = () => {
+        if (navigation.canGoBack()) {
+            navigation.goBack();
+            return;
+        }
+        const parent = navigation.getParent?.();
+        if (parent) {
+            parent.navigate('Home');
+            return;
+        }
+        navigation.navigate('Home');
+    };
+
     const sendMessage = useCallback(async (text) => {
         const trimmed = (text ?? input).trim();
         if (!trimmed || loading) return;
@@ -173,7 +186,7 @@ const TravelAssistantScreen = ({ route, navigation }) => {
             <View style={styles.header}>
                 <TouchableOpacity
                     style={styles.backBtn}
-                    onPress={() => navigation.goBack()}
+                    onPress={handleBack}
                 >
                     <Ionicons name="arrow-back" size={22} color={COLORS.textPrimary} />
                 </TouchableOpacity>

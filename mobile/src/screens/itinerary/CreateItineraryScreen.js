@@ -7,7 +7,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { WebView } from 'react-native-webview';
 import { COLORS } from '../../constants/colors';
-import { FONT_SIZES } from '../../constants/typography';
+import { FONT_SIZES, FONTS } from '../../constants/typography';
 import { SPACING, BORDER_RADIUS } from '../../constants/layout';
 import { getCityCenter } from '../../constants/cities';
 import { useAuth } from '../../contexts/AuthContext';
@@ -1089,7 +1089,7 @@ const styles = StyleSheet.create({
 
     // Step headers
     stepTitle: {
-        fontSize: FONT_SIZES.xl, fontFamily: 'PlayfairDisplay_700Bold',
+        fontSize: FONT_SIZES.xl, fontFamily: FONTS.heading,
         color: COLORS.textPrimary, marginBottom: SPACING.xs,
     },
     stepDesc: { fontSize: FONT_SIZES.sm, color: COLORS.textSecondary, marginBottom: SPACING.md },
@@ -1250,7 +1250,7 @@ const styles = StyleSheet.create({
         backgroundColor: COLORS.primary, borderRadius: BORDER_RADIUS.lg,
         padding: SPACING.md, marginBottom: SPACING.sm,
     },
-    summaryCity: { fontSize: FONT_SIZES.lg, fontFamily: 'PlayfairDisplay_700Bold', color: '#fff', marginBottom: SPACING.sm },
+    summaryCity: { fontSize: FONT_SIZES.lg, fontFamily: FONTS.heading, color: '#fff', marginBottom: SPACING.sm },
     summaryStats: { flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center' },
     summaryStat: { alignItems: 'center' },
     summaryValue: { fontSize: FONT_SIZES.lg, fontFamily: 'Inter_700Bold', color: '#fff' },

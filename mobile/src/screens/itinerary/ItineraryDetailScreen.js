@@ -6,7 +6,7 @@ import {
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../../constants/colors';
-import { FONT_SIZES } from '../../constants/typography';
+import { FONT_SIZES, FONTS } from '../../constants/typography';
 import { SPACING, BORDER_RADIUS } from '../../constants/layout';
 import {
     getItineraryById,
@@ -448,7 +448,7 @@ const styles = StyleSheet.create({
     backBtn: { padding: 4 },
     stickyTitle: {
         flex: 1,
-        fontFamily: 'PlayfairDisplay_700Bold',
+        fontFamily: FONTS.heading,
         fontSize: FONT_SIZES.lg,
         color: COLORS.textPrimary,
     },
@@ -481,7 +481,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         marginBottom: SPACING.md,
     },
-    headerCity: { fontSize: FONT_SIZES.xl, fontFamily: 'PlayfairDisplay_700Bold', color: '#fff' },
+    headerCity: { fontSize: FONT_SIZES.xl, fontFamily: FONTS.heading, color: '#fff' },
     statusBadge: {
         backgroundColor: 'rgba(255,255,255,0.2)',
         paddingHorizontal: 10,
@@ -586,7 +586,7 @@ const styles = StyleSheet.create({
         elevation: 2,
     },
     budgetTitle: {
-        fontFamily: 'PlayfairDisplay_700Bold',
+        fontFamily: FONTS.heading,
         fontSize: FONT_SIZES.lg,
         color: COLORS.textPrimary,
         marginBottom: SPACING.sm,

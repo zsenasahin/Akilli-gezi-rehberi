@@ -1,13 +1,14 @@
 /**
  * Typography scale for consistent text sizing.
- * Using Playfair Display for headings & Inter for body,
- * matching the v0 travel app UI.
+ * Tüm uygulamada tek font ailesi: Inter.
  */
 
 // Font families – these are loaded via expo-google-fonts
 export const FONTS = {
-    heading: 'PlayfairDisplay_700Bold',
-    headingMedium: 'PlayfairDisplay_500Medium',
+    heading: 'Inter_700Bold',
+    headingMedium: 'Inter_500Medium',
+    display: 'Inter_700Bold',
+    displayMedium: 'Inter_500Medium',
     body: 'Inter_400Regular',
     bodyMedium: 'Inter_500Medium',
     bodySemiBold: 'Inter_600SemiBold',

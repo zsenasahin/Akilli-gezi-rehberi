@@ -182,7 +182,7 @@ const styles = StyleSheet.create({
         marginBottom: SPACING.sm,
     },
     heroTitle: {
-        fontFamily: 'PlayfairDisplay_700Bold',
+        fontFamily: FONTS.heading,
         fontSize: FONT_SIZES.hero,
         color: '#fff',
         lineHeight: 44,
@@ -206,7 +206,7 @@ const styles = StyleSheet.create({
         elevation: 5,
     },
     formTitle: {
-        fontFamily: 'PlayfairDisplay_700Bold',
+        fontFamily: FONTS.heading,
         fontSize: FONT_SIZES.xl,
         color: COLORS.textPrimary,
     },

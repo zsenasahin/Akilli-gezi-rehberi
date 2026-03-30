@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import { Alert } from 'react-native';
 import { onAuthStateChange, getSession } from '../data/repositories/authRepository';
 import { supabase } from '../config/supabase';
 
@@ -53,6 +54,7 @@ export const AuthProvider = ({ children }) => {
         session,
         user: session?.user ?? null,
         isLoading,
+        isGuest: !session,
     };
 
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
@@ -60,7 +62,7 @@ export const AuthProvider = ({ children }) => {
 
 /**
  * Custom hook – provides quick access to auth state.
- * Usage: const { user, session, isLoading } = useAuth();
+ * Usage: const { user, session, isLoading, isGuest } = useAuth();
  */
 export const useAuth = () => {
     const context = useContext(AuthContext);
@@ -68,4 +70,38 @@ export const useAuth = () => {
         throw new Error('useAuth must be used within an AuthProvider');
     }
     return context;
+};
+
+/**
+ * useRequireAuth – Korumalı işlemler öncesinde çağrılır.
+ * Kullanıcı giriş yapmadıysa Alert gösterir ve false döner.
+ * Giriş yapılmışsa true döner, işlem devam edebilir.
+ *
+ * Usage:
+ *   const requireAuth = useRequireAuth(navigation);
+ *   const handleFavorite = () => { if (!requireAuth()) return; ... };
+ */
+export const useRequireAuth = (navigation) => {
+    const { isGuest } = useAuth();
+
+    return useCallback((message = 'Bu özelliği kullanmak için giriş yapmalısınız.') => {
+        if (!isGuest) return true;
+
+        Alert.alert(
+            'Giriş Gerekli',
+            message,
+            [
+                { text: 'Vazgeç', style: 'cancel' },
+                {
+                    text: 'Giriş Yap',
+                    onPress: () => {
+                        if (navigation) {
+                            navigation.navigate('AuthModal');
+                        }
+                    },
+                },
+            ],
+        );
+        return false;
+    }, [isGuest, navigation]);
 };

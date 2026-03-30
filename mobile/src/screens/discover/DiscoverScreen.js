@@ -27,7 +27,8 @@ import { getPlaceSummary } from '../../services/wikipediaService';
 import { toggleFavorite, getFavoriteIds } from '../../services/favoriteService';
 import { getCities } from '../../services/cityService';
 import { getPlaces } from '../../services/placeService';
-import { useAuth } from '../../contexts/AuthContext';
+import { getBatchPlacePhotos } from '../../services/placePhotoService';
+import { useAuth, useRequireAuth } from '../../contexts/AuthContext';
 import { DiscoverSkeleton } from '../../components/common/SkeletonLoader';
 import ErrorMessage from '../../components/common/ErrorMessage';
 
@@ -51,13 +52,13 @@ const getCategoryEmoji = (category) => {
 };
 
 // ─── Memo'lu Yer Kartı — gereksiz re-render'ları önler ────────────────────
-const PlaceCard = memo(({ item, isFav, onPress, onFavToggle }) => {
-    const imageUrl = getPlaceImage(item.name, item.image_url, item.category);
+const PlaceCard = memo(({ item, isFav, onPress, onFavToggle, imageUrl }) => {
+    const resolvedImage = imageUrl || getPlaceImage(item.name, item.image_url, item.category);
     return (
         <TouchableOpacity style={styles.card} activeOpacity={0.88} onPress={onPress}>
             <View style={styles.cardImageContainer}>
                 <SmartImage
-                    uri={imageUrl}
+                    uri={resolvedImage}
                     fallbackUri={getCategoryImage(item.category)}
                     style={styles.cardImage}
                     contentFit="cover"
@@ -96,6 +97,7 @@ const PlaceCard = memo(({ item, isFav, onPress, onFavToggle }) => {
 const DiscoverScreen = () => {
     const navigation = useNavigation();
     const { user } = useAuth();
+    const requireAuth = useRequireAuth(navigation);
     const [places, setPlaces] = useState([]);
     const [cities, setCities] = useState([]);
     const [selectedCity, setSelectedCity] = useState(null);
@@ -109,6 +111,7 @@ const DiscoverScreen = () => {
     const [wikiLoading, setWikiLoading] = useState(false);
     const [favorites, setFavorites] = useState({});
     const [categoryFilter, setCategoryFilter] = useState(null);
+    const [placePhotos, setPlacePhotos] = useState({});
 
     // Dropdown görünürlük state'leri
     const [cityDropdownOpen, setCityDropdownOpen] = useState(false);
@@ -124,7 +127,15 @@ const DiscoverScreen = () => {
             if (citiesResult.error) throw citiesResult.error;
             if (placesResult.error) throw placesResult.error;
             setCities(citiesResult.data || []);
-            setPlaces(placesResult.data || []);
+            const placeList = placesResult.data || [];
+            setPlaces(placeList);
+            if (placeList.length) {
+                getBatchPlacePhotos(placeList)
+                    .then((photos) => setPlacePhotos(photos || {}))
+                    .catch(() => setPlacePhotos({}));
+            } else {
+                setPlacePhotos({});
+            }
             if (user) {
                 const { favoriteIds } = await getFavoriteIds(user.id);
                 const favMap = {};
@@ -169,10 +180,7 @@ const DiscoverScreen = () => {
     const activeFilterCount = (selectedCity ? 1 : 0) + (categoryFilter ? 1 : 0);
 
     const handleToggleFavorite = async (placeId) => {
-        if (!user) {
-            Alert.alert('Giriş Gerekli', 'Favorilere eklemek için giriş yapmalısınız.');
-            return;
-        }
+        if (!requireAuth('Favorilere eklemek için giriş yapmalısınız.')) return;
         const { isFavorite } = await toggleFavorite(user.id, placeId);
         setFavorites(prev => ({ ...prev, [placeId]: isFavorite }));
     };
@@ -203,11 +211,12 @@ const DiscoverScreen = () => {
         <PlaceCard
             item={item}
             isFav={!!favorites[item.id]}
+            imageUrl={placePhotos[item.name]?.imageUrl}
             onPress={() => setSelectedPlace(item)}
             onFavToggle={() => handleToggleFavorite(item.id)}
             failedImages={failedImages}
         />
-    ), [favorites, failedImages, handleToggleFavorite]);
+    ), [favorites, failedImages, handleToggleFavorite, placePhotos]);
 
     // ─── Detay modal ─────────────────────────────────────────────────────────
     const renderDetailModal = () => {
@@ -534,7 +543,7 @@ const styles = StyleSheet.create({
         color: COLORS.error,
     },
     headerTitle: {
-        fontFamily: 'PlayfairDisplay_700Bold',
+        fontFamily: FONTS.heading,
         fontSize: 28,
         color: COLORS.textPrimary,
         letterSpacing: -0.5,
@@ -633,7 +642,7 @@ const styles = StyleSheet.create({
         borderBottomColor: COLORS.divider,
     },
     dropdownTitle: {
-        fontFamily: 'PlayfairDisplay_700Bold',
+        fontFamily: FONTS.heading,
         fontSize: FONT_SIZES.lg,
         color: COLORS.textPrimary,
     },
@@ -800,7 +809,7 @@ const styles = StyleSheet.create({
         padding: SPACING.md,
     },
     modalOverlayTitle: {
-        fontFamily: 'PlayfairDisplay_700Bold',
+        fontFamily: FONTS.heading,
         fontSize: FONT_SIZES.xl,
         color: '#fff',
     },

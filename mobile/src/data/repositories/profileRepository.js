@@ -30,11 +30,44 @@ export const updateProfile = async (userId, updates) => {
         if (ALLOWED.includes(k)) safeUpdates[k] = updates[k];
     });
 
-    const { data, error } = await supabase
-        .from('profiles')
-        .update(safeUpdates)
-        .eq('id', userId)
-        .select()
-        .single();
-    return { data, error };
+    // Geçerli alan yoksa mevcut profili döndür; boş update çağrısı DB hatası üretmesin
+    if (Object.keys(safeUpdates).length === 0) {
+        return getProfile(userId);
+    }
+
+    // Kolon yok hatasında (schema cache) ilgili alanı düşürüp tekrar dene.
+    // Böylece farklı ortamlardaki profiles şemasıyla uyumlu çalışır.
+    let payload = { ...safeUpdates };
+
+    for (let attempt = 0; attempt < 4; attempt += 1) {
+        const { data, error } = await supabase
+            .from('profiles')
+            .upsert([{ id: userId, ...payload }], { onConflict: 'id' })
+            .select()
+            .single();
+
+        if (!error) return { data, error: null };
+
+        const msg = error?.message || '';
+        const missingColumnMatch =
+            msg.match(/Could not find the '([^']+)' column of 'profiles'/i) ||
+            msg.match(/column "([^"]+)" of relation "profiles" does not exist/i);
+
+        if (!missingColumnMatch) {
+            return { data: null, error };
+        }
+
+        const missingColumn = missingColumnMatch[1];
+        if (!Object.prototype.hasOwnProperty.call(payload, missingColumn)) {
+            return { data: null, error };
+        }
+
+        delete payload[missingColumn];
+
+        if (Object.keys(payload).length === 0) {
+            return getProfile(userId);
+        }
+    }
+
+    return { data: null, error: new Error('Profil güncelleme başarısız oldu.') };
 };

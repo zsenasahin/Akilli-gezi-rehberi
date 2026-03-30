@@ -32,12 +32,16 @@ import { SkeletonLoader } from '../../components/common/SkeletonLoader';
 const { width: SCREEN_W } = Dimensions.get('window');
 const CARD_WIDTH = SCREEN_W - SPACING.lg * 2;
 
-const getCategoryEmoji = (category) => {
+const getCategoryIcon = (category) => {
     const map = {
-        historical: '🏛️', museum: '🎨', nature: '🌿',
-        religious: '🕌', shopping: '🛒', beach: '🏖️',
+        historical: 'library-outline',
+        museum: 'color-palette-outline',
+        nature: 'leaf-outline',
+        religious: 'business-outline',
+        shopping: 'bag-handle-outline',
+        beach: 'sunny-outline',
     };
-    return map[category] || '📍';
+    return map[category] || 'location-outline';
 };
 
 const FavoritesScreen = ({ navigation }) => {
@@ -112,7 +116,7 @@ const FavoritesScreen = ({ navigation }) => {
 
                 {/* Kategori badge */}
                 <View style={styles.categoryBadge}>
-                    <Text style={styles.categoryEmoji}>{getCategoryEmoji(place.category)}</Text>
+                    <Ionicons name={getCategoryIcon(place.category)} size={14} color={COLORS.textPrimary} />
                     <Text style={styles.categoryText}>{place.category}</Text>
                 </View>
 
@@ -236,7 +240,7 @@ const styles = StyleSheet.create({
         backgroundColor: COLORS.surface,
     },
     headerTitle: {
-        fontFamily: 'PlayfairDisplay_700Bold',
+        fontFamily: FONTS.heading,
         fontSize: 28,
         color: COLORS.textPrimary,
     },
@@ -332,7 +336,7 @@ const styles = StyleSheet.create({
         marginBottom: SPACING.lg,
     },
     emptyTitle: {
-        fontFamily: 'PlayfairDisplay_700Bold', fontSize: FONT_SIZES.xl,
+        fontFamily: FONTS.heading, fontSize: FONT_SIZES.xl,
         color: COLORS.textPrimary, marginBottom: SPACING.sm,
     },
     emptyText: {

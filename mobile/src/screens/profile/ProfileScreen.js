@@ -32,13 +32,24 @@ import { ProfileSkeleton } from '../../components/common/SkeletonLoader';
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
 const TRAVEL_STYLES = [
-    { key: 'Kültürel', emoji: '🏛️' },
-    { key: 'Macera', emoji: '🧗' },
-    { key: 'Rahat', emoji: '🌴' },
-    { key: 'Gastronomi', emoji: '🍽️' },
-    { key: 'Doğa', emoji: '🌿' },
-    { key: 'Fotoğraf', emoji: '📸' },
+    { value: 'cultural', label: 'Kültürel', emoji: '🏛️' },
+    { value: 'adventure', label: 'Macera', emoji: '🧗' },
+    { value: 'relaxed', label: 'Rahat', emoji: '🌴' },
+    { value: 'gastronomy', label: 'Gastronomi', emoji: '🍽️' },
+    { value: 'nature', label: 'Doğa', emoji: '🌿' },
+    { value: 'photography', label: 'Fotoğraf', emoji: '📸' },
 ];
+
+const LEGACY_TR_STYLE_TO_VALUE = {
+    Kültürel: 'cultural',
+    Macera: 'adventure',
+    Rahat: 'relaxed',
+    Gastronomi: 'gastronomy',
+    Doğa: 'nature',
+    Fotoğraf: 'photography',
+};
+
+const normalizeTravelStyle = (style) => LEGACY_TR_STYLE_TO_VALUE[style] || style || '';
 
 const BADGE_THRESHOLDS = [
     { min: 0, label: 'Kaşif Adayı', emoji: '🌱', color: '#6B7280' },
@@ -77,7 +88,7 @@ const ProfileScreen = ({ navigation }) => {
         if (profileResult.data) {
             setProfile(profileResult.data);
             setFullName(profileResult.data.full_name || '');
-            setTravelStyle(profileResult.data.travel_style || '');
+            setTravelStyle(normalizeTravelStyle(profileResult.data.travel_style));
             setBio(profileResult.data.bio || '');
             if (profileResult.data.avatar_url) setAvatarUri(profileResult.data.avatar_url);
         }
@@ -110,13 +121,17 @@ const ProfileScreen = ({ navigation }) => {
 
     // ─── Profil kaydet ──────────────────────────────────────────────────────
     const handleSaveProfile = async () => {
+        if (!user?.id) {
+            Alert.alert('Hata', 'Profil güncellemek için tekrar giriş yapın.');
+            return;
+        }
         const { error } = await updateProfile(user.id, {
             full_name: fullName,
             travel_style: travelStyle,
             bio,
         });
         if (error) {
-            Alert.alert('Hata', 'Profil güncellenirken hata oluştu.');
+            Alert.alert('Hata', error.message || 'Profil güncellenirken hata oluştu.');
         } else {
             setProfile(prev => ({ ...prev, full_name: fullName, travel_style: travelStyle, bio }));
             setEditing(false);
@@ -127,6 +142,8 @@ const ProfileScreen = ({ navigation }) => {
     const handleShareProfile = async () => {
         const completedCount = itineraries.filter(i => i.status === 'completed').length;
         const badge = getBadge(completedCount);
+        const styleLabel =
+            TRAVEL_STYLES.find(s => s.value === normalizeTravelStyle(travelStyle))?.label || 'Belirtilmemiş';
         try {
             await Share.share({
                 message:
@@ -134,7 +151,7 @@ const ProfileScreen = ({ navigation }) => {
                     `${badge.emoji} Rozet: ${badge.label}\n` +
                     `✅ Tamamlanan Gezi: ${completedCount}\n` +
                     `❤️ Favoriler: ${favorites.length}\n` +
-                    `🎒 Seyahat Tarzı: ${travelStyle || 'Belirtilmemiş'}\n\n` +
+                    `🎒 Seyahat Tarzı: ${styleLabel}\n\n` +
                     `Türkiye'yi birlikte keşfedelim! 🇹🇷`,
                 title: 'Profilimi Paylaş',
             });
@@ -163,13 +180,21 @@ const ProfileScreen = ({ navigation }) => {
         ]);
     };
 
+    const openSavedPlans = () => {
+        try {
+            navigation.navigate('Saved');
+        } catch {
+            navigation.getParent?.()?.navigate('Saved');
+        }
+    };
+
     if (loading) return <ProfileSkeleton />;
 
     const completedCount = itineraries.filter(i => i.status === 'completed').length;
     const ongoingCount = itineraries.filter(i => i.status === 'ongoing').length;
     const badge = getBadge(completedCount);
     const initials = (fullName || user?.email || '?')[0].toUpperCase();
-    const selectedStyleObj = TRAVEL_STYLES.find(s => s.key === travelStyle);
+    const selectedStyleObj = TRAVEL_STYLES.find(s => s.value === normalizeTravelStyle(travelStyle));
 
     return (
         <ScrollView
@@ -254,13 +279,13 @@ const ProfileScreen = ({ navigation }) => {
                         <View style={styles.styleChips}>
                             {TRAVEL_STYLES.map(s => (
                                 <TouchableOpacity
-                                    key={s.key}
-                                    style={[styles.styleChip, travelStyle === s.key && styles.styleChipActive]}
-                                    onPress={() => setTravelStyle(s.key)}
+                                    key={s.value}
+                                    style={[styles.styleChip, travelStyle === s.value && styles.styleChipActive]}
+                                    onPress={() => setTravelStyle(s.value)}
                                 >
                                     <Text>{s.emoji}</Text>
-                                    <Text style={[styles.styleChipText, travelStyle === s.key && styles.styleChipTextActive]}>
-                                        {s.key}
+                                    <Text style={[styles.styleChipText, travelStyle === s.value && styles.styleChipTextActive]}>
+                                        {s.label}
                                     </Text>
                                 </TouchableOpacity>
                             ))}
@@ -283,7 +308,7 @@ const ProfileScreen = ({ navigation }) => {
                         {selectedStyleObj && (
                             <View style={styles.travelStyleChip}>
                                 <Text>{selectedStyleObj.emoji}</Text>
-                                <Text style={styles.travelStyleText}>{travelStyle}</Text>
+                                <Text style={styles.travelStyleText}>{selectedStyleObj.label}</Text>
                             </View>
                         )}
                     </View>
@@ -318,7 +343,7 @@ const ProfileScreen = ({ navigation }) => {
                         onPress={() => navigation.navigate('TravelAssistant', { context: {} })}
                     >
                         <View style={[styles.quickActionIcon, { backgroundColor: COLORS.primaryMuted }]}>
-                            <Text style={{ fontSize: 20 }}>🐱</Text>
+                            <Ionicons name="sparkles" size={22} color={COLORS.primary} />
                         </View>
                         <Text style={styles.quickActionLabel}>AI Asistan</Text>
                     </TouchableOpacity>
@@ -333,10 +358,10 @@ const ProfileScreen = ({ navigation }) => {
                     </TouchableOpacity>
                     <TouchableOpacity
                         style={styles.quickAction}
-                        onPress={() => navigation.navigate('Saved')}
+                        onPress={openSavedPlans}
                     >
                         <View style={[styles.quickActionIcon, { backgroundColor: COLORS.success + '20' }]}>
-                            <Ionicons name="map" size={22} color={COLORS.success} />
+                            <Ionicons name="map-outline" size={22} color={COLORS.success} />
                         </View>
                         <Text style={styles.quickActionLabel}>Planlarım</Text>
                     </TouchableOpacity>
@@ -357,7 +382,7 @@ const ProfileScreen = ({ navigation }) => {
                 <View style={styles.section}>
                     <View style={styles.sectionHeaderRow}>
                         <Text style={styles.sectionTitle}>Gezi Planlarım</Text>
-                        <TouchableOpacity onPress={() => navigation.navigate('Saved')} style={styles.seeAllBtn}>
+                        <TouchableOpacity onPress={openSavedPlans} style={styles.seeAllBtn}>
                             <Text style={styles.seeAllText}>Tümü</Text>
                             <Ionicons name="arrow-forward" size={13} color={COLORS.primary} />
                         </TouchableOpacity>
@@ -486,7 +511,7 @@ const styles = StyleSheet.create({
     },
     avatarImage: { width: '100%', height: '100%' },
     avatarText: {
-        fontFamily: 'PlayfairDisplay_700Bold',
+        fontFamily: FONTS.heading,
         fontSize: 36, color: '#fff',
     },
     avatarEditBadge: {
@@ -510,7 +535,7 @@ const styles = StyleSheet.create({
     // İsim bloğu
     nameBlock: { alignItems: 'center', gap: 4 },
     userName: {
-        fontFamily: 'PlayfairDisplay_700Bold',
+        fontFamily: FONTS.heading,
         fontSize: 22, color: '#fff', letterSpacing: -0.3,
     },
     userEmail: {
@@ -610,7 +635,7 @@ const styles = StyleSheet.create({
         backgroundColor: COLORS.primary,
     },
     statNumber: {
-        fontFamily: 'PlayfairDisplay_700Bold',
+        fontFamily: FONTS.heading,
         fontSize: 24, color: COLORS.textPrimary,
         letterSpacing: -0.5,
     },
@@ -632,11 +657,11 @@ const styles = StyleSheet.create({
         marginBottom: SPACING.sm,
     },
     sectionTitle: {
-        fontFamily: 'PlayfairDisplay_700Bold',
+        fontFamily: FONTS.bodyBold,
         fontSize: FONT_SIZES.lg,
         color: COLORS.textPrimary,
         marginBottom: SPACING.sm,
-        letterSpacing: -0.3,
+        letterSpacing: -0.4,
     },
     seeAllBtn: {
         flexDirection: 'row', alignItems: 'center', gap: 4,

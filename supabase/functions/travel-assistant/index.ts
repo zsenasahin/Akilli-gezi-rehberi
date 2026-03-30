@@ -145,8 +145,9 @@ Yalnızca seyahat, gezi, yemek, konaklama ve şehir rehberliği konularında yar
         }
     }
     if (context?.places && context.places.length > 0) {
+        const currentDay = context.currentDay
         const todayPlaces = context.places
-            .filter(p => p.day === context.currentDay)
+            .filter(p => p.day === currentDay)
             .map(p => p.name)
         if (todayPlaces.length > 0) {
             prompt += ` Bugünkü plan: ${todayPlaces.join(', ')}.`

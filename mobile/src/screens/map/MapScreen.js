@@ -6,7 +6,7 @@ import {
 import { WebView } from 'react-native-webview';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../../constants/colors';
-import { FONT_SIZES } from '../../constants/typography';
+import { FONT_SIZES, FONTS } from '../../constants/typography';
 import { SPACING, BORDER_RADIUS } from '../../constants/layout';
 import { getCityCenter } from '../../constants/cities';
 import { generateLeafletHtml } from '../../utils/leafletHtml';
@@ -96,7 +96,7 @@ const MapScreen = ({ route, navigation }) => {
                     <Ionicons name="arrow-back" size={22} color={COLORS.textPrimary} />
                 </TouchableOpacity>
                 <Text style={styles.headerTitle} numberOfLines={1}>
-                    📍 {viewItem?.name || cityName}
+                    {viewItem?.name || cityName}
                 </Text>
                 <TouchableOpacity style={styles.googleMapsBtn} onPress={openInGoogleMaps} activeOpacity={0.85}>
                     <Ionicons name="navigate" size={15} color="#fff" />
@@ -148,7 +148,7 @@ const styles = StyleSheet.create({
     },
     backBtn: { padding: 4 },
     headerTitle: {
-        flex: 1, fontFamily: 'PlayfairDisplay_700Bold',
+        flex: 1, fontFamily: FONTS.heading,
         fontSize: FONT_SIZES.lg, color: COLORS.textPrimary,
     },
     googleMapsBtn: {

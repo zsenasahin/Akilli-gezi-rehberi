@@ -334,7 +334,7 @@ const styles = StyleSheet.create({
         gap: SPACING.sm,
     },
     cardCityName: {
-        fontFamily: 'PlayfairDisplay_700Bold',
+        fontFamily: FONTS.heading,
         fontSize: FONT_SIZES.xl,
         color: '#fff',
     },

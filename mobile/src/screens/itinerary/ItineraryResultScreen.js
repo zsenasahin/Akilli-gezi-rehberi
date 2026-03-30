@@ -7,7 +7,7 @@ import {
     Alert,
 } from 'react-native';
 import { COLORS } from '../../constants/colors';
-import { FONT_SIZES, FONT_WEIGHTS } from '../../constants/typography';
+import { FONT_SIZES, FONTS } from '../../constants/typography';
 import { SPACING, BORDER_RADIUS } from '../../constants/layout';
 import { useAuth } from '../../contexts/AuthContext';
 import { saveItinerary } from '../../services/itineraryService';
@@ -136,7 +136,7 @@ const styles = StyleSheet.create({
     },
     cityName: {
         fontSize: FONT_SIZES.xl,
-        fontFamily: "PlayfairDisplay_700Bold",
+        fontFamily: FONTS.heading,
         color: COLORS.textOnPrimary,
         marginBottom: SPACING.md,
         textAlign: 'center',
@@ -152,7 +152,7 @@ const styles = StyleSheet.create({
     },
     statValue: {
         fontSize: FONT_SIZES.lg,
-        fontFamily: "PlayfairDisplay_700Bold",
+        fontFamily: FONTS.heading,
         color: COLORS.textOnPrimary,
     },
     statLabel: {
