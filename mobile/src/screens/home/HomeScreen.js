@@ -102,23 +102,11 @@ const HomeScreen = ({ navigation }) => {
         navigation.navigate('CityDetail', { city });
     };
 
-    const navigateToRouteInHierarchy = (routeName, params) => {
-        let navRef = navigation;
-        while (navRef) {
-            const state = navRef.getState?.();
-            if (state?.routeNames?.includes(routeName)) {
-                navRef.navigate(routeName, params);
-                return true;
-            }
-            navRef = navRef.getParent?.();
-        }
-        return false;
-    };
-
     const openDiscoverTab = () => {
-        if (navigateToRouteInHierarchy('Discover')) return;
-        if (navigateToRouteInHierarchy('DiscoverMain')) return;
-        navigation.navigate('Discover');
+        // Navigate to the Discover tab. React Navigation resolves nested
+        // navigators automatically: this targets the Tab navigator's
+        // "Discover" route and then its initial "DiscoverMain" screen.
+        navigation.navigate('Discover', { screen: 'DiscoverMain' });
     };
 
     if (loading) return <HomeScreenSkeleton />;
@@ -134,8 +122,7 @@ const HomeScreen = ({ navigation }) => {
 
     return (
         <View style={styles.root}>
-            {/* ═══ HERO — STICKY ARKAPLAN ═══ */}
-            {/* Hero resmi scroll'un arkasında sabit kalır */}
+            {/* ═══ HERO — STICKY ARKAPLAN (sadece resim) ═══ */}
             <View style={styles.heroSection}>
                 <Animated.View
                     style={[
@@ -154,8 +141,28 @@ const HomeScreen = ({ navigation }) => {
                         style={StyleSheet.absoluteFillObject}
                     />
                 </Animated.View>
+            </View>
 
-                {/* Hero içeriği sabit kalır, sadece alttaki içerik kayar */}
+            {/* ═══ SCROLLABLE İÇERİK ═══ */}
+            <Animated.ScrollView
+                style={styles.scrollView}
+                contentContainerStyle={styles.contentContainer}
+                showsVerticalScrollIndicator={false}
+                onScroll={Animated.event(
+                    [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+                    { useNativeDriver: true }
+                )}
+                scrollEventThrottle={16}
+                refreshControl={
+                    <RefreshControl
+                        refreshing={refreshing}
+                        onRefresh={() => { setRefreshing(true); fetchData(); }}
+                        tintColor={COLORS.primary}
+                        progressViewOffset={HERO_HEIGHT}
+                    />
+                }
+            >
+                {/* Hero içeriği — ScrollView içinde, dokunulabilir */}
                 <View style={styles.heroContent}>
                     <View style={styles.heroBadge}>
                         <Ionicons name="location" size={14} color="#fff" />
@@ -177,27 +184,6 @@ const HomeScreen = ({ navigation }) => {
                         <Ionicons name="arrow-forward" size={16} color="#fff" />
                     </TouchableOpacity>
                 </View>
-            </View>
-
-            {/* ═══ SCROLLABLE İÇERİK ═══ */}
-            <Animated.ScrollView
-                style={styles.scrollView}
-                contentContainerStyle={[styles.contentContainer, { paddingTop: HERO_HEIGHT }]}
-                showsVerticalScrollIndicator={false}
-                onScroll={Animated.event(
-                    [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-                    { useNativeDriver: true }
-                )}
-                scrollEventThrottle={16}
-                refreshControl={
-                    <RefreshControl
-                        refreshing={refreshing}
-                        onRefresh={() => { setRefreshing(true); fetchData(); }}
-                        tintColor={COLORS.primary}
-                        progressViewOffset={HERO_HEIGHT}
-                    />
-                }
-            >
                 {/* İçerik kartı — beyaz yüzey üstünde */}
                 <View style={styles.contentCard}>
                     {error && <ErrorMessage message={error} onRetry={fetchData} />}
@@ -422,10 +408,8 @@ const styles = StyleSheet.create({
         height: HERO_HEIGHT + 60, // erken kesilmesin
     },
     heroContent: {
-        position: 'absolute',
-        bottom: 0,
-        left: 0,
-        right: 0,
+        height: HERO_HEIGHT,
+        justifyContent: 'flex-end',
         paddingHorizontal: SPACING.lg,
         paddingBottom: SPACING.xl + 8,
     },
