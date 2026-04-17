@@ -255,7 +255,7 @@ const HomeScreen = ({ navigation }) => {
                         </View>
                         <View style={styles.cityGrid}>
                             {cities.map((city, index) => {
-                                const images = getCityImages(city.name);
+                                const images = getCityImages(city.name, city.region);
                                 return (
                                     <CityCard
                                         key={city.id}
@@ -293,7 +293,7 @@ const HomeScreen = ({ navigation }) => {
                                 </TouchableOpacity>
                             </View>
                             {recentItineraries.map((itin) => {
-                                const imgs = getCityImages(itin.cities?.name);
+                                const imgs = getCityImages(itin.cities?.name, itin.cities?.region);
                                 const isCompleted = itin.status === 'completed';
                                 return (
                                     <TouchableOpacity

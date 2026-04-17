@@ -14,6 +14,7 @@ import {
     Alert,
     Platform,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import SmartImage from '../../components/common/SmartImage';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -98,6 +99,7 @@ const DiscoverScreen = () => {
     const navigation = useNavigation();
     const { user } = useAuth();
     const requireAuth = useRequireAuth(navigation);
+    const insets = useSafeAreaInsets();
     const [places, setPlaces] = useState([]);
     const [cities, setCities] = useState([]);
     const [selectedCity, setSelectedCity] = useState(null);
@@ -218,7 +220,7 @@ const DiscoverScreen = () => {
         />
     ), [favorites, failedImages, handleToggleFavorite, placePhotos]);
 
-    // ─── Detay modal ─────────────────────────────────────────────────────────
+    // ─── Detay modal ─────────────────────────────────────────────────────────────────
     const renderDetailModal = () => {
         if (!selectedPlace) return null;
         const p = selectedPlace;
@@ -227,104 +229,108 @@ const DiscoverScreen = () => {
         const description = wikiInfo?.description || p.description || p.short_description;
 
         return (
-            <Modal visible={!!selectedPlace} transparent animationType="slide" onRequestClose={() => setSelectedPlace(null)}>
+            <Modal visible={!!selectedPlace} transparent animationType="fade" onRequestClose={() => setSelectedPlace(null)}>
                 <View style={styles.modalOverlay}>
-                    <View style={styles.modalContent}>
+                    <TouchableOpacity style={styles.modalBackdrop} activeOpacity={1} onPress={() => setSelectedPlace(null)} />
+                    <View style={[styles.modalContent, { paddingBottom: insets.bottom + SPACING.md }]}>
                         <TouchableOpacity style={styles.modalClose} onPress={() => setSelectedPlace(null)}>
                             <Ionicons name="close" size={22} color={COLORS.textPrimary} />
                         </TouchableOpacity>
 
-                        <ScrollView showsVerticalScrollIndicator={false}>
-                            {/* Hero Image */}
-                            <View style={styles.modalImageContainer}>
-                                <SmartImage
-                                    uri={hasImage ? p.image_url : fallbackImage}
-                                    fallbackUri={fallbackImage}
-                                    style={styles.modalImage}
-                                    contentFit="cover"
-                                    transition={400}
+                        {/* Handle bar */}
+                        <View style={styles.modalHandle}>
+                            <View style={styles.modalHandleBar} />
+                        </View>
+
+                        {/* Hero Image */}
+                        <View style={styles.modalImageContainer}>
+                            <SmartImage
+                                uri={hasImage ? p.image_url : fallbackImage}
+                                fallbackUri={fallbackImage}
+                                style={styles.modalImage}
+                                contentFit="cover"
+                                transition={400}
+                            />
+                            <LinearGradient colors={COLORS.gradient.card} style={styles.modalImageGradient} />
+                            <TouchableOpacity style={styles.modalFavButton} onPress={() => handleToggleFavorite(p.id)}>
+                                <Ionicons
+                                    name={favorites[p.id] ? 'heart' : 'heart-outline'}
+                                    size={24}
+                                    color={favorites[p.id] ? '#EF4444' : '#fff'}
                                 />
-                                <LinearGradient colors={COLORS.gradient.card} style={styles.modalImageGradient} />
-                                <TouchableOpacity style={styles.modalFavButton} onPress={() => handleToggleFavorite(p.id)}>
-                                    <Ionicons
-                                        name={favorites[p.id] ? 'heart' : 'heart-outline'}
-                                        size={24}
-                                        color={favorites[p.id] ? '#EF4444' : '#fff'}
-                                    />
-                                </TouchableOpacity>
-                                <View style={styles.modalImageOverlayContent}>
-                                    <Text style={styles.modalOverlayTitle}>{p.name}</Text>
-                                    <Text style={styles.modalOverlayCity}>📍 {p.cities?.name}</Text>
+                            </TouchableOpacity>
+                            <View style={styles.modalImageOverlayContent}>
+                                <Text style={styles.modalOverlayTitle}>{p.name}</Text>
+                                <Text style={styles.modalOverlayCity}>📍 {p.cities?.name}</Text>
+                            </View>
+                        </View>
+
+                        <View style={styles.modalBody}>
+                            {/* Stats */}
+                            <View style={styles.modalStats}>
+                                <View style={styles.modalStat}>
+                                    <View style={[styles.modalStatIcon, { backgroundColor: COLORS.primaryMuted }]}>
+                                        <Ionicons name="time-outline" size={18} color={COLORS.primary} />
+                                    </View>
+                                    <Text style={styles.modalStatValue}>{p.avg_duration} saat</Text>
+                                    <Text style={styles.modalStatLabel}>Süre</Text>
+                                </View>
+                                <View style={styles.modalStat}>
+                                    <View style={[styles.modalStatIcon, { backgroundColor: COLORS.success + '15' }]}>
+                                        <Ionicons name="cash-outline" size={18} color={COLORS.success} />
+                                    </View>
+                                    <Text style={styles.modalStatValue}>{p.entry_fee > 0 ? `₺${p.entry_fee}` : 'Ücretsiz'}</Text>
+                                    <Text style={styles.modalStatLabel}>Giriş</Text>
+                                </View>
+                                <View style={styles.modalStat}>
+                                    <View style={[styles.modalStatIcon, { backgroundColor: COLORS.warning + '15' }]}>
+                                        <Ionicons name="star" size={18} color={COLORS.warning} />
+                                    </View>
+                                    <Text style={styles.modalStatValue}>{p.popularity_score}</Text>
+                                    <Text style={styles.modalStatLabel}>Popülerlik</Text>
                                 </View>
                             </View>
 
-                            <View style={styles.modalBody}>
-                                {/* Stats */}
-                                <View style={styles.modalStats}>
-                                    <View style={styles.modalStat}>
-                                        <View style={[styles.modalStatIcon, { backgroundColor: COLORS.primaryMuted }]}>
-                                            <Ionicons name="time-outline" size={18} color={COLORS.primary} />
-                                        </View>
-                                        <Text style={styles.modalStatValue}>{p.avg_duration} saat</Text>
-                                        <Text style={styles.modalStatLabel}>Süre</Text>
-                                    </View>
-                                    <View style={styles.modalStat}>
-                                        <View style={[styles.modalStatIcon, { backgroundColor: COLORS.success + '15' }]}>
-                                            <Ionicons name="cash-outline" size={18} color={COLORS.success} />
-                                        </View>
-                                        <Text style={styles.modalStatValue}>{p.entry_fee > 0 ? `₺${p.entry_fee}` : 'Ücretsiz'}</Text>
-                                        <Text style={styles.modalStatLabel}>Giriş</Text>
-                                    </View>
-                                    <View style={styles.modalStat}>
-                                        <View style={[styles.modalStatIcon, { backgroundColor: COLORS.warning + '15' }]}>
-                                            <Ionicons name="star" size={18} color={COLORS.warning} />
-                                        </View>
-                                        <Text style={styles.modalStatValue}>{p.popularity_score}</Text>
-                                        <Text style={styles.modalStatLabel}>Populerlik</Text>
-                                    </View>
-                                </View>
-
-                                {/* Wikipedia */}
-                                {wikiLoading
-                                    ? <View style={styles.wikiLoading}><Text style={styles.wikiLoadingText}>📖 Bilgi yükleniyor...</Text></View>
-                                    : description
-                                        ? (
-                                            <View style={styles.descriptionSection}>
-                                                <View style={styles.descriptionHeader}>
-                                                    <Ionicons name="book-outline" size={18} color={COLORS.primary} />
-                                                    <Text style={styles.modalSectionTitle}>Hakkında</Text>
-                                                    {wikiInfo && (
-                                                        <View style={styles.wikiBadge}>
-                                                            <Text style={styles.wikiBadgeText}>Wikipedia</Text>
-                                                        </View>
-                                                    )}
-                                                </View>
-                                                <Text style={styles.modalDesc}>{description}</Text>
+                            {/* Wikipedia */}
+                            {wikiLoading
+                                ? <View style={styles.wikiLoading}><Text style={styles.wikiLoadingText}>📖 Bilgi yükleniyor...</Text></View>
+                                : description
+                                    ? (
+                                        <View style={styles.descriptionSection}>
+                                            <View style={styles.descriptionHeader}>
+                                                <Ionicons name="book-outline" size={18} color={COLORS.primary} />
+                                                <Text style={styles.modalSectionTitle}>Hakkında</Text>
+                                                {wikiInfo && (
+                                                    <View style={styles.wikiBadge}>
+                                                        <Text style={styles.wikiBadgeText}>Wikipedia</Text>
+                                                    </View>
+                                                )}
                                             </View>
-                                        )
-                                        : null
-                                }
+                                            <Text style={styles.modalDesc}>{description}</Text>
+                                        </View>
+                                    )
+                                    : null
+                            }
 
-                                {/* Navigasyon */}
-                                {p.lat && p.lng && (
-                                    <TouchableOpacity
-                                        style={styles.modalNavBtn}
-                                        onPress={() => {
-                                            setSelectedPlace(null);
-                                            navigation.navigate('MapScreen', {
-                                                city: { id: p.city_id, name: p.cities?.name },
-                                                focusLat: p.lat,
-                                                focusLng: p.lng,
-                                                viewItem: { name: p.name },
-                                            });
-                                        }}
-                                    >
-                                        <Ionicons name="navigate" size={18} color="#fff" />
-                                        <Text style={styles.modalNavBtnText}>Haritada Gör</Text>
-                                    </TouchableOpacity>
-                                )}
-                            </View>
-                        </ScrollView>
+                            {/* Navigasyon */}
+                            {p.lat && p.lng && (
+                                <TouchableOpacity
+                                    style={styles.modalNavBtn}
+                                    onPress={() => {
+                                        setSelectedPlace(null);
+                                        navigation.navigate('MapScreen', {
+                                            city: { id: p.city_id, name: p.cities?.name },
+                                            focusLat: p.lat,
+                                            focusLng: p.lng,
+                                            viewItem: { name: p.name },
+                                        });
+                                    }}
+                                >
+                                    <Ionicons name="navigate" size={18} color="#fff" />
+                                    <Text style={styles.modalNavBtnText}>Haritada Gör</Text>
+                                </TouchableOpacity>
+                            )}
+                        </View>
                     </View>
                 </View>
             </Modal>
@@ -336,7 +342,7 @@ const DiscoverScreen = () => {
     return (
         <View style={styles.container}>
             {/* ─── Header ─── */}
-            <View style={styles.header}>
+            <View style={[styles.header, { paddingTop: insets.top + SPACING.sm }]}>
                 <View style={styles.headerRow}>
                     <View>
                         <Text style={styles.headerTitle}>Keşfet</Text>
@@ -516,7 +522,6 @@ const styles = StyleSheet.create({
     // ─── Header ───
     header: {
         paddingHorizontal: SPACING.lg,
-        paddingTop: Platform.OS === 'ios' ? 56 : SPACING.xxl + 8,
         paddingBottom: SPACING.sm,
         backgroundColor: COLORS.surface,
         borderBottomWidth: 1,
@@ -776,14 +781,28 @@ const styles = StyleSheet.create({
     // ─── Detay Modal ───
     modalOverlay: {
         flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.5)',
+        backgroundColor: 'rgba(0,0,0,0.6)',
         justifyContent: 'flex-end',
+    },
+    modalBackdrop: {
+        flex: 1,
     },
     modalContent: {
         backgroundColor: COLORS.surface,
         borderTopLeftRadius: BORDER_RADIUS.xl,
         borderTopRightRadius: BORDER_RADIUS.xl,
-        maxHeight: '92%',
+        maxHeight: '85%',
+    },
+    modalHandle: {
+        alignItems: 'center',
+        paddingTop: SPACING.sm,
+        paddingBottom: SPACING.xs,
+    },
+    modalHandleBar: {
+        width: 40,
+        height: 4,
+        borderRadius: 2,
+        backgroundColor: COLORS.border,
     },
     modalClose: {
         position: 'absolute', top: SPACING.sm, right: SPACING.sm,

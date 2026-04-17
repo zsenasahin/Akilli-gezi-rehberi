@@ -26,6 +26,7 @@ import {
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS } from '../../constants/colors';
 import { FONTS, FONT_SIZES } from '../../constants/typography';
 import { SPACING, BORDER_RADIUS } from '../../constants/layout';
@@ -58,9 +59,10 @@ const CATEGORIES = [
 const CityDetailScreen = ({ route, navigation }) => {
     const { city } = route.params;
     const { user } = useAuth();
+    const insets = useSafeAreaInsets();
     const cityName = city?.name || 'İstanbul';
     const cityCenter = getCityCenter(cityName);
-    const cityImages = getCityImages(cityName);
+    const cityImages = getCityImages(cityName, city?.region);
     const { setAssistantContext, clearAssistantContext } = useAssistantContext();
 
     // State
@@ -113,12 +115,40 @@ const CityDetailScreen = ({ route, navigation }) => {
                 getPlaceSummary(cityName),
             ]);
 
-            if (placesResult.data) {
-                setPlaces(placesResult.data);
+            const dbPlaces = placesResult.data || [];
+            if (dbPlaces.length > 0) {
+                setPlaces(dbPlaces);
                 // Arka planda gerçek Wikipedia fotoğraflarını çek
-                getBatchPlacePhotos(placesResult.data).then(photos => {
+                getBatchPlacePhotos(dbPlaces).then(photos => {
                     setPlacePhotos(photos);
                 }).catch(() => {}); // Sessizce başarısız ol
+            } else {
+                // DB'de şehir için yer yoksa ücretsiz OSM/Overpass turistik yerleri göster.
+                const { data: nearbyAttractions } = await getCityPOIs(
+                    cityCenter.lat,
+                    cityCenter.lng,
+                    'attraction',
+                    7000
+                );
+                const normalized = (nearbyAttractions || []).map((poi, idx) => ({
+                    id: `osm-${poi.id || idx}`,
+                    name: poi.name || 'Turistik Yer',
+                    category: 'historical',
+                    avg_duration: 1,
+                    entry_fee: 0,
+                    popularity_score: 50,
+                    image_url: null,
+                    lat: poi.lat,
+                    lng: poi.lng,
+                    source: 'overpass',
+                    categoryLabel: poi.categoryLabel,
+                    emoji: poi.emoji,
+                    address: poi.address,
+                    website: poi.website,
+                    phone: poi.phone,
+                    openingHours: poi.openingHours,
+                }));
+                setPlaces(normalized);
             }
             if (wikiResult) {
                 setCityDescription(wikiResult.description);
@@ -228,6 +258,7 @@ const CityDetailScreen = ({ route, navigation }) => {
     // RENDER: DB yerler (Gezilecek)
     // ═══════════════════════════════════════
     const renderPlaceCard = (place) => {
+        const isOverpassPlace = place.source === 'overpass';
         const isFav = favorites[place.id];
         // Öncelik: Wikipedia gerçek fotoğraf > curated fallback
         const wikiPhoto = placePhotos[place.name];
@@ -240,7 +271,7 @@ const CityDetailScreen = ({ route, navigation }) => {
                 style={styles.placeCard}
                 activeOpacity={0.85}
                 onPress={() => {
-                    setSelectedItem({ ...place, source: 'db' });
+                    setSelectedItem({ ...place, source: place.source || 'db' });
                     loadWikiForItem(place.name);
                 }}
             >
@@ -256,17 +287,19 @@ const CityDetailScreen = ({ route, navigation }) => {
                 />
 
                 {/* Favori butonu */}
-                <TouchableOpacity
-                    style={styles.favButton}
-                    onPress={() => handleToggleFavorite(place.id)}
-                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                >
-                    <Ionicons
-                        name={isFav ? 'heart' : 'heart-outline'}
-                        size={20}
-                        color={isFav ? '#EF4444' : '#fff'}
-                    />
-                </TouchableOpacity>
+                {!isOverpassPlace && (
+                    <TouchableOpacity
+                        style={styles.favButton}
+                        onPress={() => handleToggleFavorite(place.id)}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                        <Ionicons
+                            name={isFav ? 'heart' : 'heart-outline'}
+                            size={20}
+                            color={isFav ? '#EF4444' : '#fff'}
+                        />
+                    </TouchableOpacity>
+                )}
 
                 <View style={styles.placeCardContent}>
                     <Text style={styles.placeCardName} numberOfLines={1}>{place.name}</Text>
@@ -280,7 +313,9 @@ const CityDetailScreen = ({ route, navigation }) => {
                                 <Text style={[styles.feeBadgeText, { color: COLORS.success }]}>Ücretsiz</Text>
                             </View>
                         )}
-                        <Text style={styles.placeCardDuration}>⏱ {place.avg_duration}s</Text>
+                        <Text style={styles.placeCardDuration}>
+                            {isOverpassPlace ? (place.categoryLabel || 'Turistik Yer') : `⏱ ${place.avg_duration}s`}
+                        </Text>
                     </View>
                 </View>
             </TouchableOpacity>
@@ -690,7 +725,7 @@ const CityDetailScreen = ({ route, navigation }) => {
     return (
         <View style={styles.container}>
             {/* Sabit üst bar (scroll olunca görünür) */}
-            <Animated.View style={[styles.stickyHeader, { opacity: headerOpacity }]}>
+            <Animated.View style={[styles.stickyHeader, { opacity: headerOpacity, paddingTop: insets.top + 6 }]}>
                 <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
                     <Ionicons name="arrow-back" size={22} color="#fff" />
                 </TouchableOpacity>
@@ -726,7 +761,7 @@ const CityDetailScreen = ({ route, navigation }) => {
 
                     {/* Geri butonu */}
                     <TouchableOpacity
-                        style={styles.heroBackBtn}
+                        style={[styles.heroBackBtn, { top: insets.top + 6 }]}
                         onPress={() => navigation.goBack()}
                     >
                         <Ionicons name="arrow-back" size={22} color="#fff" />
@@ -734,7 +769,7 @@ const CityDetailScreen = ({ route, navigation }) => {
 
                     {/* Harita butonu */}
                     <TouchableOpacity
-                        style={styles.heroMapBtn}
+                        style={[styles.heroMapBtn, { top: insets.top + 6 }]}
                         onPress={() => navigation.navigate('MapScreen', { city })}
                     >
                         <Ionicons name="map" size={18} color="#fff" />
@@ -861,7 +896,6 @@ const styles = StyleSheet.create({
     stickyHeader: {
         position: 'absolute', top: 0, left: 0, right: 0, zIndex: 100,
         flexDirection: 'row', alignItems: 'center',
-        paddingTop: Platform.OS === 'ios' ? 50 : 30,
         paddingBottom: 12, paddingHorizontal: SPACING.md,
         backgroundColor: COLORS.primary,
     },
@@ -884,7 +918,6 @@ const styles = StyleSheet.create({
     heroGradient: { ...StyleSheet.absoluteFillObject },
     heroBackBtn: {
         position: 'absolute',
-        top: Platform.OS === 'ios' ? 50 : 30,
         left: SPACING.md,
         width: 38, height: 38, borderRadius: 12,
         backgroundColor: 'rgba(0,0,0,0.3)',
@@ -892,7 +925,6 @@ const styles = StyleSheet.create({
     },
     heroMapBtn: {
         position: 'absolute',
-        top: Platform.OS === 'ios' ? 50 : 30,
         right: SPACING.md,
         flexDirection: 'row', alignItems: 'center', gap: 4,
         paddingHorizontal: 12, paddingVertical: 8,

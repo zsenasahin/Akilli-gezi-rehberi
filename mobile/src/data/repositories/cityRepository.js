@@ -8,16 +8,24 @@ import { cache, TTL } from '../../services/cacheService';
 
 export const getCities = async (forceRefresh = false) => {
     const CACHE_KEY = 'cities_all';
-    if (!forceRefresh) {
-        const cached = await cache.get(CACHE_KEY);
-        if (cached) return { data: cached, error: null, fromCache: true };
-    }
+    const cached = !forceRefresh ? await cache.get(CACHE_KEY) : null;
+
     const { data, error } = await supabase
         .from('cities')
         .select('*')
         .order('name', { ascending: true });
-    if (data) await cache.set(CACHE_KEY, data, TTL.LONG);
-    return { data, error, fromCache: false };
+
+    if (!error && data) {
+        await cache.set(CACHE_KEY, data, TTL.LONG);
+        return { data, error: null, fromCache: false };
+    }
+
+    // Ağ hatası varsa cache ile devam et (offline/fallback).
+    if (cached?.length) {
+        return { data: cached, error: null, fromCache: true };
+    }
+
+    return { data: data || [], error, fromCache: false };
 };
 
 export const getCityById = async (cityId) => {

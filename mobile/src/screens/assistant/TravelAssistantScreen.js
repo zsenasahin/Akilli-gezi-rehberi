@@ -12,8 +12,10 @@ import React, { useState, useRef, useCallback, useEffect } from 'react';
 import {
     View, Text, StyleSheet, ScrollView, TextInput,
     TouchableOpacity, KeyboardAvoidingView, Platform,
-    ActivityIndicator, Animated, Keyboard,
+    ActivityIndicator, Animated, Keyboard, StatusBar,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../../constants/colors';
 import { FONTS, FONT_SIZES } from '../../constants/typography';
@@ -60,6 +62,7 @@ const TravelAssistantScreen = ({ route, navigation }) => {
     const routeContext = route?.params?.context || {};
     // Merge: direkt navigate baskın gelir
     const context = Object.keys(routeContext).length > 0 ? routeContext : globalContext;
+    const insets = useSafeAreaInsets();
 
     const getWelcomeMessage = () => {
         if (context?.screen === 'itinerary' && context?.city) {
@@ -174,7 +177,7 @@ const TravelAssistantScreen = ({ route, navigation }) => {
             { id: Date.now() + 1, role: 'assistant', text: replyText },
         ]);
         scrollToBottom();
-    }, [input, loading, messages, context, scrollToBottom]);
+    }, [input, loading, messages, context, scrollToBottom, weatherContext]);
 
     return (
         <KeyboardAvoidingView
@@ -182,30 +185,47 @@ const TravelAssistantScreen = ({ route, navigation }) => {
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
             keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
         >
-            {/* Header */}
-            <View style={styles.header}>
+            {/* Premium Header */}
+            <LinearGradient
+                colors={['#0f0c29', '#302b63', '#24243e']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={[styles.header, { paddingTop: insets.top + SPACING.xs }]}
+            >
                 <TouchableOpacity
                     style={styles.backBtn}
                     onPress={handleBack}
                 >
-                    <Ionicons name="arrow-back" size={22} color={COLORS.textPrimary} />
+                    <View style={styles.backBtnInner}>
+                        <Ionicons name="arrow-back" size={20} color="#fff" />
+                    </View>
                 </TouchableOpacity>
+
                 <View style={styles.headerCenter}>
-                    <View style={styles.avatarDot}>
-                        <Text style={{ fontSize: 18 }}>🐱</Text>
+                    <View style={styles.avatarWrap}>
+                        <LinearGradient
+                            colors={['#667eea', '#764ba2']}
+                            style={styles.avatarGradient}
+                        >
+                            <Text style={styles.avatarEmoji}>🐱</Text>
+                        </LinearGradient>
+                        <View style={styles.onlinePulse} />
                     </View>
                     <View>
                         <Text style={styles.headerTitle}>Gezi Asistanı</Text>
-                        <Text style={styles.headerSub}>
-                            {context.city ? `${context.city} · ${context.days || '?'} gün` : 'Türkiye Rehberi'}
-                        </Text>
+                        <View style={styles.headerSubRow}>
+                            <View style={styles.onlineDot} />
+                            <Text style={styles.headerSub}>
+                                {context.city ? `${context.city} · ${context.days || '?'} gün` : 'Hazır'}
+                            </Text>
+                        </View>
                     </View>
                 </View>
-                <View style={styles.onlineBadge}>
-                    <View style={styles.onlineDot} />
-                    <Text style={styles.onlineText}>Çevrimiçi</Text>
+
+                <View style={styles.geminiTag}>
+                    <Text style={styles.geminiText}>✨ AI</Text>
                 </View>
-            </View>
+            </LinearGradient>
 
             {/* Mesajlar */}
             <ScrollView
@@ -224,9 +244,12 @@ const TravelAssistantScreen = ({ route, navigation }) => {
                         ]}
                     >
                         {msg.role === 'assistant' && (
-                            <View style={styles.assistantAvatar}>
+                            <LinearGradient
+                                colors={['#667eea', '#764ba2']}
+                                style={styles.assistantAvatar}
+                            >
                                 <Text style={styles.assistantAvatarEmoji}>🐱</Text>
-                            </View>
+                            </LinearGradient>
                         )}
                         <View style={[
                             styles.bubbleContent,
@@ -271,20 +294,25 @@ const TravelAssistantScreen = ({ route, navigation }) => {
                             onPress={() => sendMessage(qr.label)}
                             activeOpacity={0.75}
                         >
-                            <Ionicons name={qr.icon} size={14} color={COLORS.primary} />
-                            <Text style={styles.quickReplyText}>{qr.label}</Text>
+                            <LinearGradient
+                                colors={['rgba(102,126,234,0.15)', 'rgba(118,75,162,0.15)']}
+                                style={styles.quickReplyGradient}
+                            >
+                                <Ionicons name={qr.icon} size={13} color="#667eea" />
+                                <Text style={styles.quickReplyText}>{qr.label}</Text>
+                            </LinearGradient>
                         </TouchableOpacity>
                     ))}
                 </ScrollView>
             )}
 
             {/* Input alanı */}
-            <View style={styles.inputRow}>
+            <View style={[styles.inputRow, { paddingBottom: Math.max(insets.bottom, SPACING.sm) }]}>
                 <TextInput
                     ref={inputRef}
                     style={styles.input}
                     placeholder="Bir şey sorun..."
-                    placeholderTextColor={COLORS.textLight}
+                    placeholderTextColor="rgba(255,255,255,0.3)"
                     value={input}
                     onChangeText={setInput}
                     multiline
@@ -302,11 +330,16 @@ const TravelAssistantScreen = ({ route, navigation }) => {
                         disabled={!input.trim() || loading}
                         activeOpacity={0.85}
                     >
-                        <Ionicons
-                            name="send"
-                            size={18}
-                            color={(!input.trim() || loading) ? COLORS.textLight : '#fff'}
-                        />
+                        <LinearGradient
+                            colors={input.trim() && !loading ? ['#667eea', '#764ba2'] : ['#2a2a3e', '#2a2a3e']}
+                            style={styles.sendBtnGradient}
+                        >
+                            <Ionicons
+                                name="send"
+                                size={17}
+                                color={(!input.trim() || loading) ? 'rgba(255,255,255,0.25)' : '#fff'}
+                            />
+                        </LinearGradient>
                     </TouchableOpacity>
                 </Animated.View>
             </View>
@@ -315,59 +348,80 @@ const TravelAssistantScreen = ({ route, navigation }) => {
 };
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: COLORS.background },
+    container: { flex: 1, backgroundColor: '#0d0d1a' },
 
-    // ─── Header ───
+    // ─── Premium Header ───
     header: {
         flexDirection: 'row',
         alignItems: 'center',
         paddingHorizontal: SPACING.md,
-        paddingTop: Platform.OS === 'ios' ? 52 : 16,
         paddingBottom: SPACING.md,
-        backgroundColor: COLORS.surface,
-        borderBottomWidth: 1,
-        borderBottomColor: COLORS.border,
         gap: SPACING.sm,
     },
-    backBtn: { padding: 4 },
+    backBtn: { marginRight: 2 },
+    backBtnInner: {
+        width: 36, height: 36,
+        borderRadius: 12,
+        backgroundColor: 'rgba(255,255,255,0.1)',
+        justifyContent: 'center', alignItems: 'center',
+    },
     headerCenter: {
         flex: 1,
         flexDirection: 'row',
         alignItems: 'center',
         gap: SPACING.sm,
     },
-    avatarDot: {
-        width: 36, height: 36,
-        borderRadius: 18,
-        backgroundColor: COLORS.primary + '20',
-        justifyContent: 'center',
-        alignItems: 'center',
+    avatarWrap: {
+        position: 'relative',
+    },
+    avatarGradient: {
+        width: 42, height: 42,
+        borderRadius: 14,
+        justifyContent: 'center', alignItems: 'center',
+    },
+    avatarEmoji: { fontSize: 22 },
+    onlinePulse: {
+        position: 'absolute',
+        bottom: -1, right: -1,
+        width: 12, height: 12,
+        borderRadius: 6,
+        backgroundColor: '#4CAF50',
+        borderWidth: 2,
+        borderColor: '#0f0c29',
     },
     headerTitle: {
         fontFamily: FONTS.bodySemiBold,
         fontSize: FONT_SIZES.md,
-        color: COLORS.textPrimary,
+        color: '#fff',
+    },
+    headerSubRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        marginTop: 2,
+    },
+    onlineDot: {
+        width: 6, height: 6,
+        borderRadius: 3,
+        backgroundColor: '#4CAF50',
     },
     headerSub: {
         fontFamily: FONTS.body,
         fontSize: FONT_SIZES.xs,
-        color: COLORS.textSecondary,
-        marginTop: 1,
+        color: 'rgba(255,255,255,0.55)',
     },
-    onlineBadge: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 4,
+    geminiTag: {
+        backgroundColor: 'rgba(102,126,234,0.25)',
+        paddingHorizontal: 10,
+        paddingVertical: 5,
+        borderRadius: BORDER_RADIUS.full,
+        borderWidth: 1,
+        borderColor: 'rgba(102,126,234,0.4)',
     },
-    onlineDot: {
-        width: 7, height: 7,
-        borderRadius: 3.5,
-        backgroundColor: COLORS.success,
-    },
-    onlineText: {
-        fontFamily: FONTS.body,
-        fontSize: FONT_SIZES.xs,
-        color: COLORS.success,
+    geminiText: {
+        fontFamily: 'Inter_600SemiBold',
+        fontSize: 11,
+        color: '#a78bfa',
     },
 
     // ─── Mesajlar ───
@@ -383,21 +437,15 @@ const styles = StyleSheet.create({
         gap: SPACING.xs,
         marginBottom: 4,
     },
-    userBubble: {
-        justifyContent: 'flex-end',
-    },
-    assistantBubble: {
-        justifyContent: 'flex-start',
-    },
+    userBubble: { justifyContent: 'flex-end' },
+    assistantBubble: { justifyContent: 'flex-start' },
     assistantAvatar: {
-        width: 30, height: 30,
-        borderRadius: 15,
-        backgroundColor: COLORS.primaryMuted,
-        justifyContent: 'center',
-        alignItems: 'center',
+        width: 32, height: 32,
+        borderRadius: 11,
+        justifyContent: 'center', alignItems: 'center',
         marginBottom: 2,
     },
-    assistantAvatarEmoji: { fontSize: 15 },
+    assistantAvatarEmoji: { fontSize: 16 },
     bubbleContent: {
         maxWidth: '78%',
         borderRadius: BORDER_RADIUS.lg,
@@ -405,14 +453,14 @@ const styles = StyleSheet.create({
         paddingVertical: 10,
     },
     userBubbleContent: {
-        backgroundColor: COLORS.primary,
+        backgroundColor: '#667eea',
         borderBottomRightRadius: 4,
     },
     assistantBubbleContent: {
-        backgroundColor: COLORS.surface,
+        backgroundColor: '#1a1a2e',
         borderBottomLeftRadius: 4,
         borderWidth: 1,
-        borderColor: COLORS.border,
+        borderColor: 'rgba(255,255,255,0.07)',
     },
     bubbleText: {
         fontFamily: FONTS.body,
@@ -420,27 +468,22 @@ const styles = StyleSheet.create({
         lineHeight: 20,
     },
     userBubbleText: { color: '#fff' },
-    assistantBubbleText: { color: COLORS.textPrimary },
+    assistantBubbleText: { color: 'rgba(255,255,255,0.9)' },
 
-    // ─── Yazıyor göstergesi ───
+    // ─── Typing ───
     typingIndicator: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 8,
-        backgroundColor: COLORS.surface,
+        flexDirection: 'row', alignItems: 'center', gap: 8,
+        backgroundColor: '#1a1a2e',
         borderRadius: BORDER_RADIUS.lg,
-        paddingHorizontal: SPACING.md,
-        paddingVertical: 10,
-        borderWidth: 1,
-        borderColor: COLORS.border,
+        paddingHorizontal: SPACING.md, paddingVertical: 10,
+        borderWidth: 1, borderColor: 'rgba(255,255,255,0.07)',
     },
     typingText: {
-        fontFamily: FONTS.body,
-        fontSize: FONT_SIZES.sm,
-        color: COLORS.textSecondary,
+        fontFamily: FONTS.body, fontSize: FONT_SIZES.sm,
+        color: 'rgba(255,255,255,0.5)',
     },
 
-    // ─── Hızlı Sorular ───
+    // ─── Quick Replies ───
     quickRepliesScroll: { maxHeight: 52 },
     quickRepliesContainer: {
         paddingHorizontal: SPACING.md,
@@ -449,20 +492,23 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     quickReplyChip: {
+        borderRadius: BORDER_RADIUS.full,
+        overflow: 'hidden',
+    },
+    quickReplyGradient: {
         flexDirection: 'row',
         alignItems: 'center',
         gap: 5,
-        backgroundColor: COLORS.surface,
-        borderRadius: BORDER_RADIUS.full,
         paddingHorizontal: 12,
         paddingVertical: 7,
-        borderWidth: 1.5,
-        borderColor: COLORS.primary + '40',
+        borderRadius: BORDER_RADIUS.full,
+        borderWidth: 1,
+        borderColor: 'rgba(102,126,234,0.3)',
     },
     quickReplyText: {
         fontFamily: FONTS.body,
         fontSize: FONT_SIZES.xs,
-        color: COLORS.primary,
+        color: '#a78bfa',
         maxWidth: 200,
     },
 
@@ -472,34 +518,35 @@ const styles = StyleSheet.create({
         alignItems: 'flex-end',
         gap: SPACING.sm,
         paddingHorizontal: SPACING.md,
-        paddingVertical: SPACING.sm,
-        backgroundColor: COLORS.surface,
+        paddingTop: SPACING.sm,
+        backgroundColor: '#111120',
         borderTopWidth: 1,
-        borderTopColor: COLORS.border,
+        borderTopColor: 'rgba(255,255,255,0.06)',
     },
     input: {
         flex: 1,
-        backgroundColor: COLORS.surfaceAlt,
+        backgroundColor: '#1a1a2e',
         borderRadius: BORDER_RADIUS.lg,
         paddingHorizontal: SPACING.md,
         paddingVertical: 10,
         fontFamily: FONTS.body,
         fontSize: FONT_SIZES.sm,
-        color: COLORS.textPrimary,
+        color: '#fff',
         maxHeight: 100,
         borderWidth: 1,
-        borderColor: COLORS.border,
+        borderColor: 'rgba(102,126,234,0.25)',
     },
     sendBtn: {
-        width: 42, height: 42,
-        borderRadius: 21,
-        backgroundColor: COLORS.primary,
+        width: 44, height: 44,
+        borderRadius: 15,
+        overflow: 'hidden',
+    },
+    sendBtnGradient: {
+        flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
     },
-    sendBtnDisabled: {
-        backgroundColor: COLORS.surfaceAlt,
-    },
+    sendBtnDisabled: {},
 });
 
 export default TravelAssistantScreen;

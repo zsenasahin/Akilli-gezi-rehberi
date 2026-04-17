@@ -3,11 +3,15 @@ import {
     View, Text, StyleSheet, ScrollView,
     TouchableOpacity, Alert, RefreshControl, Platform, Linking,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
 import { COLORS } from '../../constants/colors';
 import { FONT_SIZES, FONTS } from '../../constants/typography';
 import { SPACING, BORDER_RADIUS } from '../../constants/layout';
+import { getCityImages } from '../../constants/cityImages';
 import {
     getItineraryById,
     toggleItemCompletion,
@@ -26,6 +30,7 @@ import { useAssistantContext } from '../../contexts/AssistantContext';
 const ItineraryDetailScreen = ({ route, navigation }) => {
     const { itineraryId } = route.params;
     const { setAssistantContext, clearAssistantContext } = useAssistantContext();
+    const insets = useSafeAreaInsets();
 
     const [itinerary, setItinerary] = useState(null);
     const [allCityPlaces, setAllCityPlaces] = useState([]);
@@ -184,8 +189,8 @@ const ItineraryDetailScreen = ({ route, navigation }) => {
         ]);
     };
 
-    // ─── Google Maps Rota ─────────────────────────────────────────────────────
-    const openRouteInMaps = () => {
+    // ─── Google Maps Rota ───────────────────────────────────────────────────────
+    const openRouteInMaps = (mode = 'driving') => {
         const sorted = itinerary?.itinerary_items
             ?.filter(i => i.places?.lat && i.places?.lng)
             ?.sort((a, b) => a.day_number - b.day_number || a.order_index - b.order_index);
@@ -197,13 +202,13 @@ const ItineraryDetailScreen = ({ route, navigation }) => {
 
         let url;
         if (sorted.length === 1) {
-            url = `https://www.google.com/maps/dir/?api=1&destination=${sorted[0].places.lat},${sorted[0].places.lng}&travelmode=walking`;
+            url = `https://www.google.com/maps/dir/?api=1&destination=${sorted[0].places.lat},${sorted[0].places.lng}&travelmode=${mode}`;
         } else {
             const origin = `${sorted[0].places.lat},${sorted[0].places.lng}`;
             const dest = `${sorted[sorted.length - 1].places.lat},${sorted[sorted.length - 1].places.lng}`;
             const mid = sorted.slice(1, -1).slice(0, 8);
             const wps = mid.map(p => `${p.places.lat},${p.places.lng}`).join('|');
-            url = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${dest}${wps ? `&waypoints=${encodeURIComponent(wps)}` : ''}&travelmode=walking`;
+            url = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${dest}${wps ? `&waypoints=${encodeURIComponent(wps)}` : ''}&travelmode=${mode}`;
         }
         Linking.openURL(url);
     };
@@ -237,11 +242,16 @@ const ItineraryDetailScreen = ({ route, navigation }) => {
     if (!itinerary) return <ErrorMessage message="Plan bulunamadı." />;
 
     const isCompleted = itinerary.status === 'completed';
+    const routeItems = (itinerary.itinerary_items || [])
+        .filter((item) => item.places?.lat && item.places?.lng)
+        .sort((a, b) => a.day_number - b.day_number || a.order_index - b.order_index);
+    const routePreview = routeItems.slice(0, 4);
+    const cityImages = getCityImages(itinerary.cities?.name, itinerary.cities?.region);
 
     return (
         <View style={styles.container}>
             {/* ─── Sticky Header ─── */}
-            <View style={styles.stickyHeader}>
+            <View style={[styles.stickyHeader, { paddingTop: insets.top + SPACING.xs }]}>
                 <TouchableOpacity
                     style={styles.backBtn}
                     onPress={() => navigation.goBack()}
@@ -252,10 +262,6 @@ const ItineraryDetailScreen = ({ route, navigation }) => {
                 <Text style={styles.stickyTitle} numberOfLines={1}>
                     {itinerary.cities?.name || 'Plan Detayı'}
                 </Text>
-                <TouchableOpacity style={styles.mapsBtn} onPress={openRouteInMaps} activeOpacity={0.85}>
-                    <Ionicons name="navigate" size={14} color="#fff" />
-                    <Text style={styles.mapsBtnText}>Rota</Text>
-                </TouchableOpacity>
             </View>
 
             <ScrollView
@@ -271,56 +277,118 @@ const ItineraryDetailScreen = ({ route, navigation }) => {
             >
                 {error && <ErrorMessage message={error} />}
 
-                {/* Plan Özeti */}
-                <View style={[styles.headerCard, isCompleted && styles.headerCardCompleted]}>
-                    <View style={styles.headerTop}>
-                        <Text style={styles.headerCity}>📍 {itinerary.cities?.name || 'Şehir'}</Text>
-                        <View style={[styles.statusBadge, isCompleted && styles.statusCompleted]}>
-                            <Text style={styles.statusText}>
-                                {isCompleted ? '✅ Tamamlandı' : '🔄 Devam Ediyor'}
-                            </Text>
+                {/* Tek üst kart: özet + rota aksiyonları */}
+                <View style={styles.overviewCard}>
+                    <View style={styles.overviewVisual}>
+                        <Image
+                            source={{ uri: cityImages.hero || cityImages.card }}
+                            style={styles.overviewImage}
+                            contentFit="cover"
+                            transition={400}
+                        />
+                        <LinearGradient
+                            colors={['rgba(0,0,0,0.05)', 'rgba(0,0,0,0.45)']}
+                            style={styles.overviewImageOverlay}
+                        />
+                        <View style={styles.overviewTopRow}>
+                            <View>
+                                <Text style={styles.overviewEyebrow}>GEZİ PLANI</Text>
+                                <Text style={styles.overviewTitle}>📍 {itinerary.cities?.name || 'Şehir'}</Text>
+                            </View>
+                            <View style={[styles.statusBadge, isCompleted && styles.statusCompleted]}>
+                                <Text style={styles.statusText}>{isCompleted ? 'Tamamlandı' : 'Devam Ediyor'}</Text>
+                            </View>
                         </View>
+                        <Text style={styles.overviewDate}>{formatDate(itinerary.created_at)}</Text>
                     </View>
 
-                    <View style={styles.headerStats}>
-                        <View style={styles.headerStat}>
-                            <Text style={styles.headerStatValue}>{itinerary.days}</Text>
-                            <Text style={styles.headerStatLabel}>Gün</Text>
+                    <View style={styles.overviewBody}>
+                        <View style={styles.overviewStatsRow}>
+                            <View style={styles.overviewStatItem}>
+                                <Ionicons name="calendar-outline" size={15} color={COLORS.primary} />
+                                <Text style={styles.overviewStatValue}>{itinerary.days}</Text>
+                                <Text style={styles.overviewStatLabel}>Gün</Text>
+                            </View>
+                            <View style={styles.overviewStatDivider} />
+                            <View style={styles.overviewStatItem}>
+                                <Ionicons name="location-outline" size={15} color={COLORS.primary} />
+                                <Text style={styles.overviewStatValue}>{routeItems.length}</Text>
+                                <Text style={styles.overviewStatLabel}>Durak</Text>
+                            </View>
+                            <View style={styles.overviewStatDivider} />
+                            <View style={styles.overviewStatItem}>
+                                <Ionicons name="checkmark-circle-outline" size={15} color={COLORS.primary} />
+                                <Text style={styles.overviewStatValue}>{progress.completed}</Text>
+                                <Text style={styles.overviewStatLabel}>Tamam</Text>
+                            </View>
+                            <View style={styles.overviewStatDivider} />
+                            <View style={styles.overviewStatItem}>
+                                <Ionicons name="trending-up-outline" size={15} color={COLORS.primary} />
+                                <Text style={styles.overviewStatValue}>{progress.percentage}%</Text>
+                                <Text style={styles.overviewStatLabel}>İlerleme</Text>
+                            </View>
                         </View>
-                        <View style={styles.headerStatDivider} />
-                        <View style={styles.headerStat}>
-                            <Text style={styles.headerStatValue}>{itinerary.itinerary_items?.length || 0}</Text>
-                            <Text style={styles.headerStatLabel}>Yer</Text>
+
+                        <View style={styles.overviewProgressTrack}>
+                            <View style={[styles.overviewProgressFill, { width: `${progress.percentage}%` }]} />
                         </View>
-                        <View style={styles.headerStatDivider} />
-                        <View style={styles.headerStat}>
-                            <Text style={styles.headerStatValue}>{progress.percentage}%</Text>
-                            <Text style={styles.headerStatLabel}>İlerleme</Text>
-                        </View>
-                        {budget && (
-                            <>
-                                <View style={styles.headerStatDivider} />
-                                <View style={styles.headerStat}>
-                                    <Text style={styles.headerStatValue}>₺{budget.total}</Text>
-                                    <Text style={styles.headerStatLabel}>Tahmini</Text>
+
+                        <View style={styles.overviewPreviewRow}>
+                            {routePreview.map((item, idx, arr) => (
+                                    <React.Fragment key={item.id}>
+                                        <View style={styles.overviewPreviewStop}>
+                                            <View style={[styles.overviewPreviewDot, item.is_completed && styles.overviewPreviewDotDone]}>
+                                                {item.is_completed
+                                                    ? <Ionicons name="checkmark" size={10} color="#fff" />
+                                                    : <Text style={styles.overviewPreviewNum}>{idx + 1}</Text>
+                                                }
+                                            </View>
+                                            <Text style={styles.overviewPreviewName} numberOfLines={1}>
+                                                {item.places?.name?.split(' ')[0] || `Durak ${idx + 1}`}
+                                            </Text>
+                                        </View>
+                                        {idx < arr.length - 1 && (
+                                            <View style={styles.overviewPreviewConnector}>
+                                                <View style={styles.overviewPreviewConnectorDot} />
+                                                <View style={styles.overviewPreviewConnectorDot} />
+                                                <View style={styles.overviewPreviewConnectorDot} />
+                                            </View>
+                                        )}
+                                    </React.Fragment>
+                                ))
+                            }
+                            {routeItems.length > 4 && (
+                                <View style={styles.overviewPreviewMoreBadge}>
+                                    <Text style={styles.overviewPreviewMoreText}>+{routeItems.length - 4}</Text>
                                 </View>
-                            </>
-                        )}
-                    </View>
+                            )}
+                        </View>
 
-                    <View style={styles.progressBarContainer}>
-                        <View style={[
-                            styles.progressBarFill,
-                            { width: `${progress.percentage}%` },
-                            isCompleted && styles.progressBarCompleted,
-                        ]} />
+                        <View style={styles.overviewActionsRow}>
+                            <TouchableOpacity
+                                style={styles.overviewMainBtn}
+                                onPress={() => openRouteInMaps('driving')}
+                                activeOpacity={0.85}
+                            >
+                                <Ionicons name="car" size={18} color="#fff" />
+                                <Text style={styles.overviewMainBtnText}>Arabayla Aç</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={styles.overviewGhostBtn}
+                                onPress={() => openRouteInMaps('walking')}
+                                activeOpacity={0.85}
+                            >
+                                <Ionicons name="walk-outline" size={18} color={COLORS.primary} />
+                                <Text style={styles.overviewGhostBtnText}>Yürüyüş</Text>
+                            </TouchableOpacity>
+                        </View>
                     </View>
-                    <Text style={styles.headerDate}>{formatDate(itinerary.created_at)}</Text>
                 </View>
+
 
                 {/* Günler */}
                 {dayGroups.map((group) => (
-                    <View key={group.day} style={styles.dayCard}>
+                    <View key={group.day} style={styles.timelineDayCard}>
                         <View style={styles.dayHeader}>
                             <View style={styles.dayBadge}>
                                 <Text style={styles.dayBadgeText}>{group.day}</Text>
@@ -331,59 +399,83 @@ const ItineraryDetailScreen = ({ route, navigation }) => {
                             </Text>
                         </View>
 
-                        {group.items.map((item) => (
-                            <View key={item.id} style={[styles.itemRow, item.is_completed && styles.itemRowCompleted]}>
-                                <TouchableOpacity
-                                    style={styles.checkbox}
-                                    onPress={() => handleToggleCompletion(item)}
-                                    disabled={isCompleted}
-                                >
-                                    <Ionicons
-                                        name={item.is_completed ? 'checkbox' : 'square-outline'}
-                                        size={24}
-                                        color={item.is_completed ? COLORS.success : COLORS.textLight}
-                                    />
-                                </TouchableOpacity>
+                        {group.items.map((item, idx) => (
+                            <View key={item.id} style={styles.timelineItemRow}>
+                                <View style={styles.timelineRail}>
+                                    <View style={[styles.timelineDot, item.is_completed && styles.timelineDotCompleted]}>
+                                        <Ionicons
+                                            name={item.is_completed ? 'checkmark' : 'ellipse'}
+                                            size={item.is_completed ? 12 : 8}
+                                            color="#fff"
+                                        />
+                                    </View>
+                                    {idx < group.items.length - 1 && <View style={styles.timelineLine} />}
+                                </View>
 
-                                <View style={styles.itemInfo}>
-                                    <Text style={[styles.itemName, item.is_completed && styles.itemNameCompleted]}>
-                                        {item.places?.name || 'Bilinmeyen Yer'}
-                                    </Text>
+                                <View style={[styles.timelineCard, item.is_completed && styles.timelineCardCompleted]}>
+                                    <View style={styles.timelineCardTop}>
+                                        <Text style={[styles.itemName, item.is_completed && styles.itemNameCompleted]}>
+                                            {item.places?.name || 'Bilinmeyen Yer'}
+                                        </Text>
+                                        <TouchableOpacity
+                                            style={styles.checkToggleBtn}
+                                            onPress={() => handleToggleCompletion(item)}
+                                            disabled={isCompleted}
+                                        >
+                                            <Ionicons
+                                                name={item.is_completed ? 'checkmark-circle' : 'ellipse-outline'}
+                                                size={22}
+                                                color={item.is_completed ? COLORS.success : COLORS.textLight}
+                                            />
+                                        </TouchableOpacity>
+                                    </View>
+
                                     <Text style={styles.itemMeta}>
                                         {item.places?.category} · {item.places?.avg_duration}s ·{' '}
                                         {item.places?.entry_fee > 0 ? `₺${item.places.entry_fee}` : 'Ücretsiz'}
                                     </Text>
-                                </View>
 
-                                {/* Haritada gör */}
-                                {item.places?.lat && item.places?.lng && (
-                                    <TouchableOpacity
-                                        onPress={() => Linking.openURL(`https://www.google.com/maps/dir/?api=1&destination=${item.places.lat},${item.places.lng}&travelmode=walking`)}
-                                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                                        style={styles.mapIconBtn}
-                                    >
-                                        <Ionicons name="navigate-outline" size={18} color={COLORS.primary} />
-                                    </TouchableOpacity>
-                                )}
-
-                                {!isCompleted && (
-                                    <View style={styles.itemActions}>
-                                        <TouchableOpacity
-                                            onPress={() => handleSuggestAlternative(item)}
-                                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                                        >
-                                            <Ionicons name="swap-horizontal-outline" size={18} color={COLORS.info} />
-                                        </TouchableOpacity>
-                                        <TouchableOpacity
-                                            onPress={() => handleRemoveItem(item)}
-                                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                                        >
-                                            <Ionicons name="trash-outline" size={18} color={COLORS.error} />
-                                        </TouchableOpacity>
+                                    <View style={styles.timelineActionsRow}>
+                                        {item.places?.lat && item.places?.lng && (
+                                            <TouchableOpacity
+                                                onPress={() => Linking.openURL(`https://www.google.com/maps/dir/?api=1&destination=${item.places.lat},${item.places.lng}&travelmode=driving`)}
+                                                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                                                style={styles.timelineActionPill}
+                                            >
+                                                <Ionicons name="navigate" size={14} color={COLORS.info} />
+                                                <Text style={styles.timelineActionText}>Harita</Text>
+                                            </TouchableOpacity>
+                                        )}
+                                        {!isCompleted && (
+                                            <>
+                                                <TouchableOpacity
+                                                    onPress={() => handleSuggestAlternative(item)}
+                                                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                                                    style={styles.timelineActionPill}
+                                                >
+                                                    <Ionicons name="swap-horizontal-outline" size={14} color={COLORS.primary} />
+                                                    <Text style={styles.timelineActionText}>Alternatif</Text>
+                                                </TouchableOpacity>
+                                                <TouchableOpacity
+                                                    onPress={() => handleRemoveItem(item)}
+                                                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                                                    style={styles.timelineActionPillDanger}
+                                                >
+                                                    <Ionicons name="trash-outline" size={14} color={COLORS.error} />
+                                                    <Text style={styles.timelineActionTextDanger}>Sil</Text>
+                                                </TouchableOpacity>
+                                            </>
+                                        )}
                                     </View>
-                                )}
+                                </View>
                             </View>
                         ))}
+
+                        {group.items.length === 0 && (
+                            <View style={styles.timelineEmptyBox}>
+                                <Text style={styles.timelineEmptyText}>Bu gün için planlanan durak yok.</Text>
+                            </View>
+                        )}
                     </View>
                 ))}
 
@@ -410,10 +502,10 @@ const ItineraryDetailScreen = ({ route, navigation }) => {
                     </View>
                 )}
 
-                {/* Alt Butonlar */}
+                {/* AI Asistan */}
                 <TouchableOpacity style={styles.assistantBtn} onPress={openAssistant} activeOpacity={0.85}>
-                    <Text style={styles.assistantBtnEmoji}>🐱</Text>
-                    <Text style={styles.assistantBtnText}>AI Asistan</Text>
+                    <Ionicons name="sparkles" size={18} color="#fff" />
+                    <Text style={styles.assistantBtnText}>Seyahat Asistanı</Text>
                     <Ionicons name="chevron-forward" size={14} color="#fff" />
                 </TouchableOpacity>
 
@@ -425,6 +517,9 @@ const ItineraryDetailScreen = ({ route, navigation }) => {
                         style={styles.completeButton}
                     />
                 )}
+
+                {/* Alt boşluk */}
+                <View style={{ height: insets.bottom + SPACING.md }} />
             </ScrollView>
         </View>
     );
@@ -439,7 +534,6 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         gap: SPACING.sm,
         paddingHorizontal: SPACING.md,
-        paddingTop: Platform.OS === 'ios' ? 52 : SPACING.md,
         paddingBottom: SPACING.sm,
         backgroundColor: COLORS.surface,
         borderBottomWidth: 1,
@@ -452,67 +546,204 @@ const styles = StyleSheet.create({
         fontSize: FONT_SIZES.lg,
         color: COLORS.textPrimary,
     },
-    mapsBtn: {
+    // ─── Tek Üst Özet Kartı ───
+    overviewCard: {
+        marginBottom: SPACING.md,
+        borderRadius: BORDER_RADIUS.xl,
+        overflow: 'hidden',
+        backgroundColor: COLORS.surface,
+        borderWidth: 1,
+        borderColor: COLORS.border,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.08,
+        shadowRadius: 12,
+        elevation: 4,
+    },
+    overviewVisual: {
+        height: 170,
+        padding: SPACING.md,
+        justifyContent: 'space-between',
+        position: 'relative',
+    },
+    overviewImage: {
+        ...StyleSheet.absoluteFillObject,
+    },
+    overviewImageOverlay: {
+        ...StyleSheet.absoluteFillObject,
+    },
+    overviewTopRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 4,
-        backgroundColor: COLORS.primary,
-        paddingHorizontal: 12,
-        paddingVertical: 6,
-        borderRadius: BORDER_RADIUS.full,
+        justifyContent: 'space-between',
     },
-    mapsBtnText: { fontSize: FONT_SIZES.xs, fontFamily: 'Inter_600SemiBold', color: '#fff' },
+    overviewEyebrow: {
+        fontFamily: 'Inter_700Bold',
+        fontSize: 10,
+        color: 'rgba(255,255,255,0.86)',
+        letterSpacing: 2,
+    },
+    overviewTitle: {
+        fontFamily: FONTS.heading,
+        fontSize: FONT_SIZES.xl,
+        color: '#fff',
+        marginTop: 2,
+    },
+    overviewDate: {
+        fontFamily: 'Inter_500Medium',
+        fontSize: FONT_SIZES.xs,
+        color: 'rgba(255,255,255,0.88)',
+    },
+    statusBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: 'rgba(255,255,255,0.22)',
+        borderRadius: BORDER_RADIUS.full,
+        paddingHorizontal: 10,
+        paddingVertical: 6,
+    },
+    statusCompleted: { backgroundColor: 'rgba(16,185,129,0.22)' },
+    statusText: {
+        fontFamily: 'Inter_600SemiBold',
+        fontSize: FONT_SIZES.xs,
+        color: '#fff',
+    },
+    overviewBody: {
+        padding: SPACING.md,
+        gap: SPACING.md,
+        backgroundColor: COLORS.surface,
+    },
+    overviewStatsRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: COLORS.surfaceAlt,
+        borderRadius: BORDER_RADIUS.lg,
+        paddingVertical: 10,
+        paddingHorizontal: 8,
+    },
+    overviewStatItem: {
+        flex: 1,
+        alignItems: 'center',
+        gap: 3,
+    },
+    overviewStatValue: {
+        fontFamily: 'Inter_700Bold',
+        fontSize: FONT_SIZES.md,
+        color: COLORS.textPrimary,
+    },
+    overviewStatLabel: {
+        fontFamily: 'Inter_500Medium',
+        fontSize: 10,
+        color: COLORS.textSecondary,
+    },
+    overviewStatDivider: {
+        width: 1,
+        height: 34,
+        backgroundColor: COLORS.border,
+    },
+    overviewProgressTrack: {
+        height: 6,
+        backgroundColor: COLORS.primaryMuted,
+        borderRadius: BORDER_RADIUS.full,
+        overflow: 'hidden',
+    },
+    overviewProgressFill: {
+        height: '100%',
+        borderRadius: BORDER_RADIUS.full,
+        backgroundColor: '#34D399',
+    },
+    overviewPreviewRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: 2,
+    },
+    overviewPreviewStop: {
+        alignItems: 'center',
+        gap: 4,
+        maxWidth: 62,
+    },
+    overviewPreviewDot: {
+        width: 28, height: 28, borderRadius: 14,
+        backgroundColor: COLORS.primaryMuted,
+        borderWidth: 1.5,
+        borderColor: COLORS.primary + '66',
+        justifyContent: 'center', alignItems: 'center',
+    },
+    overviewPreviewDotDone: {
+        backgroundColor: '#34D399',
+        borderColor: '#34D399',
+    },
+    overviewPreviewNum: {
+        fontFamily: 'Inter_700Bold',
+        fontSize: 11, color: COLORS.primary,
+    },
+    overviewPreviewName: {
+        fontFamily: 'Inter_500Medium',
+        fontSize: 9, color: COLORS.textSecondary,
+        textAlign: 'center',
+    },
+    overviewPreviewConnector: {
+        flex: 1, flexDirection: 'row',
+        alignItems: 'center', justifyContent: 'center',
+        gap: 3, paddingBottom: 14,
+    },
+    overviewPreviewConnectorDot: {
+        width: 3, height: 3, borderRadius: 1.5,
+        backgroundColor: COLORS.primary + '55',
+    },
+    overviewPreviewMoreBadge: {
+        width: 28, height: 28, borderRadius: 14,
+        backgroundColor: COLORS.primaryMuted,
+        justifyContent: 'center', alignItems: 'center',
+        alignSelf: 'flex-start', marginTop: 0,
+    },
+    overviewPreviewMoreText: {
+        fontFamily: 'Inter_700Bold',
+        fontSize: 10, color: COLORS.primary,
+    },
+    overviewActionsRow: {
+        flexDirection: 'row',
+        gap: SPACING.sm,
+    },
+    overviewMainBtn: {
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
+        backgroundColor: '#2563EB',
+        borderRadius: BORDER_RADIUS.lg,
+        paddingVertical: 13,
+    },
+    overviewMainBtnText: {
+        fontFamily: 'Inter_600SemiBold',
+        fontSize: FONT_SIZES.sm,
+        color: '#fff',
+    },
+    overviewGhostBtn: {
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
+        borderWidth: 1.5,
+        borderColor: COLORS.primary + '40',
+        borderRadius: BORDER_RADIUS.lg,
+        backgroundColor: COLORS.primaryMuted,
+        paddingVertical: 13,
+    },
+    overviewGhostBtnText: {
+        fontFamily: 'Inter_600SemiBold',
+        fontSize: FONT_SIZES.sm,
+        color: COLORS.primary,
+    },
 
     // ─── Scroll ───
     scrollView: { flex: 1 },
     contentContainer: { padding: SPACING.md, paddingBottom: SPACING.xxl },
 
-    // ─── Plan Özeti Header ───
-    headerCard: {
-        backgroundColor: COLORS.primary,
-        borderRadius: BORDER_RADIUS.lg,
-        padding: SPACING.lg,
-        marginBottom: SPACING.md,
-    },
-    headerCardCompleted: { backgroundColor: COLORS.success },
-    headerTop: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: SPACING.md,
-    },
-    headerCity: { fontSize: FONT_SIZES.xl, fontFamily: FONTS.heading, color: '#fff' },
-    statusBadge: {
-        backgroundColor: 'rgba(255,255,255,0.2)',
-        paddingHorizontal: 10,
-        paddingVertical: 4,
-        borderRadius: BORDER_RADIUS.full,
-    },
-    statusCompleted: { backgroundColor: 'rgba(255,255,255,0.3)' },
-    statusText: { fontSize: FONT_SIZES.xs, color: '#fff', fontFamily: 'Inter_600SemiBold' },
-    headerStats: { flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center' },
-    headerStat: { alignItems: 'center', flex: 1 },
-    headerStatValue: { fontSize: FONT_SIZES.lg, fontFamily: 'Inter_700Bold', color: '#fff' },
-    headerStatLabel: { fontSize: 10, color: 'rgba(255,255,255,0.8)', marginTop: 2 },
-    headerStatDivider: { width: 1, height: 28, backgroundColor: 'rgba(255,255,255,0.3)' },
-    progressBarContainer: {
-        height: 6,
-        backgroundColor: 'rgba(255,255,255,0.2)',
-        borderRadius: 3,
-        marginTop: SPACING.md,
-        overflow: 'hidden',
-    },
-    progressBarFill: { height: '100%', backgroundColor: '#fff', borderRadius: 3 },
-    progressBarCompleted: { backgroundColor: 'rgba(255,255,255,0.9)' },
-    headerDate: {
-        fontSize: FONT_SIZES.xs,
-        color: 'rgba(255,255,255,0.7)',
-        textAlign: 'center',
-        marginTop: SPACING.sm,
-    },
-
-    // ─── Günler ───
-    dayCard: {
+    // ─── Günler: Timeline düzeni ───
+    timelineDayCard: {
         backgroundColor: COLORS.surface,
         borderRadius: BORDER_RADIUS.lg,
         padding: SPACING.md,
@@ -533,23 +764,101 @@ const styles = StyleSheet.create({
     dayBadgeText: { color: '#fff', fontFamily: 'Inter_700Bold', fontSize: FONT_SIZES.sm },
     dayTitle: { fontSize: FONT_SIZES.lg, fontFamily: 'Inter_600SemiBold', color: COLORS.textPrimary, flex: 1 },
     dayItemCount: { fontSize: FONT_SIZES.xs, color: COLORS.textSecondary, fontFamily: 'Inter_500Medium' },
-
-    // ─── Yer Satırları ───
-    itemRow: {
+    timelineItemRow: {
         flexDirection: 'row',
-        alignItems: 'center',
-        paddingVertical: SPACING.sm,
-        borderTopWidth: 1,
-        borderTopColor: COLORS.divider,
+        alignItems: 'stretch',
+        gap: SPACING.sm,
+        marginBottom: SPACING.sm,
     },
-    itemRowCompleted: { opacity: 0.6 },
-    checkbox: { marginRight: SPACING.sm },
-    itemInfo: { flex: 1 },
+    timelineRail: {
+        width: 22,
+        alignItems: 'center',
+    },
+    timelineDot: {
+        width: 22,
+        height: 22,
+        borderRadius: 11,
+        backgroundColor: COLORS.primary,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginTop: 6,
+    },
+    timelineDotCompleted: {
+        backgroundColor: COLORS.success,
+    },
+    timelineLine: {
+        flex: 1,
+        width: 2,
+        backgroundColor: COLORS.border,
+        marginTop: 6,
+        borderRadius: 1,
+    },
+    timelineCard: {
+        flex: 1,
+        backgroundColor: COLORS.surfaceAlt,
+        borderRadius: BORDER_RADIUS.lg,
+        borderWidth: 1,
+        borderColor: COLORS.border,
+        padding: SPACING.sm,
+    },
+    timelineCardCompleted: {
+        opacity: 0.7,
+        borderColor: COLORS.success + '40',
+    },
+    timelineCardTop: {
+        flexDirection: 'row',
+        alignItems: 'flex-start',
+        gap: SPACING.xs,
+    },
+    checkToggleBtn: { marginLeft: 'auto' },
     itemName: { fontSize: FONT_SIZES.sm, fontFamily: 'Inter_500Medium', color: COLORS.textPrimary },
     itemNameCompleted: { textDecorationLine: 'line-through', color: COLORS.textSecondary },
     itemMeta: { fontSize: FONT_SIZES.xs, color: COLORS.textSecondary, marginTop: 2 },
-    mapIconBtn: { padding: 4, marginRight: 4 },
-    itemActions: { flexDirection: 'row', gap: SPACING.md },
+    timelineActionsRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: SPACING.xs,
+        marginTop: SPACING.sm,
+    },
+    timelineActionPill: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        backgroundColor: COLORS.primaryMuted,
+        borderRadius: BORDER_RADIUS.full,
+        paddingHorizontal: 10,
+        paddingVertical: 6,
+    },
+    timelineActionText: {
+        fontFamily: 'Inter_500Medium',
+        fontSize: 11,
+        color: COLORS.primary,
+    },
+    timelineActionPillDanger: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        backgroundColor: COLORS.error + '14',
+        borderRadius: BORDER_RADIUS.full,
+        paddingHorizontal: 10,
+        paddingVertical: 6,
+    },
+    timelineActionTextDanger: {
+        fontFamily: 'Inter_500Medium',
+        fontSize: 11,
+        color: COLORS.error,
+    },
+    timelineEmptyBox: {
+        backgroundColor: COLORS.surfaceAlt,
+        borderRadius: BORDER_RADIUS.md,
+        padding: SPACING.sm,
+    },
+    timelineEmptyText: {
+        textAlign: 'center',
+        color: COLORS.textSecondary,
+        fontSize: FONT_SIZES.sm,
+        fontFamily: 'Inter_400Regular',
+    },
 
     // ─── Alt Butonlar ───
     assistantBtn: {
@@ -567,7 +876,6 @@ const styles = StyleSheet.create({
         shadowRadius: 8,
         elevation: 5,
     },
-    assistantBtnEmoji: { fontSize: 18 },
     assistantBtnText: { fontFamily: 'Inter_700Bold', fontSize: FONT_SIZES.md, color: '#fff' },
     completeButton: { marginTop: SPACING.xs },
 

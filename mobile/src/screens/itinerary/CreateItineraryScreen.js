@@ -374,7 +374,21 @@ const CreateItineraryScreen = ({ navigation, route }) => {
                         <View style={styles.cityGrid}>
                             {cities.map((city) => {
                                 const active = selectedCity?.id === city.id;
-                                const emoji = city.name === 'İstanbul' ? '🕌' : city.name === 'Antalya' ? '🏖️' : city.name === 'Konya' ? '🌾' : '🏙️';
+                                const CITY_EMOJIS = {
+                                    'İstanbul': '🕌', 'Antalya': '🏖️', 'Konya': '🌾', 'İzmir': '🌊',
+                                    'Ankara': '🏛️', 'Trabzon': '🍵', 'Bursa': '🌲', 'Nevşehir': '🎈',
+                                    'Gaziantep': '🥘', 'Mardin': '🏰', 'Edirne': '🕌', 'Muğla': '⛵',
+                                    'Van': '🐱', 'Rize': '🍃', 'Şanlıurfa': '⛲', 'Kars': '❄️',
+                                    'Eskişehir': '🎓', 'Bolu': '🏔️', 'Çanakkale': '🐎', 'Hatay': '🍽️',
+                                    'Denizli': '♨️', 'Karabük': '🏘️', 'Artvin': '🌿', 'Amasya': '🏡',
+                                    'Sinop': '⚓', 'Adana': '🌶️', 'Diyarbakır': '🧱', 'Mersin': '🏝️',
+                                    'Kayseri': '⛷️', 'Erzurum': '🎿', 'Malatya': '🍑', 'Samsun': '🚢',
+                                };
+                                const REGION_EMOJIS = {
+                                    'Marmara': '🌉', 'Ege': '🏛️', 'Akdeniz': '☀️', 'İç Anadolu': '🌾',
+                                    'Karadeniz': '🌿', 'Doğu Anadolu': '🏔️', 'Güneydoğu Anadolu': '🏰',
+                                };
+                                const emoji = CITY_EMOJIS[city.name] || REGION_EMOJIS[city.region] || '🏙️';
                                 return (
                                     <TouchableOpacity
                                         key={city.id}

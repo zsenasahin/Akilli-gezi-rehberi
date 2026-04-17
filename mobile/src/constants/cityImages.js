@@ -92,27 +92,161 @@ const CITY_IMAGES = {
             'https://images.unsplash.com/photo-1544551763-46a013bb70d5?w=800&h=500&fit=crop&q=80',
         ],
     },
+    // ─── Yeni eklenen popüler şehirler ───
+    nevsehir: {
+        hero: 'https://images.unsplash.com/photo-1641128324972-af3212f0f6bd?w=1200&h=800&fit=crop&q=85',
+        card: 'https://images.unsplash.com/photo-1570939274717-7eda259c50ed?w=500&h=350&fit=crop&q=85',
+        gallery: [
+            'https://images.unsplash.com/photo-1641128324972-af3212f0f6bd?w=800&h=500&fit=crop&q=80',
+        ],
+    },
+    eskisehir: {
+        hero: 'https://images.unsplash.com/photo-1558618666-fcd25c85f82e?w=1200&h=800&fit=crop&q=85',
+        card: 'https://images.unsplash.com/photo-1558618666-fcd25c85f82e?w=500&h=350&fit=crop&q=85',
+        gallery: [],
+    },
+    gaziantep: {
+        hero: 'https://images.unsplash.com/photo-1590080876351-941da357b89e?w=1200&h=800&fit=crop&q=85',
+        card: 'https://images.unsplash.com/photo-1590080876351-941da357b89e?w=500&h=350&fit=crop&q=85',
+        gallery: [],
+    },
+    mardin: {
+        hero: 'https://images.unsplash.com/photo-1570939274717-7eda259c50ed?w=1200&h=800&fit=crop&q=85',
+        card: 'https://images.unsplash.com/photo-1570939274717-7eda259c50ed?w=500&h=350&fit=crop&q=85',
+        gallery: [],
+    },
+    edirne: {
+        hero: 'https://images.unsplash.com/photo-1584551246679-0daf3d275d0f?w=1200&h=800&fit=crop&q=85',
+        card: 'https://images.unsplash.com/photo-1584551246679-0daf3d275d0f?w=500&h=350&fit=crop&q=85',
+        gallery: [],
+    },
+    canakkale: {
+        hero: 'https://images.unsplash.com/photo-1564507592333-c60657eea523?w=1200&h=800&fit=crop&q=85',
+        card: 'https://images.unsplash.com/photo-1564507592333-c60657eea523?w=500&h=350&fit=crop&q=85',
+        gallery: [],
+    },
+    mugla: {
+        hero: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=1200&h=800&fit=crop&q=85',
+        card: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=500&h=350&fit=crop&q=85',
+        gallery: [],
+    },
+    denizli: {
+        hero: 'https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=1200&h=800&fit=crop&q=85',
+        card: 'https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=500&h=350&fit=crop&q=85',
+        gallery: [],
+    },
+    kayseri: {
+        hero: 'https://images.unsplash.com/photo-1454982523318-4b6571c252de?w=1200&h=800&fit=crop&q=85',
+        card: 'https://images.unsplash.com/photo-1454982523318-4b6571c252de?w=500&h=350&fit=crop&q=85',
+        gallery: [],
+    },
+    samsun: {
+        hero: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=1200&h=800&fit=crop&q=85',
+        card: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=500&h=350&fit=crop&q=85',
+        gallery: [],
+    },
+    adana: {
+        hero: 'https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=1200&h=800&fit=crop&q=85',
+        card: 'https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=500&h=350&fit=crop&q=85',
+        gallery: [],
+    },
+    van: {
+        hero: 'https://images.unsplash.com/photo-1439066615861-d1af74d74000?w=1200&h=800&fit=crop&q=85',
+        card: 'https://images.unsplash.com/photo-1439066615861-d1af74d74000?w=500&h=350&fit=crop&q=85',
+        gallery: [],
+    },
+    erzurum: {
+        hero: 'https://images.unsplash.com/photo-1454982523318-4b6571c252de?w=1200&h=800&fit=crop&q=85',
+        card: 'https://images.unsplash.com/photo-1454982523318-4b6571c252de?w=500&h=350&fit=crop&q=85',
+        gallery: [],
+    },
+    bolu: {
+        hero: 'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=1200&h=800&fit=crop&q=85',
+        card: 'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=500&h=350&fit=crop&q=85',
+        gallery: [],
+    },
+    rize: {
+        hero: 'https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?w=1200&h=800&fit=crop&q=85',
+        card: 'https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?w=500&h=350&fit=crop&q=85',
+        gallery: [],
+    },
+    sanliurfa: {
+        hero: 'https://images.unsplash.com/photo-1527576539890-dfa815648363?w=1200&h=800&fit=crop&q=85',
+        card: 'https://images.unsplash.com/photo-1527576539890-dfa815648363?w=500&h=350&fit=crop&q=85',
+        gallery: [],
+    },
+    kars: {
+        hero: 'https://images.unsplash.com/photo-1454982523318-4b6571c252de?w=1200&h=800&fit=crop&q=85',
+        card: 'https://images.unsplash.com/photo-1454982523318-4b6571c252de?w=500&h=350&fit=crop&q=85',
+        gallery: [],
+    },
+    sinop: {
+        hero: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=1200&h=800&fit=crop&q=85',
+        card: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=500&h=350&fit=crop&q=85',
+        gallery: [],
+    },
+    amasya: {
+        hero: 'https://images.unsplash.com/photo-1558618666-fcd25c85f82e?w=1200&h=800&fit=crop&q=85',
+        card: 'https://images.unsplash.com/photo-1558618666-fcd25c85f82e?w=500&h=350&fit=crop&q=85',
+        gallery: [],
+    },
+    hatay: {
+        hero: 'https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=1200&h=800&fit=crop&q=85',
+        card: 'https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=500&h=350&fit=crop&q=85',
+        gallery: [],
+    },
+    diyarbakir: {
+        hero: 'https://images.unsplash.com/photo-1527576539890-dfa815648363?w=1200&h=800&fit=crop&q=85',
+        card: 'https://images.unsplash.com/photo-1527576539890-dfa815648363?w=500&h=350&fit=crop&q=85',
+        gallery: [],
+    },
+};
+
+/**
+ * Bölgeye göre varsayılan görsel URL'leri — bir şehir için spesifik
+ * görsel yoksa bölgesine göre uygun bir fallback kullanılır.
+ */
+const REGION_FALLBACKS = {
+    'Marmara': {
+        hero: 'https://images.unsplash.com/photo-1524231757912-21f4fe3a7200?w=1200&h=800&fit=crop&q=80',
+        card: 'https://images.unsplash.com/photo-1541432901042-2d8bd64b4a9b?w=500&h=350&fit=crop&q=80',
+    },
+    'Ege': {
+        hero: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=1200&h=800&fit=crop&q=80',
+        card: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=500&h=350&fit=crop&q=80',
+    },
+    'Akdeniz': {
+        hero: 'https://images.unsplash.com/photo-1573843981267-be1999ff37cd?w=1200&h=800&fit=crop&q=80',
+        card: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=500&h=350&fit=crop&q=80',
+    },
+    'İç Anadolu': {
+        hero: 'https://images.unsplash.com/photo-1590080876351-941da357b89e?w=1200&h=800&fit=crop&q=80',
+        card: 'https://images.unsplash.com/photo-1584551246679-0daf3d275d0f?w=500&h=350&fit=crop&q=80',
+    },
+    'Karadeniz': {
+        hero: 'https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?w=1200&h=800&fit=crop&q=80',
+        card: 'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=500&h=350&fit=crop&q=80',
+    },
+    'Doğu Anadolu': {
+        hero: 'https://images.unsplash.com/photo-1454982523318-4b6571c252de?w=1200&h=800&fit=crop&q=80',
+        card: 'https://images.unsplash.com/photo-1454982523318-4b6571c252de?w=500&h=350&fit=crop&q=80',
+    },
+    'Güneydoğu Anadolu': {
+        hero: 'https://images.unsplash.com/photo-1527576539890-dfa815648363?w=1200&h=800&fit=crop&q=80',
+        card: 'https://images.unsplash.com/photo-1527576539890-dfa815648363?w=500&h=350&fit=crop&q=80',
+    },
 };
 
 // Default fallback
 const DEFAULT_HERO = 'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?w=1200&h=800&fit=crop&q=80';
 const DEFAULT_CARD = 'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?w=500&h=350&fit=crop&q=80';
 
-const buildCityFallback = (cityName, type = 'hero') => {
-    const size = type === 'hero' ? '1200x800' : '500x350';
-    const query = encodeURIComponent(`${cityName || 'turkey city'} skyline turkey`);
-    return `https://source.unsplash.com/${size}/?${query}`;
-};
-
 /**
- * Bir şehrin görsel URL'lerini döndürür.
- * @param {string} cityName - Şehir adı
- * @returns {{ hero: string, card: string, gallery: string[] }}
+ * Şehir adından anahtar oluşturur (Türkçe karakterleri çevirir).
  */
-export function getCityImages(cityName) {
-    if (!cityName) return { hero: DEFAULT_HERO, card: DEFAULT_CARD, gallery: [DEFAULT_HERO] };
-
-    const key = cityName
+function cityNameToKey(cityName) {
+    if (!cityName) return '';
+    return cityName
         .toLowerCase()
         .replace(/ı/g, 'i')
         .replace(/ş/g, 's')
@@ -122,14 +256,36 @@ export function getCityImages(cityName) {
         .replace(/ü/g, 'u')
         .replace(/\s+/g, '')
         .trim();
+}
 
+/**
+ * Bir şehrin görsel URL'lerini döndürür.
+ * Önce spesifik görsel, yoksa bölge bazlı fallback, yoksa genel fallback.
+ * @param {string} cityName - Şehir adı
+ * @param {string} [region] - Şehrin bölgesi (opsiyonel, fallback için)
+ * @returns {{ hero: string, card: string, gallery: string[] }}
+ */
+export function getCityImages(cityName, region) {
+    if (!cityName) return { hero: DEFAULT_HERO, card: DEFAULT_CARD, gallery: [DEFAULT_HERO] };
+
+    const key = cityNameToKey(cityName);
     const images = CITY_IMAGES[key];
     if (images) return images;
 
+    // Bölge varsa bölge fallback'ini kullan
+    if (region && REGION_FALLBACKS[region]) {
+        const fb = REGION_FALLBACKS[region];
+        return {
+            hero: fb.hero,
+            card: fb.card,
+            gallery: [fb.hero],
+        };
+    }
+
     return {
-        hero: buildCityFallback(cityName, 'hero'),
-        card: buildCityFallback(cityName, 'card'),
-        gallery: [buildCityFallback(cityName, 'hero')],
+        hero: DEFAULT_HERO,
+        card: DEFAULT_CARD,
+        gallery: [DEFAULT_HERO],
     };
 }
 
@@ -150,4 +306,4 @@ export function getCategoryImage(category) {
     return categoryImages[category] || DEFAULT_CARD;
 }
 
-export { DEFAULT_HERO, DEFAULT_CARD };
+export { DEFAULT_HERO, DEFAULT_CARD, REGION_FALLBACKS };

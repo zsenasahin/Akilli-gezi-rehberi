@@ -3,6 +3,7 @@ import {
     View, Text, StyleSheet, TouchableOpacity,
     ActivityIndicator, Platform, Linking,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../../constants/colors';
@@ -26,6 +27,7 @@ const MapScreen = ({ route, navigation }) => {
     const cityName = city?.name || 'İstanbul';
     const cityCenter = getCityCenter(cityName);
     const webViewRef = useRef(null);
+    const insets = useSafeAreaInsets();
 
     const sendCommand = useCallback((cmd) => {
         webViewRef.current?.postMessage(JSON.stringify(cmd));
@@ -63,16 +65,16 @@ const MapScreen = ({ route, navigation }) => {
         if (focusLat && focusLng) {
             // Tek yer — o konuma yol tarifi
             const label = encodeURIComponent(viewItem?.name || 'Seçilen Yer');
-            url = `https://www.google.com/maps/dir/?api=1&destination=${focusLat},${focusLng}&travelmode=walking`;
+            url = `https://www.google.com/maps/dir/?api=1&destination=${focusLat},${focusLng}&travelmode=driving`;
         } else if (places && places.length > 1) {
             // Çoklu yer — Google Maps rota (waypoints max 8 destekler)
             const origin = `${places[0].lat},${places[0].lng}`;
             const destination = `${places[places.length - 1].lat},${places[places.length - 1].lng}`;
             const mid = places.slice(1, -1).slice(0, 8);
             const waypoints = mid.map(p => `${p.lat},${p.lng}`).join('|');
-            url = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}${waypoints ? `&waypoints=${encodeURIComponent(waypoints)}` : ''}&travelmode=walking`;
+            url = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}${waypoints ? `&waypoints=${encodeURIComponent(waypoints)}` : ''}&travelmode=driving`;
         } else if (places && places.length === 1) {
-            url = `https://www.google.com/maps/dir/?api=1&destination=${places[0].lat},${places[0].lng}&travelmode=walking`;
+            url = `https://www.google.com/maps/dir/?api=1&destination=${places[0].lat},${places[0].lng}&travelmode=driving`;
         } else {
             url = `https://www.google.com/maps/search/?api=1&query=${cityCenter.lat},${cityCenter.lng}`;
         }
@@ -87,7 +89,7 @@ const MapScreen = ({ route, navigation }) => {
     return (
         <View style={styles.container}>
             {/* Header */}
-            <View style={styles.header}>
+            <View style={[styles.header, { paddingTop: insets.top + SPACING.xs }]}>
                 <TouchableOpacity
                     onPress={() => navigation.goBack()}
                     style={styles.backBtn}
@@ -122,7 +124,7 @@ const MapScreen = ({ route, navigation }) => {
             />
 
             {/* Alt bilgi / Google Maps linki */}
-            <View style={styles.infoBar}>
+            <View style={[styles.infoBar, { paddingBottom: Math.max(insets.bottom, 10) }]}>
                 <Ionicons name="location" size={16} color={COLORS.primary} />
                 <Text style={styles.infoText} numberOfLines={1}>
                     {viewItem?.name || cityName}
@@ -141,7 +143,6 @@ const styles = StyleSheet.create({
     header: {
         flexDirection: 'row', alignItems: 'center', gap: SPACING.sm,
         paddingHorizontal: SPACING.md,
-        paddingTop: Platform.OS === 'ios' ? 52 : SPACING.md,
         paddingBottom: SPACING.sm,
         backgroundColor: COLORS.surface,
         borderBottomWidth: 1, borderBottomColor: COLORS.border,

@@ -91,7 +91,7 @@ const SavedItinerariesScreen = ({ navigation }) => {
     const renderItineraryItem = ({ item, index }) => {
         const isCompleted = item.status === 'completed';
         const itemCount = item.itinerary_items?.length || 0;
-        const cityImages = getCityImages(item.cities?.name);
+        const cityImages = getCityImages(item.cities?.name, item.cities?.region);
 
         return (
             <View>

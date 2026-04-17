@@ -1,5 +1,6 @@
 import React, { useRef, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Platform, Animated } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
@@ -344,8 +345,9 @@ const tabIconStyles = StyleSheet.create({
 
 // ─── Tab Navigatör + Floating Assistant Wrapper ────────────────────────────
 const TabsWithFloating = () => {
-    const bottomPadding = Platform.OS === 'android' ? 16 : 8;
-    const tabBarHeight = Platform.OS === 'android' ? 72 : 64;
+    const insets = useSafeAreaInsets();
+    const bottomPadding = Math.max(insets.bottom, Platform.OS === 'android' ? 16 : 8);
+    const tabBarHeight = 56 + bottomPadding;
 
     return (
         <View style={styles.root}>
