@@ -174,13 +174,36 @@ const LoginScreen = ({ navigation }) => {
                             style={styles.loginButton}
                         />
 
-                        {/* Footer */}
+                        {/* Social Login */}
                         <Animated.View style={[styles.footer, footerAnim]}>
                             <View style={styles.dividerRow}>
                                 <View style={styles.dividerLine} />
-                                <Text style={styles.dividerText}>veya</Text>
+                                <Text style={styles.dividerText}>veya şununla devam et</Text>
                                 <View style={styles.dividerLine} />
                             </View>
+                            
+                            <View style={styles.socialButtonsRow}>
+                                <TouchableOpacity 
+                                    style={styles.socialButton}
+                                    activeOpacity={0.7}
+                                    onPress={() => {/* Google OAuth will be implemented */}}
+                                >
+                                    <View style={styles.socialIconGoogle}>
+                                        <Text style={styles.googleIcon}>G</Text>
+                                    </View>
+                                    <Text style={styles.socialButtonText}>Google</Text>
+                                </TouchableOpacity>
+                                
+                                <TouchableOpacity 
+                                    style={[styles.socialButton, styles.socialButtonApple]}
+                                    activeOpacity={0.7}
+                                    onPress={() => {/* Apple OAuth will be implemented */}}
+                                >
+                                    <Ionicons name="logo-apple" size={20} color="#fff" />
+                                    <Text style={[styles.socialButtonText, styles.socialButtonTextApple]}>Apple</Text>
+                                </TouchableOpacity>
+                            </View>
+                            
                             <View style={styles.footerTextRow}>
                                 <Text style={styles.footerText}>Hesabınız yok mu?</Text>
                                 <TouchableOpacity onPress={() => navigation.navigate('Register')}>
@@ -351,6 +374,58 @@ const styles = StyleSheet.create({
         fontFamily: FONTS.bodySemiBold,
         color: COLORS.primary,
         fontSize: FONT_SIZES.sm,
+    },
+    
+    // Social Login Buttons
+    socialButtonsRow: {
+        flexDirection: 'row',
+        gap: SPACING.sm,
+        marginBottom: SPACING.lg,
+    },
+    socialButton: {
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 10,
+        paddingVertical: 14,
+        paddingHorizontal: SPACING.md,
+        backgroundColor: COLORS.surface,
+        borderRadius: BORDER_RADIUS.lg,
+        borderWidth: 1.5,
+        borderColor: COLORS.border,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.06,
+        shadowRadius: 8,
+        elevation: 2,
+    },
+    socialButtonApple: {
+        backgroundColor: '#000',
+        borderColor: '#000',
+    },
+    socialIconGoogle: {
+        width: 22,
+        height: 22,
+        borderRadius: 11,
+        backgroundColor: '#fff',
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: '#EA4335',
+    },
+    googleIcon: {
+        fontFamily: FONTS.bodyBold,
+        fontSize: 14,
+        color: '#EA4335',
+    },
+    socialButtonText: {
+        fontFamily: FONTS.bodySemiBold,
+        fontSize: FONT_SIZES.sm,
+        color: COLORS.textPrimary,
+    },
+    socialButtonTextApple: {
+        color: '#fff',
     },
 });
 

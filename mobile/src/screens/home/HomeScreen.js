@@ -179,9 +179,9 @@ const HomeScreen = ({ navigation }) => {
                         onPress={openDiscoverTab}
                         activeOpacity={0.85}
                     >
-                        <Ionicons name="compass" size={16} color="#fff" />
+                        <Ionicons name="compass" size={18} color={COLORS.primary} />
                         <Text style={styles.heroCTAText}>Şehirleri Keşfet</Text>
-                        <Ionicons name="arrow-forward" size={16} color="#fff" />
+                        <Ionicons name="arrow-forward" size={18} color={COLORS.primary} />
                     </TouchableOpacity>
                 </View>
                 {/* İçerik kartı — beyaz yüzey üstünde */}
@@ -441,9 +441,9 @@ const styles = StyleSheet.create({
     },
     heroContent: {
         height: HERO_HEIGHT,
-        justifyContent: 'center',
+        justifyContent: 'flex-start',
         paddingHorizontal: SPACING.lg,
-        paddingTop: SPACING.xxl,
+        paddingTop: Platform.OS === 'ios' ? 80 : 60,
     },
     heroBadge: {
         flexDirection: 'row',
@@ -465,36 +465,43 @@ const styles = StyleSheet.create({
         letterSpacing: 0.5,
     },
     heroTitle: {
-        fontFamily: FONTS.heading,
-        fontSize: 40,
+        fontFamily: FONTS.display,
+        fontSize: FONT_SIZES.display,
         color: '#fff',
-        lineHeight: 48,
-        marginBottom: SPACING.sm,
-        letterSpacing: -1,
+        lineHeight: 50,
+        marginBottom: SPACING.md,
+        letterSpacing: -1.5,
+        textShadowColor: 'rgba(0,0,0,0.3)',
+        textShadowOffset: { width: 0, height: 2 },
+        textShadowRadius: 8,
     },
     heroSubtitle: {
-        fontFamily: FONTS.body,
-        fontSize: FONT_SIZES.sm,
-        color: 'rgba(255,255,255,0.82)',
-        lineHeight: 20,
-        marginBottom: SPACING.md,
+        fontFamily: FONTS.bodyMedium,
+        fontSize: FONT_SIZES.md,
+        color: 'rgba(255,255,255,0.9)',
+        lineHeight: 24,
+        marginBottom: SPACING.lg,
+        maxWidth: '85%',
     },
     heroCTA: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 8,
-        backgroundColor: COLORS.primaryDark,
-        paddingVertical: 12,
-        paddingHorizontal: 22,
-        borderRadius: BORDER_RADIUS.lg,
+        gap: 10,
+        backgroundColor: 'rgba(255,255,255,0.95)',
+        paddingVertical: 14,
+        paddingHorizontal: 24,
+        borderRadius: BORDER_RADIUS.full,
         alignSelf: 'flex-start',
-        borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.2)',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.2,
+        shadowRadius: 12,
+        elevation: 6,
     },
     heroCTAText: {
         fontFamily: FONTS.bodySemiBold,
-        fontSize: FONT_SIZES.sm,
-        color: '#fff',
+        fontSize: FONT_SIZES.md,
+        color: COLORS.primaryDark,
     },
 
     // ─── SCROLLVIEW ───
