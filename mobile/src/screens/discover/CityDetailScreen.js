@@ -806,18 +806,24 @@ const CityDetailScreen = ({ route, navigation }) => {
                         style={styles.quickActionBtn}
                         onPress={() => navigation.navigate('MapScreen', { city })}
                     >
-                        <View style={[styles.quickActionIcon, { backgroundColor: COLORS.primary + '15' }]}>
+                        <LinearGradient
+                            colors={[COLORS.primary + '18', COLORS.primary + '08']}
+                            style={styles.quickActionIconGrad}
+                        >
                             <Ionicons name="map" size={20} color={COLORS.primary} />
-                        </View>
+                        </LinearGradient>
                         <Text style={styles.quickActionLabel}>Haritada Gör</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                         style={styles.quickActionBtn}
                         onPress={() => navigation.navigate('CreateItinerary', { city })}
                     >
-                        <View style={[styles.quickActionIcon, { backgroundColor: COLORS.accent + '15' }]}>
+                        <LinearGradient
+                            colors={[COLORS.accent + '18', COLORS.accent + '08']}
+                            style={styles.quickActionIconGrad}
+                        >
                             <Ionicons name="calendar" size={20} color={COLORS.accent} />
-                        </View>
+                        </LinearGradient>
                         <Text style={styles.quickActionLabel}>Gezi Planla</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
@@ -826,51 +832,61 @@ const CityDetailScreen = ({ route, navigation }) => {
                             context: { city: cityName },
                         })}
                     >
-                        <View style={[styles.quickActionIcon, { backgroundColor: '#6C63FF15' }]}>
+                        <LinearGradient
+                            colors={['#6C63FF18', '#6C63FF08']}
+                            style={styles.quickActionIconGrad}
+                        >
                             <Ionicons name="sparkles" size={20} color="#6C63FF" />
-                        </View>
+                        </LinearGradient>
                         <Text style={styles.quickActionLabel}>AI Asistan</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                         style={styles.quickActionBtn}
                         onPress={() => setActiveCategory('hotel')}
                     >
-                        <View style={[styles.quickActionIcon, { backgroundColor: COLORS.warning + '15' }]}>
+                        <LinearGradient
+                            colors={[COLORS.warning + '18', COLORS.warning + '08']}
+                            style={styles.quickActionIconGrad}
+                        >
                             <Ionicons name="bed" size={20} color={COLORS.warning} />
-                        </View>
+                        </LinearGradient>
                         <Text style={styles.quickActionLabel}>Konaklama</Text>
                     </TouchableOpacity>
                 </View>
 
-                {/* ═══ Kategori sekmeler ═══ */}
-                <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={styles.categoryTabs}
-                >
-                    {CATEGORIES.map(cat => (
-                        <TouchableOpacity
-                            key={cat.key}
-                            style={[
-                                styles.categoryTab,
-                                activeCategory === cat.key && styles.categoryTabActive,
-                            ]}
-                            onPress={() => setActiveCategory(cat.key)}
-                        >
-                            <Ionicons
-                                name={activeCategory === cat.key ? cat.icon : `${cat.icon}-outline`}
-                                size={16}
-                                color={activeCategory === cat.key ? '#fff' : COLORS.textSecondary}
-                            />
-                            <Text style={[
-                                styles.categoryTabLabel,
-                                activeCategory === cat.key && styles.categoryTabLabelActive,
-                            ]}>
-                                {cat.label}
-                            </Text>
-                        </TouchableOpacity>
-                    ))}
-                </ScrollView>
+                {/* ═══ Kategori sekmeler — Modern Pill ═══ */}
+                <View style={styles.categorySection}>
+                    <Text style={styles.categorySectionTitle}>Kategoriler</Text>
+                    <ScrollView
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        contentContainerStyle={styles.categoryTabs}
+                    >
+                        {CATEGORIES.map(cat => {
+                            const isActive = activeCategory === cat.key;
+                            return (
+                                <TouchableOpacity
+                                    key={cat.key}
+                                    style={[
+                                        styles.categoryTab,
+                                        isActive && styles.categoryTabActive,
+                                    ]}
+                                    onPress={() => setActiveCategory(cat.key)}
+                                    activeOpacity={0.8}
+                                >
+                                    <Text style={styles.categoryTabEmoji}>{cat.emoji}</Text>
+                                    <Text style={[
+                                        styles.categoryTabLabel,
+                                        isActive && styles.categoryTabLabelActive,
+                                    ]}>
+                                        {cat.label}
+                                    </Text>
+                                    {isActive && <View style={styles.categoryTabDot} />}
+                                </TouchableOpacity>
+                            );
+                        })}
+                    </ScrollView>
+                </View>
 
                 {/* ═══ İçerik ═══ */}
                 <View style={styles.contentSection}>
@@ -993,36 +1009,62 @@ const styles = StyleSheet.create({
         shadowOpacity: 0.05, shadowRadius: 8,
         elevation: 2,
     },
-    quickActionIcon: {
-        width: 40, height: 40, borderRadius: 12,
+    quickActionIconGrad: {
+        width: 44, height: 44, borderRadius: 14,
         justifyContent: 'center', alignItems: 'center',
     },
     quickActionLabel: {
         fontFamily: 'Inter_500Medium', fontSize: 11, color: COLORS.textPrimary,
     },
 
-    // Category tabs
+    // Category section
+    categorySection: {
+        paddingTop: SPACING.xs,
+    },
+    categorySectionTitle: {
+        fontFamily: 'Inter_600SemiBold', fontSize: FONT_SIZES.sm,
+        color: COLORS.textSecondary, marginBottom: SPACING.sm,
+        paddingHorizontal: SPACING.lg, letterSpacing: 0.5,
+        textTransform: 'uppercase',
+    },
     categoryTabs: {
         paddingHorizontal: SPACING.lg,
-        paddingVertical: SPACING.sm,
-        gap: SPACING.xs,
+        paddingBottom: SPACING.sm,
+        gap: SPACING.sm,
     },
     categoryTab: {
-        flexDirection: 'row', alignItems: 'center', gap: 6,
-        paddingHorizontal: 16, paddingVertical: 10,
-        borderRadius: BORDER_RADIUS.full,
+        alignItems: 'center', gap: 4,
+        paddingHorizontal: 18, paddingVertical: 12,
+        borderRadius: 16,
         backgroundColor: COLORS.surface,
         borderWidth: 1.5, borderColor: COLORS.border,
+        minWidth: 72,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.04, shadowRadius: 4,
+        elevation: 1,
     },
     categoryTabActive: {
         backgroundColor: COLORS.primary,
         borderColor: COLORS.primary,
+        shadowColor: COLORS.primary,
+        shadowOpacity: 0.25,
+        shadowRadius: 8,
+        elevation: 4,
+    },
+    categoryTabEmoji: {
+        fontSize: 20,
     },
     categoryTabLabel: {
-        fontFamily: 'Inter_500Medium', fontSize: FONT_SIZES.sm,
+        fontFamily: 'Inter_500Medium', fontSize: 12,
         color: COLORS.textSecondary,
     },
     categoryTabLabelActive: { color: '#fff', fontFamily: 'Inter_600SemiBold' },
+    categoryTabDot: {
+        width: 4, height: 4, borderRadius: 2,
+        backgroundColor: 'rgba(255,255,255,0.8)',
+        marginTop: 2,
+    },
 
     // Content
     contentSection: {

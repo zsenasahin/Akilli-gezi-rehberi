@@ -11,7 +11,6 @@ import {
     Animated,
     Easing,
 } from 'react-native';
-import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../../constants/colors';
@@ -23,16 +22,16 @@ import ErrorMessage from '../../components/common/ErrorMessage';
 import { signIn } from '../../services/authService';
 import { isValidEmail, isValidPassword } from '../../utils/validators';
 
-const SCREEN_HEIGHT = Dimensions.get('window').height;
+const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 const HERO_IMAGE = 'https://images.unsplash.com/photo-1519046904884-53103b34b206?w=800&h=600&fit=crop&q=80';
 
 const useFadeIn = (delay = 0) => {
     const opacity = useRef(new Animated.Value(0)).current;
-    const translateY = useRef(new Animated.Value(20)).current;
+    const translateY = useRef(new Animated.Value(30)).current;
     useEffect(() => {
         Animated.parallel([
-            Animated.timing(opacity, { toValue: 1, duration: 500, delay, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-            Animated.timing(translateY, { toValue: 0, duration: 500, delay, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+            Animated.timing(opacity, { toValue: 1, duration: 600, delay, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+            Animated.timing(translateY, { toValue: 0, duration: 600, delay, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
         ]).start();
     }, []);
     return { opacity, transform: [{ translateY }] };
@@ -43,10 +42,11 @@ const LoginScreen = ({ navigation }) => {
     const [password, setPassword] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
+    const [showPassword, setShowPassword] = useState(false);
 
-    const heroAnim = useFadeIn(200);
-    const formAnim = useFadeIn(400);
-    const footerAnim = useFadeIn(600);
+    const sheetAnim = useFadeIn(100);
+    const formAnim = useFadeIn(300);
+    const footerAnim = useFadeIn(500);
 
     const handleLogin = async () => {
         setError(null);
@@ -74,165 +74,281 @@ const LoginScreen = ({ navigation }) => {
     };
 
     return (
-        <KeyboardAvoidingView
-            style={styles.flex}
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        >
-            <ScrollView
-                contentContainerStyle={styles.container}
-                keyboardShouldPersistTaps="handled"
-                showsVerticalScrollIndicator={false}
+        <View style={styles.root}>
+            {/* Background gradient */}
+            <LinearGradient
+                colors={['#0E7490', '#0891B2', '#14B8A6']}
+                style={StyleSheet.absoluteFill}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+            />
+
+            {/* Top decorative area */}
+            <View style={styles.topArea}>
+                {/* Close button */}
+                <TouchableOpacity
+                    style={styles.closeButton}
+                    onPress={() => navigation.goBack()}
+                    hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                >
+                    <Ionicons name="close" size={24} color="rgba(255,255,255,0.9)" />
+                </TouchableOpacity>
+
+                {/* Logo & title */}
+                <Animated.View style={[styles.logoArea, sheetAnim]}>
+                    <View style={styles.logoBadge}>
+                        <Ionicons name="location" size={28} color="#fff" />
+                    </View>
+                    <Text style={styles.brandTitle}>Akıllı Gezi Rehberi</Text>
+                    <Text style={styles.brandSubtitle}>Hesabına giriş yap</Text>
+                </Animated.View>
+            </View>
+
+            {/* Bottom Sheet */}
+            <KeyboardAvoidingView
+                style={styles.sheetContainer}
+                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                keyboardVerticalOffset={0}
             >
-                {/* Hero Background */}
-                <View style={styles.heroSection}>
-                    <Image
-                        source={{ uri: HERO_IMAGE }}
-                        style={styles.heroImage}
-                        contentFit="cover"
-                        transition={500}
-                    />
-                    <LinearGradient
-                        colors={['transparent', 'rgba(27, 40, 56, 0.6)', COLORS.background]}
-                        style={styles.heroGradient}
-                    />
-                    <Animated.View style={[styles.heroContent, heroAnim]}>
-                        <View style={styles.logoBadge}>
-                            <Ionicons name="location" size={24} color="#fff" />
-                        </View>
-                        <Text style={styles.heroTitle}>Akıllı Gezi{'\n'}Rehberi</Text>
-                        <Text style={styles.heroSubtitle}>
-                            Hayalindeki seyahati planla
+                <ScrollView
+                    contentContainerStyle={styles.sheetScroll}
+                    keyboardShouldPersistTaps="handled"
+                    showsVerticalScrollIndicator={false}
+                    bounces={false}
+                >
+                    <Animated.View style={[styles.sheet, formAnim]}>
+                        {/* Handle bar */}
+                        <View style={styles.handleBar} />
+
+                        <Text style={styles.sheetTitle}>Giriş Yap</Text>
+                        <Text style={styles.sheetSubtitle}>
+                            E-posta ve şifrenle devam et
                         </Text>
+
+                        {error && <ErrorMessage message={error} />}
+
+                        {/* Email */}
+                        <View style={styles.inputWrapper}>
+                            <View style={styles.inputIconWrap}>
+                                <Ionicons name="mail-outline" size={18} color={COLORS.primary} />
+                            </View>
+                            <Input
+                                label="E-posta"
+                                placeholder="ornek@email.com"
+                                value={email}
+                                onChangeText={setEmail}
+                                keyboardType="email-address"
+                                style={styles.inputField}
+                            />
+                        </View>
+
+                        {/* Password */}
+                        <View style={styles.inputWrapper}>
+                            <View style={styles.inputIconWrap}>
+                                <Ionicons name="lock-closed-outline" size={18} color={COLORS.primary} />
+                            </View>
+                            <Input
+                                label="Şifre"
+                                placeholder="••••••••"
+                                value={password}
+                                onChangeText={setPassword}
+                                secureTextEntry={!showPassword}
+                                style={styles.inputField}
+                            />
+                            <TouchableOpacity
+                                style={styles.eyeButton}
+                                onPress={() => setShowPassword(!showPassword)}
+                            >
+                                <Ionicons
+                                    name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                                    size={18}
+                                    color={COLORS.textLight}
+                                />
+                            </TouchableOpacity>
+                        </View>
+
+                        <Button
+                            title="Giriş Yap"
+                            onPress={handleLogin}
+                            loading={loading}
+                            style={styles.loginButton}
+                        />
+
+                        {/* Footer */}
+                        <Animated.View style={[styles.footer, footerAnim]}>
+                            <View style={styles.dividerRow}>
+                                <View style={styles.dividerLine} />
+                                <Text style={styles.dividerText}>veya</Text>
+                                <View style={styles.dividerLine} />
+                            </View>
+                            <View style={styles.footerTextRow}>
+                                <Text style={styles.footerText}>Hesabınız yok mu?</Text>
+                                <TouchableOpacity onPress={() => navigation.navigate('Register')}>
+                                    <Text style={styles.footerLink}> Kayıt Ol</Text>
+                                </TouchableOpacity>
+                            </View>
+                        </Animated.View>
                     </Animated.View>
-                </View>
-
-                {/* Form */}
-                <Animated.View style={[styles.formSection, formAnim]}>
-                    <Text style={styles.formTitle}>Giriş Yap</Text>
-                    <Text style={styles.formSubtitle}>Hesabınıza giriş yaparak devam edin</Text>
-
-                    {error && <ErrorMessage message={error} />}
-
-                    <Input
-                        label="E-posta"
-                        placeholder="ornek@email.com"
-                        value={email}
-                        onChangeText={setEmail}
-                        keyboardType="email-address"
-                    />
-
-                    <Input
-                        label="Şifre"
-                        placeholder="••••••••"
-                        value={password}
-                        onChangeText={setPassword}
-                        secureTextEntry
-                    />
-
-                    <Button
-                        title="Giriş Yap"
-                        onPress={handleLogin}
-                        loading={loading}
-                        style={styles.loginButton}
-                    />
-                </Animated.View>
-
-                {/* Footer */}
-                <Animated.View style={[styles.footer, footerAnim]}>
-                    <Text style={styles.footerText}>Hesabınız yok mu?</Text>
-                    <TouchableOpacity onPress={() => navigation.navigate('Register')}>
-                        <Text style={styles.footerLink}> Kayıt Ol</Text>
-                    </TouchableOpacity>
-                </Animated.View>
-            </ScrollView>
-        </KeyboardAvoidingView>
+                </ScrollView>
+            </KeyboardAvoidingView>
+        </View>
     );
 };
 
 const styles = StyleSheet.create({
-    flex: {
+    root: {
         flex: 1,
-        backgroundColor: COLORS.background,
     },
-    container: {
-        flexGrow: 1,
-    },
-    heroSection: {
-        height: SCREEN_HEIGHT * 0.4,
-        position: 'relative',
-    },
-    heroImage: {
-        ...StyleSheet.absoluteFillObject,
-    },
-    heroGradient: {
-        ...StyleSheet.absoluteFillObject,
-    },
-    heroContent: {
-        position: 'absolute',
-        bottom: SPACING.xl,
-        left: SPACING.lg,
-    },
-    logoBadge: {
-        width: 48,
-        height: 48,
-        borderRadius: 16,
-        backgroundColor: COLORS.accent,
+    topArea: {
+        flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
-        marginBottom: SPACING.sm,
+        paddingTop: 60,
+        paddingBottom: 20,
     },
-    heroTitle: {
+    closeButton: {
+        position: 'absolute',
+        top: Platform.OS === 'ios' ? 56 : 40,
+        right: SPACING.lg,
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        backgroundColor: 'rgba(255,255,255,0.18)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        zIndex: 10,
+    },
+    logoArea: {
+        alignItems: 'center',
+    },
+    logoBadge: {
+        width: 64,
+        height: 64,
+        borderRadius: 20,
+        backgroundColor: 'rgba(255,255,255,0.2)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginBottom: SPACING.md,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.3)',
+    },
+    brandTitle: {
         fontFamily: FONTS.heading,
-        fontSize: FONT_SIZES.hero,
+        fontSize: 28,
         color: '#fff',
-        lineHeight: 44,
+        letterSpacing: -0.5,
     },
-    heroSubtitle: {
-        fontFamily: 'Inter_400Regular',
+    brandSubtitle: {
+        fontFamily: FONTS.body,
         fontSize: FONT_SIZES.md,
-        color: 'rgba(255,255,255,0.85)',
-        marginTop: SPACING.xs,
+        color: 'rgba(255,255,255,0.8)',
+        marginTop: 4,
     },
-    formSection: {
+
+    // Bottom Sheet
+    sheetContainer: {
+        maxHeight: SCREEN_H * 0.65,
+    },
+    sheetScroll: {
+        flexGrow: 1,
+    },
+    sheet: {
         backgroundColor: COLORS.surface,
-        borderRadius: BORDER_RADIUS.xl,
-        marginHorizontal: SPACING.lg,
-        marginTop: -SPACING.lg,
-        padding: SPACING.lg,
+        borderTopLeftRadius: 32,
+        borderTopRightRadius: 32,
+        paddingHorizontal: SPACING.xl,
+        paddingTop: SPACING.sm,
+        paddingBottom: SPACING.xxl + 20,
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: 6 },
-        shadowOpacity: 0.08,
-        shadowRadius: 16,
-        elevation: 5,
+        shadowOffset: { width: 0, height: -8 },
+        shadowOpacity: 0.15,
+        shadowRadius: 24,
+        elevation: 20,
     },
-    formTitle: {
+    handleBar: {
+        width: 40,
+        height: 4,
+        borderRadius: 2,
+        backgroundColor: COLORS.border,
+        alignSelf: 'center',
+        marginBottom: SPACING.lg,
+    },
+    sheetTitle: {
         fontFamily: FONTS.heading,
-        fontSize: FONT_SIZES.xl,
+        fontSize: 26,
         color: COLORS.textPrimary,
+        letterSpacing: -0.5,
     },
-    formSubtitle: {
-        fontFamily: 'Inter_400Regular',
+    sheetSubtitle: {
+        fontFamily: FONTS.body,
         fontSize: FONT_SIZES.sm,
         color: COLORS.textSecondary,
         marginTop: 4,
+        marginBottom: SPACING.lg,
+    },
+
+    // Inputs
+    inputWrapper: {
+        position: 'relative',
+        marginBottom: 4,
+    },
+    inputIconWrap: {
+        position: 'absolute',
+        left: 0,
+        top: 32,
+        zIndex: 2,
+        width: 36,
+        height: 36,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    inputField: {
+        paddingLeft: 36,
+    },
+    eyeButton: {
+        position: 'absolute',
+        right: 12,
+        top: 32,
+        zIndex: 2,
+        padding: 8,
+    },
+
+    loginButton: {
+        marginTop: SPACING.md,
+        borderRadius: BORDER_RADIUS.lg,
+    },
+
+    // Footer
+    footer: {
+        marginTop: SPACING.lg,
+    },
+    dividerRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
         marginBottom: SPACING.md,
     },
-    loginButton: {
-        marginTop: SPACING.sm,
+    dividerLine: {
+        flex: 1,
+        height: 1,
+        backgroundColor: COLORS.divider,
     },
-    footer: {
+    dividerText: {
+        fontFamily: FONTS.body,
+        fontSize: FONT_SIZES.xs,
+        color: COLORS.textLight,
+        marginHorizontal: SPACING.md,
+    },
+    footerTextRow: {
         flexDirection: 'row',
         justifyContent: 'center',
-        marginTop: SPACING.lg,
-        paddingBottom: SPACING.xxl,
     },
     footerText: {
-        fontFamily: 'Inter_400Regular',
+        fontFamily: FONTS.body,
         color: COLORS.textSecondary,
         fontSize: FONT_SIZES.sm,
     },
     footerLink: {
-        fontFamily: 'Inter_600SemiBold',
+        fontFamily: FONTS.bodySemiBold,
         color: COLORS.primary,
         fontSize: FONT_SIZES.sm,
     },

@@ -208,6 +208,38 @@ const HomeScreen = ({ navigation }) => {
                         </TouchableOpacity>
                     )}
 
+                    {/* Gezi Planla CTA */}
+                    <TouchableOpacity
+                        style={styles.planCTA}
+                        onPress={() => {
+                            if (!requireAuth('Gezi planı oluşturmak için giriş yapmalısınız.')) return;
+                            navigation.navigate('CreateItinerary', {});
+                        }}
+                        activeOpacity={0.88}
+                    >
+                        <LinearGradient
+                            colors={COLORS.gradients.brand}
+                            style={styles.planCTAGradient}
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 1, y: 0 }}
+                        >
+                            <View style={styles.planCTAContent}>
+                                <View style={styles.planCTALeft}>
+                                    <View style={styles.planCTAIconWrap}>
+                                        <Ionicons name="calendar" size={22} color="#fff" />
+                                    </View>
+                                    <View>
+                                        <Text style={styles.planCTATitle}>Gezi Planla</Text>
+                                        <Text style={styles.planCTASub}>Şehir seç, akıllı rota oluştur</Text>
+                                    </View>
+                                </View>
+                                <View style={styles.planCTAArrow}>
+                                    <Ionicons name="arrow-forward" size={18} color="#fff" />
+                                </View>
+                            </View>
+                        </LinearGradient>
+                    </TouchableOpacity>
+
                     {/* Aktif Plan Banner */}
                     {ongoingCount > 0 && (
                         <TouchableOpacity
@@ -409,9 +441,9 @@ const styles = StyleSheet.create({
     },
     heroContent: {
         height: HERO_HEIGHT,
-        justifyContent: 'flex-end',
+        justifyContent: 'center',
         paddingHorizontal: SPACING.lg,
-        paddingBottom: SPACING.xl + 8,
+        paddingTop: SPACING.xxl,
     },
     heroBadge: {
         flexDirection: 'row',
@@ -509,6 +541,61 @@ const styles = StyleSheet.create({
     guestBannerSub: {
         fontFamily: FONTS.body, fontSize: FONT_SIZES.xs,
         color: COLORS.textSecondary, marginTop: 1,
+    },
+
+    // ─── PLAN CTA ───
+    planCTA: {
+        marginHorizontal: SPACING.lg,
+        marginBottom: SPACING.md,
+        borderRadius: BORDER_RADIUS.xl,
+        overflow: 'hidden',
+        shadowColor: COLORS.primary,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.25,
+        shadowRadius: 12,
+        elevation: 6,
+    },
+    planCTAGradient: {
+        borderRadius: BORDER_RADIUS.xl,
+    },
+    planCTAContent: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        padding: SPACING.md + 2,
+    },
+    planCTALeft: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: SPACING.sm,
+    },
+    planCTAIconWrap: {
+        width: 44,
+        height: 44,
+        borderRadius: 14,
+        backgroundColor: 'rgba(255,255,255,0.2)',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    planCTATitle: {
+        fontFamily: FONTS.bodySemiBold,
+        fontSize: FONT_SIZES.md,
+        color: '#fff',
+        letterSpacing: -0.2,
+    },
+    planCTASub: {
+        fontFamily: FONTS.body,
+        fontSize: FONT_SIZES.xs,
+        color: 'rgba(255,255,255,0.8)',
+        marginTop: 1,
+    },
+    planCTAArrow: {
+        width: 32,
+        height: 32,
+        borderRadius: 10,
+        backgroundColor: 'rgba(255,255,255,0.2)',
+        justifyContent: 'center',
+        alignItems: 'center',
     },
 
     // ─── ACTIVE PLAN BANNER ───

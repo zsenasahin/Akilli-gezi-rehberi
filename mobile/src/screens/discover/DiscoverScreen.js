@@ -35,6 +35,7 @@ import ErrorMessage from '../../components/common/ErrorMessage';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const CARD_WIDTH = (SCREEN_WIDTH - SPACING.lg * 2 - SPACING.sm) / 2;
+const ITEMS_PER_PAGE = 10;
 
 const CATEGORIES = [
     { key: null, label: 'Tüm Kategoriler', emoji: '🌍' },
@@ -114,6 +115,7 @@ const DiscoverScreen = () => {
     const [favorites, setFavorites] = useState({});
     const [categoryFilter, setCategoryFilter] = useState(null);
     const [placePhotos, setPlacePhotos] = useState({});
+    const [currentPage, setCurrentPage] = useState(1);
 
     // Dropdown görünürlük state'leri
     const [cityDropdownOpen, setCityDropdownOpen] = useState(false);
@@ -180,6 +182,18 @@ const DiscoverScreen = () => {
     });
 
     const activeFilterCount = (selectedCity ? 1 : 0) + (categoryFilter ? 1 : 0);
+
+    // Pagination
+    const totalPages = Math.ceil(filteredPlaces.length / ITEMS_PER_PAGE);
+    const paginatedPlaces = filteredPlaces.slice(
+        (currentPage - 1) * ITEMS_PER_PAGE,
+        currentPage * ITEMS_PER_PAGE
+    );
+
+    // Reset page on filter change
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [selectedCity, categoryFilter, searchQuery]);
 
     const handleToggleFavorite = async (placeId) => {
         if (!requireAuth('Favorilere eklemek için giriş yapmalısınız.')) return;
@@ -346,7 +360,9 @@ const DiscoverScreen = () => {
                 <View style={styles.headerRow}>
                     <View>
                         <Text style={styles.headerTitle}>Keşfet</Text>
-                        <Text style={styles.headerSubtitle}>{filteredPlaces.length} yer bulundu</Text>
+                        <Text style={styles.headerSubtitle}>
+                            {filteredPlaces.length} yer bulundu{totalPages > 1 ? ` · Sayfa ${currentPage}/${totalPages}` : ''}
+                        </Text>
                     </View>
                     {activeFilterCount > 0 && (
                         <TouchableOpacity
@@ -409,7 +425,7 @@ const DiscoverScreen = () => {
             {error && <ErrorMessage message={error} onRetry={fetchPlaces} />}
 
             <FlatList
-                data={filteredPlaces}
+                data={paginatedPlaces}
                 keyExtractor={(item) => item.id.toString()}
                 renderItem={renderPlaceCard}
                 numColumns={2}
@@ -421,11 +437,6 @@ const DiscoverScreen = () => {
                 maxToRenderPerBatch={8}
                 windowSize={5}
                 removeClippedSubviews={true}
-                getItemLayout={(_, index) => ({
-                    length: CARD_WIDTH * 1.3 + SPACING.sm,
-                    offset: (CARD_WIDTH * 1.3 + SPACING.sm) * Math.floor(index / 2),
-                    index,
-                })}
                 refreshControl={
                     <RefreshControl
                         refreshing={refreshing}
@@ -439,6 +450,45 @@ const DiscoverScreen = () => {
                             <Text style={styles.emptyEmoji}>🔍</Text>
                             <Text style={styles.emptyTitle}>Yer bulunamadı</Text>
                             <Text style={styles.emptySubText}>Filtrelerinizi değiştirmeyi deneyin</Text>
+                        </View>
+                    ) : null
+                }
+                ListFooterComponent={
+                    totalPages > 1 ? (
+                        <View style={styles.paginationContainer}>
+                            <TouchableOpacity
+                                style={[styles.paginationBtn, currentPage === 1 && styles.paginationBtnDisabled]}
+                                onPress={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                disabled={currentPage === 1}
+                            >
+                                <Ionicons name="chevron-back" size={18} color={currentPage === 1 ? COLORS.textLight : COLORS.primary} />
+                            </TouchableOpacity>
+                            {Array.from({ length: totalPages }, (_, i) => i + 1)
+                                .filter(p => Math.abs(p - currentPage) <= 2 || p === 1 || p === totalPages)
+                                .map((page, idx, arr) => {
+                                    const showEllipsis = idx > 0 && page - arr[idx - 1] > 1;
+                                    return (
+                                        <React.Fragment key={page}>
+                                            {showEllipsis && <Text style={styles.paginationEllipsis}>…</Text>}
+                                            <TouchableOpacity
+                                                style={[styles.paginationPage, currentPage === page && styles.paginationPageActive]}
+                                                onPress={() => setCurrentPage(page)}
+                                            >
+                                                <Text style={[styles.paginationPageText, currentPage === page && styles.paginationPageTextActive]}>
+                                                    {page}
+                                                </Text>
+                                            </TouchableOpacity>
+                                        </React.Fragment>
+                                    );
+                                })
+                            }
+                            <TouchableOpacity
+                                style={[styles.paginationBtn, currentPage === totalPages && styles.paginationBtnDisabled]}
+                                onPress={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                disabled={currentPage === totalPages}
+                            >
+                                <Ionicons name="chevron-forward" size={18} color={currentPage === totalPages ? COLORS.textLight : COLORS.primary} />
+                            </TouchableOpacity>
                         </View>
                     ) : null
                 }
@@ -763,6 +813,62 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         paddingTop: SPACING.xxl * 2,
         paddingHorizontal: SPACING.lg,
+    },
+
+    // ─── Pagination ───
+    paginationContainer: {
+        flexDirection: 'row',
+        justifyContent: 'center',
+        alignItems: 'center',
+        paddingVertical: SPACING.lg,
+        paddingHorizontal: SPACING.md,
+        gap: 6,
+    },
+    paginationBtn: {
+        width: 36,
+        height: 36,
+        borderRadius: 12,
+        backgroundColor: COLORS.surface,
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: COLORS.border,
+    },
+    paginationBtnDisabled: {
+        opacity: 0.4,
+    },
+    paginationPage: {
+        width: 36,
+        height: 36,
+        borderRadius: 12,
+        backgroundColor: COLORS.surface,
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 1.5,
+        borderColor: COLORS.border,
+    },
+    paginationPageActive: {
+        backgroundColor: COLORS.primary,
+        borderColor: COLORS.primary,
+        shadowColor: COLORS.primary,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.3,
+        shadowRadius: 6,
+        elevation: 4,
+    },
+    paginationPageText: {
+        fontFamily: 'Inter_600SemiBold',
+        fontSize: FONT_SIZES.sm,
+        color: COLORS.textSecondary,
+    },
+    paginationPageTextActive: {
+        color: '#fff',
+    },
+    paginationEllipsis: {
+        fontFamily: 'Inter_400Regular',
+        fontSize: FONT_SIZES.sm,
+        color: COLORS.textLight,
+        paddingHorizontal: 4,
     },
     emptyEmoji: { fontSize: 52, marginBottom: SPACING.md },
     emptyTitle: {

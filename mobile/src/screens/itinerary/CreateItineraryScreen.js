@@ -455,26 +455,46 @@ const CreateItineraryScreen = ({ navigation, route }) => {
                         <Text style={styles.stepTitle}>📅 Kaç gün & ne zaman?</Text>
                         <Text style={styles.stepDesc}>Gezi sürenizi ve başlangıç tarihinizi seçin.</Text>
 
-                        {/* Gün sayısı */}
-                        <View style={styles.daySelectorRow}>
-                            <TouchableOpacity onPress={() => setDays(d => Math.max(1, d - 1))} disabled={days <= 1}>
-                                <Ionicons name="remove-circle-outline" size={44} color={days <= 1 ? COLORS.textLight : COLORS.primary} />
-                            </TouchableOpacity>
-                            <View style={styles.dayDisplay}>
-                                <Text style={styles.dayNumber}>{days}</Text>
-                                <Text style={styles.dayLabel}>gün</Text>
+                        {/* Gün sayısı — Modern Slider */}
+                        <View style={styles.daySliderSection}>
+                            <View style={styles.daySliderHeader}>
+                                <Text style={styles.daySliderLabel}>Gezi Süresi</Text>
+                                <View style={styles.daySliderBadge}>
+                                    <Ionicons name="calendar" size={14} color={COLORS.primary} />
+                                    <Text style={styles.daySliderBadgeText}>{days} gün</Text>
+                                </View>
                             </View>
-                            <TouchableOpacity onPress={() => setDays(d => Math.min(14, d + 1))} disabled={days >= 14}>
-                                <Ionicons name="add-circle-outline" size={44} color={days >= 14 ? COLORS.textLight : COLORS.primary} />
-                            </TouchableOpacity>
-                        </View>
-
-                        <View style={styles.chipRow}>
-                            {[1, 2, 3, 5, 7, 10].map(d => (
-                                <TouchableOpacity key={d} style={[styles.chip, days === d && styles.chipActive]} onPress={() => setDays(d)}>
-                                    <Text style={[styles.chipText, days === d && styles.chipTextActive]}>{d} gün</Text>
-                                </TouchableOpacity>
-                            ))}
+                            <ScrollView
+                                horizontal
+                                showsHorizontalScrollIndicator={false}
+                                contentContainerStyle={styles.daySliderRow}
+                            >
+                                {Array.from({ length: 14 }, (_, i) => i + 1).map(d => {
+                                    const isActive = days === d;
+                                    const TRIP_LABELS = { 1: 'Günübirlik', 2: 'Hafta Sonu', 3: 'Kısa Tatil', 5: 'Tatil', 7: 'Bir Hafta', 10: 'Uzun Tatil', 14: 'Tam Tatil' };
+                                    const label = TRIP_LABELS[d];
+                                    return (
+                                        <TouchableOpacity
+                                            key={d}
+                                            style={[styles.daySliderCard, isActive && styles.daySliderCardActive]}
+                                            onPress={() => setDays(d)}
+                                            activeOpacity={0.8}
+                                        >
+                                            <Text style={[styles.daySliderNumber, isActive && styles.daySliderNumberActive]}>
+                                                {d}
+                                            </Text>
+                                            <Text style={[styles.daySliderUnit, isActive && styles.daySliderUnitActive]}>
+                                                gün
+                                            </Text>
+                                            {label && (
+                                                <Text style={[styles.daySliderTip, isActive && styles.daySliderTipActive]} numberOfLines={1}>
+                                                    {label}
+                                                </Text>
+                                            )}
+                                        </TouchableOpacity>
+                                    );
+                                })}
+                            </ScrollView>
                         </View>
 
                         {/* Başlangıç tarihi */}
@@ -1151,19 +1171,80 @@ const styles = StyleSheet.create({
     placeName: { fontSize: FONT_SIZES.sm, fontFamily: 'Inter_500Medium', color: COLORS.textPrimary },
     placeMeta: { fontSize: FONT_SIZES.xs, color: COLORS.textSecondary, marginTop: 2 },
 
-    // Day selector
-    daySelectorRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginVertical: SPACING.xl },
-    dayDisplay: { alignItems: 'center', marginHorizontal: SPACING.xl },
-    dayNumber: { fontSize: 56, fontFamily: 'Inter_700Bold', color: COLORS.primary },
-    dayLabel: { fontSize: FONT_SIZES.md, color: COLORS.textSecondary },
-    chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.sm, justifyContent: 'center' },
-    chip: {
-        paddingHorizontal: 16, paddingVertical: 8, borderRadius: BORDER_RADIUS.full,
-        backgroundColor: COLORS.surfaceAlt, borderWidth: 1, borderColor: COLORS.border,
+    // Day slider
+    daySliderSection: {
+        marginBottom: SPACING.sm,
     },
-    chipActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
-    chipText: { fontSize: FONT_SIZES.sm, color: COLORS.textSecondary, fontFamily: 'Inter_500Medium' },
-    chipTextActive: { color: '#fff', fontFamily: 'Inter_600SemiBold' },
+    daySliderHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: SPACING.md,
+    },
+    daySliderLabel: {
+        fontSize: FONT_SIZES.md, fontFamily: 'Inter_600SemiBold',
+        color: COLORS.textPrimary,
+    },
+    daySliderBadge: {
+        flexDirection: 'row', alignItems: 'center', gap: 4,
+        backgroundColor: COLORS.primaryMuted,
+        paddingHorizontal: 10, paddingVertical: 5,
+        borderRadius: BORDER_RADIUS.full,
+    },
+    daySliderBadgeText: {
+        fontSize: FONT_SIZES.sm, fontFamily: 'Inter_600SemiBold',
+        color: COLORS.primary,
+    },
+    daySliderRow: {
+        gap: SPACING.sm,
+        paddingVertical: 4,
+    },
+    daySliderCard: {
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: 72,
+        height: 90,
+        borderRadius: 18,
+        backgroundColor: COLORS.surface,
+        borderWidth: 2,
+        borderColor: COLORS.border,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.04,
+        shadowRadius: 4,
+        elevation: 1,
+    },
+    daySliderCardActive: {
+        backgroundColor: COLORS.primary,
+        borderColor: COLORS.primary,
+        shadowColor: COLORS.primary,
+        shadowOpacity: 0.3,
+        shadowRadius: 10,
+        elevation: 6,
+    },
+    daySliderNumber: {
+        fontSize: 28, fontFamily: 'Inter_700Bold',
+        color: COLORS.textPrimary,
+    },
+    daySliderNumberActive: {
+        color: '#fff',
+    },
+    daySliderUnit: {
+        fontSize: 12, fontFamily: 'Inter_400Regular',
+        color: COLORS.textSecondary,
+        marginTop: -2,
+    },
+    daySliderUnitActive: {
+        color: 'rgba(255,255,255,0.8)',
+    },
+    daySliderTip: {
+        fontSize: 9, fontFamily: 'Inter_500Medium',
+        color: COLORS.textLight,
+        marginTop: 4,
+    },
+    daySliderTipActive: {
+        color: 'rgba(255,255,255,0.7)',
+    },
 
     // Map
     sectionLabel: { fontSize: FONT_SIZES.sm, fontFamily: 'Inter_600SemiBold', color: COLORS.textPrimary, marginBottom: SPACING.sm, marginTop: SPACING.md },

@@ -12,7 +12,6 @@ import {
     Animated,
     Easing,
 } from 'react-native';
-import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../../constants/colors';
@@ -25,16 +24,15 @@ import { signUp, signIn } from '../../services/authService';
 import { createProfile } from '../../services/profileService';
 import { isValidEmail, isValidPassword } from '../../utils/validators';
 
-const SCREEN_HEIGHT = Dimensions.get('window').height;
-const HERO_IMAGE = 'https://images.unsplash.com/photo-1524231757912-21f4fe3a7200?w=800&h=600&fit=crop&q=80';
+const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 
 const useFadeIn = (delay = 0) => {
     const opacity = useRef(new Animated.Value(0)).current;
-    const translateY = useRef(new Animated.Value(20)).current;
+    const translateY = useRef(new Animated.Value(30)).current;
     useEffect(() => {
         Animated.parallel([
-            Animated.timing(opacity, { toValue: 1, duration: 500, delay, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-            Animated.timing(translateY, { toValue: 0, duration: 500, delay, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+            Animated.timing(opacity, { toValue: 1, duration: 600, delay, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+            Animated.timing(translateY, { toValue: 0, duration: 600, delay, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
         ]).start();
     }, []);
     return { opacity, transform: [{ translateY }] };
@@ -46,10 +44,12 @@ const RegisterScreen = ({ navigation }) => {
     const [password, setPassword] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
+    const [showPassword, setShowPassword] = useState(false);
+    const [emailSent, setEmailSent] = useState(false);
 
-    const heroAnim = useFadeIn(200);
-    const formAnim = useFadeIn(400);
-    const footerAnim = useFadeIn(600);
+    const sheetAnim = useFadeIn(100);
+    const formAnim = useFadeIn(300);
+    const footerAnim = useFadeIn(500);
 
     const handleRegister = async () => {
         setError(null);
@@ -94,193 +94,441 @@ const RegisterScreen = ({ navigation }) => {
             }
         }
 
+        // Email doğrulama akışı — session yoksa doğrulama bekleniyor
         if (!authData?.session) {
-            console.log('🔄 Otomatik giriş deneniyor...');
-            const { data: loginData, error: loginError } = await signIn(email.trim(), password);
-
-            if (loginError) {
-                setLoading(false);
-                Alert.alert(
-                    'Kayıt Başarılı! 🎉',
-                    'Hesabınız oluşturuldu. Lütfen e-postanızı onaylayıp tekrar giriş yapın.',
-                    [{ text: 'Tamam', onPress: () => navigation.navigate('Login') }]
-                );
-                return;
-            }
+            setLoading(false);
+            setEmailSent(true);
+            return;
         }
 
         setLoading(false);
     };
 
-    return (
-        <KeyboardAvoidingView
-            style={styles.flex}
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        >
-            <ScrollView
-                contentContainerStyle={styles.container}
-                keyboardShouldPersistTaps="handled"
-                showsVerticalScrollIndicator={false}
-            >
-                {/* Hero */}
-                <View style={styles.heroSection}>
-                    <Image
-                        source={{ uri: HERO_IMAGE }}
-                        style={styles.heroImage}
-                        contentFit="cover"
-                        transition={500}
-                    />
-                    <LinearGradient
-                        colors={['transparent', 'rgba(27, 40, 56, 0.6)', COLORS.background]}
-                        style={styles.heroGradient}
-                    />
-                    <Animated.View style={[styles.heroContent, heroAnim]}>
-                        <View style={styles.logoBadge}>
-                            <Ionicons name="person-add" size={22} color="#fff" />
+    // Email doğrulama ekranı
+    if (emailSent) {
+        return (
+            <View style={styles.root}>
+                <LinearGradient
+                    colors={['#0E7490', '#0891B2', '#14B8A6']}
+                    style={StyleSheet.absoluteFill}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                />
+                <View style={styles.verifyContainer}>
+                    <Animated.View style={[styles.verifyContent, sheetAnim]}>
+                        <View style={styles.verifyIconWrap}>
+                            <Ionicons name="mail-open-outline" size={56} color={COLORS.primary} />
                         </View>
-                        <Text style={styles.heroTitle}>Hesap{'\n'}Oluştur</Text>
-                        <Text style={styles.heroSubtitle}>
-                            Gezi planlamaya başlayın
+                        <Text style={styles.verifyTitle}>E-postanı Doğrula ✉️</Text>
+                        <Text style={styles.verifyDesc}>
+                            <Text style={{ fontFamily: FONTS.bodySemiBold }}>{email}</Text>
+                            {' '}adresine bir doğrulama bağlantısı gönderdik.{'\n\n'}
+                            Lütfen e-postanı kontrol et ve bağlantıya tıklayarak hesabını aktifleştir.
                         </Text>
+                        <View style={styles.verifyTips}>
+                            <View style={styles.verifyTipRow}>
+                                <Ionicons name="checkmark-circle" size={16} color={COLORS.success} />
+                                <Text style={styles.verifyTipText}>Spam klasörünü de kontrol edin</Text>
+                            </View>
+                            <View style={styles.verifyTipRow}>
+                                <Ionicons name="checkmark-circle" size={16} color={COLORS.success} />
+                                <Text style={styles.verifyTipText}>Bağlantı 24 saat geçerlidir</Text>
+                            </View>
+                        </View>
+                        <Button
+                            title="Giriş Ekranına Dön"
+                            onPress={() => navigation.navigate('Login')}
+                            style={styles.verifyButton}
+                        />
+                        <TouchableOpacity
+                            style={styles.resendLink}
+                            onPress={async () => {
+                                setLoading(true);
+                                const { error: resendErr } = await signUp(email.trim(), password);
+                                setLoading(false);
+                                if (resendErr) {
+                                    Alert.alert('Hata', resendErr.message);
+                                } else {
+                                    Alert.alert('Gönderildi', 'Doğrulama e-postası tekrar gönderildi.');
+                                }
+                            }}
+                        >
+                            <Ionicons name="refresh" size={14} color={COLORS.primary} />
+                            <Text style={styles.resendText}>Tekrar Gönder</Text>
+                        </TouchableOpacity>
                     </Animated.View>
                 </View>
+            </View>
+        );
+    }
 
-                {/* Form */}
-                <Animated.View style={[styles.formSection, formAnim]}>
-                    <Text style={styles.formTitle}>Kayıt Ol</Text>
-                    <Text style={styles.formSubtitle}>Bilgilerinizi girerek üye olun</Text>
+    return (
+        <View style={styles.root}>
+            {/* Background gradient */}
+            <LinearGradient
+                colors={['#14B8A6', '#0891B2', '#0E7490']}
+                style={StyleSheet.absoluteFill}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+            />
 
-                    {error && <ErrorMessage message={error} />}
+            {/* Top decorative area */}
+            <View style={styles.topArea}>
+                {/* Close button */}
+                <TouchableOpacity
+                    style={styles.closeButton}
+                    onPress={() => navigation.goBack()}
+                    hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                >
+                    <Ionicons name="close" size={24} color="rgba(255,255,255,0.9)" />
+                </TouchableOpacity>
 
-                    <Input
-                        label="Ad Soyad"
-                        placeholder="Adınızı girin"
-                        value={fullName}
-                        onChangeText={setFullName}
-                    />
-
-                    <Input
-                        label="E-posta"
-                        placeholder="ornek@email.com"
-                        value={email}
-                        onChangeText={setEmail}
-                        keyboardType="email-address"
-                    />
-
-                    <Input
-                        label="Şifre"
-                        placeholder="En az 6 karakter"
-                        value={password}
-                        onChangeText={setPassword}
-                        secureTextEntry
-                    />
-
-                    <Button
-                        title="Kayıt Ol"
-                        onPress={handleRegister}
-                        loading={loading}
-                        style={styles.registerButton}
-                    />
+                {/* Logo & title */}
+                <Animated.View style={[styles.logoArea, sheetAnim]}>
+                    <View style={styles.logoBadge}>
+                        <Ionicons name="person-add" size={26} color="#fff" />
+                    </View>
+                    <Text style={styles.brandTitle}>Hesap Oluştur</Text>
+                    <Text style={styles.brandSubtitle}>Gezi planlamaya başla</Text>
                 </Animated.View>
+            </View>
 
-                {/* Footer */}
-                <Animated.View style={[styles.footer, footerAnim]}>
-                    <Text style={styles.footerText}>Zaten hesabınız var mı?</Text>
-                    <TouchableOpacity onPress={() => navigation.navigate('Login')}>
-                        <Text style={styles.footerLink}> Giriş Yap</Text>
-                    </TouchableOpacity>
-                </Animated.View>
-            </ScrollView>
-        </KeyboardAvoidingView>
+            {/* Bottom Sheet */}
+            <KeyboardAvoidingView
+                style={styles.sheetContainer}
+                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                keyboardVerticalOffset={0}
+            >
+                <ScrollView
+                    contentContainerStyle={styles.sheetScroll}
+                    keyboardShouldPersistTaps="handled"
+                    showsVerticalScrollIndicator={false}
+                    bounces={false}
+                >
+                    <Animated.View style={[styles.sheet, formAnim]}>
+                        {/* Handle bar */}
+                        <View style={styles.handleBar} />
+
+                        <Text style={styles.sheetTitle}>Kayıt Ol</Text>
+                        <Text style={styles.sheetSubtitle}>
+                            Bilgilerini girerek üye ol
+                        </Text>
+
+                        {error && <ErrorMessage message={error} />}
+
+                        {/* Full Name */}
+                        <View style={styles.inputWrapper}>
+                            <View style={styles.inputIconWrap}>
+                                <Ionicons name="person-outline" size={18} color={COLORS.primary} />
+                            </View>
+                            <Input
+                                label="Ad Soyad"
+                                placeholder="Adınızı girin"
+                                value={fullName}
+                                onChangeText={setFullName}
+                                style={styles.inputField}
+                            />
+                        </View>
+
+                        {/* Email */}
+                        <View style={styles.inputWrapper}>
+                            <View style={styles.inputIconWrap}>
+                                <Ionicons name="mail-outline" size={18} color={COLORS.primary} />
+                            </View>
+                            <Input
+                                label="E-posta"
+                                placeholder="ornek@email.com"
+                                value={email}
+                                onChangeText={setEmail}
+                                keyboardType="email-address"
+                                style={styles.inputField}
+                            />
+                        </View>
+
+                        {/* Password */}
+                        <View style={styles.inputWrapper}>
+                            <View style={styles.inputIconWrap}>
+                                <Ionicons name="lock-closed-outline" size={18} color={COLORS.primary} />
+                            </View>
+                            <Input
+                                label="Şifre"
+                                placeholder="En az 6 karakter"
+                                value={password}
+                                onChangeText={setPassword}
+                                secureTextEntry={!showPassword}
+                                style={styles.inputField}
+                            />
+                            <TouchableOpacity
+                                style={styles.eyeButton}
+                                onPress={() => setShowPassword(!showPassword)}
+                            >
+                                <Ionicons
+                                    name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                                    size={18}
+                                    color={COLORS.textLight}
+                                />
+                            </TouchableOpacity>
+                        </View>
+
+                        <Button
+                            title="Kayıt Ol"
+                            onPress={handleRegister}
+                            loading={loading}
+                            style={styles.loginButton}
+                        />
+
+                        {/* Footer */}
+                        <Animated.View style={[styles.footer, footerAnim]}>
+                            <View style={styles.dividerRow}>
+                                <View style={styles.dividerLine} />
+                                <Text style={styles.dividerText}>veya</Text>
+                                <View style={styles.dividerLine} />
+                            </View>
+                            <View style={styles.footerTextRow}>
+                                <Text style={styles.footerText}>Zaten hesabın var mı?</Text>
+                                <TouchableOpacity onPress={() => navigation.navigate('Login')}>
+                                    <Text style={styles.footerLink}> Giriş Yap</Text>
+                                </TouchableOpacity>
+                            </View>
+                        </Animated.View>
+                    </Animated.View>
+                </ScrollView>
+            </KeyboardAvoidingView>
+        </View>
     );
 };
 
 const styles = StyleSheet.create({
-    flex: {
+    root: {
         flex: 1,
-        backgroundColor: COLORS.background,
     },
-    container: {
-        flexGrow: 1,
-    },
-    heroSection: {
-        height: SCREEN_HEIGHT * 0.35,
-        position: 'relative',
-    },
-    heroImage: {
-        ...StyleSheet.absoluteFillObject,
-    },
-    heroGradient: {
-        ...StyleSheet.absoluteFillObject,
-    },
-    heroContent: {
-        position: 'absolute',
-        bottom: SPACING.xl,
-        left: SPACING.lg,
-    },
-    logoBadge: {
-        width: 44,
-        height: 44,
-        borderRadius: 14,
-        backgroundColor: COLORS.accent,
+    topArea: {
+        flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
-        marginBottom: SPACING.sm,
+        paddingTop: 60,
+        paddingBottom: 20,
     },
-    heroTitle: {
+    closeButton: {
+        position: 'absolute',
+        top: Platform.OS === 'ios' ? 56 : 40,
+        right: SPACING.lg,
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        backgroundColor: 'rgba(255,255,255,0.18)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        zIndex: 10,
+    },
+    logoArea: {
+        alignItems: 'center',
+    },
+    logoBadge: {
+        width: 64,
+        height: 64,
+        borderRadius: 20,
+        backgroundColor: 'rgba(255,255,255,0.2)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginBottom: SPACING.md,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.3)',
+    },
+    brandTitle: {
         fontFamily: FONTS.heading,
-        fontSize: FONT_SIZES.hero,
+        fontSize: 28,
         color: '#fff',
-        lineHeight: 44,
+        letterSpacing: -0.5,
     },
-    heroSubtitle: {
-        fontFamily: 'Inter_400Regular',
+    brandSubtitle: {
+        fontFamily: FONTS.body,
         fontSize: FONT_SIZES.md,
-        color: 'rgba(255,255,255,0.85)',
-        marginTop: SPACING.xs,
+        color: 'rgba(255,255,255,0.8)',
+        marginTop: 4,
     },
-    formSection: {
+
+    // Bottom Sheet
+    sheetContainer: {
+        maxHeight: SCREEN_H * 0.7,
+    },
+    sheetScroll: {
+        flexGrow: 1,
+    },
+    sheet: {
         backgroundColor: COLORS.surface,
-        borderRadius: BORDER_RADIUS.xl,
-        marginHorizontal: SPACING.lg,
-        marginTop: -SPACING.lg,
-        padding: SPACING.lg,
+        borderTopLeftRadius: 32,
+        borderTopRightRadius: 32,
+        paddingHorizontal: SPACING.xl,
+        paddingTop: SPACING.sm,
+        paddingBottom: SPACING.xxl + 20,
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: 6 },
-        shadowOpacity: 0.08,
-        shadowRadius: 16,
-        elevation: 5,
+        shadowOffset: { width: 0, height: -8 },
+        shadowOpacity: 0.15,
+        shadowRadius: 24,
+        elevation: 20,
     },
-    formTitle: {
+    handleBar: {
+        width: 40,
+        height: 4,
+        borderRadius: 2,
+        backgroundColor: COLORS.border,
+        alignSelf: 'center',
+        marginBottom: SPACING.lg,
+    },
+    sheetTitle: {
         fontFamily: FONTS.heading,
-        fontSize: FONT_SIZES.xl,
+        fontSize: 26,
         color: COLORS.textPrimary,
+        letterSpacing: -0.5,
     },
-    formSubtitle: {
-        fontFamily: 'Inter_400Regular',
+    sheetSubtitle: {
+        fontFamily: FONTS.body,
         fontSize: FONT_SIZES.sm,
         color: COLORS.textSecondary,
         marginTop: 4,
+        marginBottom: SPACING.lg,
+    },
+
+    // Inputs
+    inputWrapper: {
+        position: 'relative',
+        marginBottom: 4,
+    },
+    inputIconWrap: {
+        position: 'absolute',
+        left: 0,
+        top: 32,
+        zIndex: 2,
+        width: 36,
+        height: 36,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    inputField: {
+        paddingLeft: 36,
+    },
+    eyeButton: {
+        position: 'absolute',
+        right: 12,
+        top: 32,
+        zIndex: 2,
+        padding: 8,
+    },
+
+    loginButton: {
+        marginTop: SPACING.md,
+        borderRadius: BORDER_RADIUS.lg,
+    },
+
+    // Footer
+    footer: {
+        marginTop: SPACING.lg,
+    },
+    dividerRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
         marginBottom: SPACING.md,
     },
-    registerButton: {
-        marginTop: SPACING.sm,
+    dividerLine: {
+        flex: 1,
+        height: 1,
+        backgroundColor: COLORS.divider,
     },
-    footer: {
+    dividerText: {
+        fontFamily: FONTS.body,
+        fontSize: FONT_SIZES.xs,
+        color: COLORS.textLight,
+        marginHorizontal: SPACING.md,
+    },
+    footerTextRow: {
         flexDirection: 'row',
         justifyContent: 'center',
-        marginTop: SPACING.lg,
-        paddingBottom: SPACING.xxl,
     },
     footerText: {
-        fontFamily: 'Inter_400Regular',
+        fontFamily: FONTS.body,
         color: COLORS.textSecondary,
         fontSize: FONT_SIZES.sm,
     },
     footerLink: {
-        fontFamily: 'Inter_600SemiBold',
+        fontFamily: FONTS.bodySemiBold,
         color: COLORS.primary,
         fontSize: FONT_SIZES.sm,
+    },
+
+    // Email Verification Screen
+    verifyContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        paddingHorizontal: SPACING.xl,
+    },
+    verifyContent: {
+        backgroundColor: COLORS.surface,
+        borderRadius: 28,
+        padding: SPACING.xl,
+        width: '100%',
+        alignItems: 'center',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.15,
+        shadowRadius: 24,
+        elevation: 12,
+    },
+    verifyIconWrap: {
+        width: 96,
+        height: 96,
+        borderRadius: 48,
+        backgroundColor: COLORS.primaryMuted,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginBottom: SPACING.lg,
+    },
+    verifyTitle: {
+        fontFamily: FONTS.heading,
+        fontSize: 24,
+        color: COLORS.textPrimary,
+        marginBottom: SPACING.sm,
+        textAlign: 'center',
+    },
+    verifyDesc: {
+        fontFamily: FONTS.body,
+        fontSize: FONT_SIZES.sm,
+        color: COLORS.textSecondary,
+        textAlign: 'center',
+        lineHeight: 22,
+        marginBottom: SPACING.lg,
+    },
+    verifyTips: {
+        width: '100%',
+        gap: SPACING.sm,
+        marginBottom: SPACING.lg,
+    },
+    verifyTipRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+    },
+    verifyTipText: {
+        fontFamily: FONTS.body,
+        fontSize: FONT_SIZES.sm,
+        color: COLORS.textSecondary,
+    },
+    verifyButton: {
+        width: '100%',
+        borderRadius: BORDER_RADIUS.lg,
+    },
+    resendLink: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        marginTop: SPACING.md,
+        paddingVertical: 8,
+    },
+    resendText: {
+        fontFamily: FONTS.bodySemiBold,
+        fontSize: FONT_SIZES.sm,
+        color: COLORS.primary,
     },
 });
 
