@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import {
     View,
     Text,
@@ -12,6 +12,7 @@ import {
     Animated,
     Platform,
     Share,
+    Easing,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect } from '@react-navigation/native';
@@ -62,6 +63,24 @@ const BADGE_THRESHOLDS = [
 const getBadge = (count) =>
     BADGE_THRESHOLDS.slice().reverse().find(b => count >= b.min) || BADGE_THRESHOLDS[0];
 
+// ─── Fade in animation ──────────────────────────────────────────────────
+const useFadeUp = (delay = 0) => {
+    const opacity = useRef(new Animated.Value(0)).current;
+    const translateY = useRef(new Animated.Value(20)).current;
+
+    useEffect(() => {
+        const timeout = setTimeout(() => {
+            Animated.parallel([
+                Animated.timing(opacity, { toValue: 1, duration: 500, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+                Animated.timing(translateY, { toValue: 0, duration: 500, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+            ]).start();
+        }, delay);
+        return () => clearTimeout(timeout);
+    }, []);
+
+    return { opacity, transform: [{ translateY }] };
+};
+
 const ProfileScreen = ({ navigation }) => {
     const { user } = useAuth();
     const { favorites, loading: favLoading } = useFavorites();
@@ -76,8 +95,10 @@ const ProfileScreen = ({ navigation }) => {
     const [avatarUri, setAvatarUri] = useState(null);
     const [bio, setBio] = useState('');
 
-    // Animasyon
-    const headerScale = useRef(new Animated.Value(1)).current;
+    const headerAnim = useFadeUp(50);
+    const statsAnim = useFadeUp(180);
+    const itinAnim = useFadeUp(300);
+    const settingsAnim = useFadeUp(420);
 
     const fetchData = useCallback(async () => {
         if (!user) return;
@@ -114,7 +135,6 @@ const ProfileScreen = ({ navigation }) => {
         });
         if (!result.canceled && result.assets?.[0]?.uri) {
             setAvatarUri(result.assets[0].uri);
-            // Profili güncelle (avatar_url olarak local URI — gerçek uygulamada storage'a yüklenir)
             await updateProfile(user.id, { avatar_url: result.assets[0].uri });
         }
     };
@@ -138,35 +158,15 @@ const ProfileScreen = ({ navigation }) => {
         }
     };
 
-    // ─── Profili paylaş ─────────────────────────────────────────────────────
-    const handleShareProfile = async () => {
-        const completedCount = itineraries.filter(i => i.status === 'completed').length;
-        const badge = getBadge(completedCount);
-        const styleLabel =
-            TRAVEL_STYLES.find(s => s.value === normalizeTravelStyle(travelStyle))?.label || 'Belirtilmemiş';
-        try {
-            await Share.share({
-                message:
-                    `🗺️ Akıllı Gezi Rehberi'nde ${fullName || 'Bir Gezginin'} profilim!\n\n` +
-                    `${badge.emoji} Rozet: ${badge.label}\n` +
-                    `✅ Tamamlanan Gezi: ${completedCount}\n` +
-                    `❤️ Favoriler: ${favorites.length}\n` +
-                    `🎒 Seyahat Tarzı: ${styleLabel}\n\n` +
-                    `Türkiye'yi birlikte keşfedelim! 🇹🇷`,
-                title: 'Profilimi Paylaş',
-            });
-        } catch (e) { /* ignore */ }
-    };
-
-    // ─── Gezi planını paylaş ────────────────────────────────────────────────
+    // ─── Rota paylaş ────────────────────────────────────────────────────────
     const handleShareItinerary = async (itin) => {
         try {
             await Share.share({
                 message:
-                    `🗺️ ${itin.cities?.name} Gezi Planım — Akıllı Gezi Rehberi\n\n` +
+                    `🗺️ ${itin.cities?.name} Gezi Rotam\n\n` +
                     `📅 ${itin.days} günlük plan\n` +
                     `📍 ${itin.itinerary_items?.length || 0} yer\n` +
-                    `${formatDate(itin.start_date)} tarihinde başlıyor\n\n` +
+                    `🗓️ ${formatDate(itin.start_date)}\n\n` +
                     `Akıllı Gezi Rehberi ile harika rotalar oluştur! 🇹🇷`,
             });
         } catch (e) { /* ignore */ }
@@ -210,253 +210,244 @@ const ProfileScreen = ({ navigation }) => {
             }
         >
             {/* ═══ PROFILE HEADER ═══ */}
-            <LinearGradient
-                colors={['#0891B2', '#0E7490', '#14B8A6']}
-                style={styles.profileHeader}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-            >
-                {/* Arka plan desen — soyut daireler */}
-                <View style={styles.bgCircle1} />
-                <View style={styles.bgCircle2} />
+            <Animated.View style={headerAnim}>
+                <LinearGradient
+                    colors={['#0891B2', '#0E7490', '#14B8A6']}
+                    style={styles.profileHeader}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                >
+                    {/* Subtle pattern */}
+                    <View style={styles.patternDot1} />
+                    <View style={styles.patternDot2} />
 
-                {/* Üst butonlar */}
-                <View style={styles.headerActions}>
-                    <TouchableOpacity style={styles.headerAction} onPress={handleShareProfile}>
-                        <Ionicons name="share-outline" size={20} color="#fff" />
+                    {/* Edit toggle */}
+                    <TouchableOpacity
+                        style={styles.editToggle}
+                        onPress={() => setEditing(!editing)}
+                    >
+                        <Ionicons name={editing ? 'close' : 'create-outline'} size={18} color="#fff" />
                     </TouchableOpacity>
-                    <TouchableOpacity style={styles.headerAction} onPress={() => setEditing(!editing)}>
-                        <Ionicons name={editing ? 'close' : 'create-outline'} size={20} color="#fff" />
-                    </TouchableOpacity>
-                </View>
 
-                {/* Avatar */}
-                <TouchableOpacity style={styles.avatarWrapper} onPress={editing ? handlePickAvatar : undefined} activeOpacity={editing ? 0.8 : 1}>
-                    <View style={styles.avatarContainer}>
-                        {avatarUri ? (
-                            <SmartImage
-                                uri={avatarUri}
-                                style={styles.avatarImage}
-                                contentFit="cover"
-                            />
-                        ) : (
-                            <Text style={styles.avatarText}>{initials}</Text>
-                        )}
-                    </View>
-                    {editing && (
-                        <View style={styles.avatarEditBadge}>
-                            <Ionicons name="camera" size={14} color="#fff" />
+                    {/* Avatar */}
+                    <TouchableOpacity
+                        style={styles.avatarWrapper}
+                        onPress={editing ? handlePickAvatar : undefined}
+                        activeOpacity={editing ? 0.8 : 1}
+                    >
+                        <View style={styles.avatarContainer}>
+                            {avatarUri ? (
+                                <SmartImage
+                                    uri={avatarUri}
+                                    style={styles.avatarImage}
+                                    contentFit="cover"
+                                />
+                            ) : (
+                                <Text style={styles.avatarInitials}>{initials}</Text>
+                            )}
                         </View>
-                    )}
-                </TouchableOpacity>
-
-                {/* Rozet */}
-                <View style={[styles.badgeChip, { backgroundColor: badge.color + '30', borderColor: badge.color + '60' }]}>
-                    <Text style={styles.badgeEmoji}>{badge.emoji}</Text>
-                    <Text style={[styles.badgeLabel, { color: '#fff' }]}>{badge.label}</Text>
-                </View>
-
-                {/* Form veya isim göster */}
-                {editing ? (
-                    <View style={styles.editForm}>
-                        <TextInput
-                            style={styles.editInput}
-                            value={fullName}
-                            onChangeText={setFullName}
-                            placeholder="Adınız Soyadınız"
-                            placeholderTextColor="rgba(255,255,255,0.5)"
-                        />
-                        <TextInput
-                            style={[styles.editInput, styles.editInputBio]}
-                            value={bio}
-                            onChangeText={setBio}
-                            placeholder="Kendinizi tanıtın..."
-                            placeholderTextColor="rgba(255,255,255,0.5)"
-                            multiline
-                            numberOfLines={2}
-                        />
-                        <Text style={styles.styleLabel}>Seyahat Tarzı</Text>
-                        <View style={styles.styleChips}>
-                            {TRAVEL_STYLES.map(s => (
-                                <TouchableOpacity
-                                    key={s.value}
-                                    style={[styles.styleChip, travelStyle === s.value && styles.styleChipActive]}
-                                    onPress={() => setTravelStyle(s.value)}
-                                >
-                                    <Text>{s.emoji}</Text>
-                                    <Text style={[styles.styleChipText, travelStyle === s.value && styles.styleChipTextActive]}>
-                                        {s.label}
-                                    </Text>
-                                </TouchableOpacity>
-                            ))}
-                        </View>
-                        <View style={styles.editActions}>
-                            <TouchableOpacity style={styles.editCancelBtn} onPress={() => setEditing(false)}>
-                                <Text style={styles.editCancelText}>İptal</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity style={styles.editSaveBtn} onPress={handleSaveProfile}>
-                                <Ionicons name="checkmark" size={16} color="#fff" />
-                                <Text style={styles.editSaveText}>Kaydet</Text>
-                            </TouchableOpacity>
-                        </View>
-                    </View>
-                ) : (
-                    <View style={styles.nameBlock}>
-                        <Text style={styles.userName}>{profile?.full_name || 'Adınızı ekleyin'}</Text>
-                        <Text style={styles.userEmail}>{user?.email}</Text>
-                        {bio ? <Text style={styles.userBio}>{bio}</Text> : null}
-                        {selectedStyleObj && (
-                            <View style={styles.travelStyleChip}>
-                                <Text>{selectedStyleObj.emoji}</Text>
-                                <Text style={styles.travelStyleText}>{selectedStyleObj.label}</Text>
+                        {editing && (
+                            <View style={styles.avatarEditDot}>
+                                <Ionicons name="camera" size={12} color="#fff" />
                             </View>
                         )}
-                    </View>
-                )}
-            </LinearGradient>
+                    </TouchableOpacity>
 
-            {/* ═══ STATS ═══ */}
-            <View style={styles.statsRow}>
-                <View style={styles.statCard}>
-                    <Text style={styles.statNumber}>{completedCount}</Text>
+                    {/* Info */}
+                    {editing ? (
+                        <View style={styles.editSection}>
+                            <TextInput
+                                style={styles.editInput}
+                                value={fullName}
+                                onChangeText={setFullName}
+                                placeholder="Adınız Soyadınız"
+                                placeholderTextColor="rgba(255,255,255,0.5)"
+                            />
+                            <TextInput
+                                style={[styles.editInput, styles.editBioInput]}
+                                value={bio}
+                                onChangeText={setBio}
+                                placeholder="Kendinizi kısaca tanıtın..."
+                                placeholderTextColor="rgba(255,255,255,0.5)"
+                                multiline
+                                numberOfLines={2}
+                            />
+
+                            {/* Travel style chips */}
+                            <Text style={styles.editLabel}>Seyahat Tarzı</Text>
+                            <View style={styles.styleChipsRow}>
+                                {TRAVEL_STYLES.map(s => (
+                                    <TouchableOpacity
+                                        key={s.value}
+                                        style={[styles.styleChip, travelStyle === s.value && styles.styleChipSelected]}
+                                        onPress={() => setTravelStyle(s.value)}
+                                    >
+                                        <Text style={styles.styleChipEmoji}>{s.emoji}</Text>
+                                        <Text style={[
+                                            styles.styleChipLabel,
+                                            travelStyle === s.value && styles.styleChipLabelSelected,
+                                        ]}>
+                                            {s.label}
+                                        </Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
+
+                            <View style={styles.editBtnRow}>
+                                <TouchableOpacity style={styles.cancelBtn} onPress={() => setEditing(false)}>
+                                    <Text style={styles.cancelBtnText}>İptal</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity style={styles.saveBtn} onPress={handleSaveProfile}>
+                                    <Text style={styles.saveBtnText}>Kaydet</Text>
+                                </TouchableOpacity>
+                            </View>
+                        </View>
+                    ) : (
+                        <View style={styles.infoBlock}>
+                            <Text style={styles.userName}>{profile?.full_name || 'İsimsiz Gezgin'}</Text>
+                            <Text style={styles.userEmail}>{user?.email}</Text>
+                            {bio ? <Text style={styles.userBio}>{bio}</Text> : null}
+
+                            {/* Badge + Style inline */}
+                            <View style={styles.tagRow}>
+                                <View style={[styles.tag, { backgroundColor: badge.color + '25' }]}>
+                                    <Text style={styles.tagEmoji}>{badge.emoji}</Text>
+                                    <Text style={[styles.tagLabel, { color: '#fff' }]}>{badge.label}</Text>
+                                </View>
+                                {selectedStyleObj && (
+                                    <View style={styles.tag}>
+                                        <Text style={styles.tagEmoji}>{selectedStyleObj.emoji}</Text>
+                                        <Text style={[styles.tagLabel, { color: '#fff' }]}>{selectedStyleObj.label}</Text>
+                                    </View>
+                                )}
+                            </View>
+                        </View>
+                    )}
+                </LinearGradient>
+            </Animated.View>
+
+            {/* ═══ INLINE STATS ═══ */}
+            <Animated.View style={[styles.statsBar, statsAnim]}>
+                <View style={styles.statItem}>
+                    <Text style={styles.statValue}>{completedCount}</Text>
                     <Text style={styles.statLabel}>Tamamlanan</Text>
-                    <Text style={styles.statEmoji}>✅</Text>
                 </View>
-                <View style={[styles.statCard, styles.statCardHighlight]}>
-                    <Text style={[styles.statNumber, { color: '#fff' }]}>{ongoingCount}</Text>
-                    <Text style={[styles.statLabel, { color: 'rgba(255,255,255,0.8)' }]}>Devam Eden</Text>
-                    <Text style={styles.statEmoji}>🔄</Text>
+                <View style={styles.statDivider} />
+                <View style={styles.statItem}>
+                    <Text style={styles.statValue}>{ongoingCount}</Text>
+                    <Text style={styles.statLabel}>Devam Eden</Text>
                 </View>
-                <View style={styles.statCard}>
-                    <Text style={styles.statNumber}>{favorites.length}</Text>
-                    <Text style={styles.statLabel}>Favoriler</Text>
-                    <Text style={styles.statEmoji}>❤️</Text>
+                <View style={styles.statDivider} />
+                <View style={styles.statItem}>
+                    <Text style={styles.statValue}>{favorites.length}</Text>
+                    <Text style={styles.statLabel}>Favori</Text>
                 </View>
-            </View>
+                <View style={styles.statDivider} />
+                <View style={styles.statItem}>
+                    <Text style={styles.statValue}>{itineraries.length}</Text>
+                    <Text style={styles.statLabel}>Toplam Rota</Text>
+                </View>
+            </Animated.View>
 
-            {/* ═══ HIZLI ERİŞİM ═══ */}
-            <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Hızlı Erişim</Text>
-                <View style={styles.quickActions}>
-                    <TouchableOpacity
-                        style={styles.quickAction}
-                        onPress={() => navigation.navigate('TravelAssistant', { context: {} })}
-                    >
-                        <View style={[styles.quickActionIcon, { backgroundColor: COLORS.primaryMuted }]}>
-                            <Ionicons name="sparkles" size={22} color={COLORS.primary} />
-                        </View>
-                        <Text style={styles.quickActionLabel}>AI Asistan</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                        style={styles.quickAction}
-                        onPress={() => navigation.navigate('Favorites')}
-                    >
-                        <View style={[styles.quickActionIcon, { backgroundColor: '#FEE2E2' }]}>
-                            <Ionicons name="heart" size={22} color="#EF4444" />
-                        </View>
-                        <Text style={styles.quickActionLabel}>Favorilerim</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                        style={styles.quickAction}
-                        onPress={openSavedPlans}
-                    >
-                        <View style={[styles.quickActionIcon, { backgroundColor: COLORS.success + '20' }]}>
-                            <Ionicons name="map-outline" size={22} color={COLORS.success} />
-                        </View>
-                        <Text style={styles.quickActionLabel}>Planlarım</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                        style={styles.quickAction}
-                        onPress={handleShareProfile}
-                    >
-                        <View style={[styles.quickActionIcon, { backgroundColor: '#F3E8FF' }]}>
-                            <Ionicons name="share-social" size={22} color="#7C3AED" />
-                        </View>
-                        <Text style={styles.quickActionLabel}>Paylaş</Text>
-                    </TouchableOpacity>
-                </View>
-            </View>
-
-            {/* ═══ SON GEZİLER ═══ */}
+            {/* ═══ GEZİ ROTALARI ═══ */}
             {itineraries.length > 0 && (
-                <View style={styles.section}>
-                    <View style={styles.sectionHeaderRow}>
-                        <Text style={styles.sectionTitle}>Gezi Planlarım</Text>
+                <Animated.View style={[styles.section, itinAnim]}>
+                    <View style={styles.sectionHeader}>
+                        <Text style={styles.sectionTitle}>Rotalarım</Text>
                         <TouchableOpacity onPress={openSavedPlans} style={styles.seeAllBtn}>
-                            <Text style={styles.seeAllText}>Tümü</Text>
-                            <Ionicons name="arrow-forward" size={13} color={COLORS.primary} />
+                            <Text style={styles.seeAllText}>Tümünü Gör</Text>
+                            <Ionicons name="chevron-forward" size={14} color={COLORS.primary} />
                         </TouchableOpacity>
                     </View>
-                    {itineraries.slice(0, 4).map(itin => {
+
+                    {itineraries.slice(0, 5).map((itin, index) => {
                         const isCompleted = itin.status === 'completed';
                         return (
                             <TouchableOpacity
                                 key={itin.id}
-                                style={styles.itinCard}
+                                style={styles.routeRow}
                                 onPress={() => navigation.navigate('ItineraryDetail', { itineraryId: itin.id })}
-                                activeOpacity={0.88}
+                                activeOpacity={0.7}
                             >
-                                <LinearGradient
-                                    colors={isCompleted ? [COLORS.success + '15', COLORS.success + '05'] : [COLORS.primaryMuted, 'transparent']}
-                                    style={styles.itinCardGradient}
-                                    start={{ x: 0, y: 0 }}
-                                    end={{ x: 1, y: 0 }}
+                                <View style={[
+                                    styles.routeIndicator,
+                                    { backgroundColor: isCompleted ? COLORS.success : COLORS.primary },
+                                ]} />
+                                <View style={styles.routeInfo}>
+                                    <Text style={styles.routeCity}>{itin.cities?.name || 'Bilinmeyen'}</Text>
+                                    <Text style={styles.routeMeta}>
+                                        {itin.days} gün · {itin.itinerary_items?.length || 0} yer · {formatDate(itin.start_date)}
+                                    </Text>
+                                </View>
+                                <TouchableOpacity
+                                    style={styles.routeShareBtn}
+                                    onPress={(e) => {
+                                        e.stopPropagation?.();
+                                        handleShareItinerary(itin);
+                                    }}
+                                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                                 >
-                                    <View style={styles.itinCardLeft}>
-                                        <View style={[styles.itinStatusDot, { backgroundColor: isCompleted ? COLORS.success : COLORS.primary }]} />
-                                    </View>
-                                    <View style={styles.itinCardBody}>
-                                        <Text style={styles.itinCardCity}>{itin.cities?.name}</Text>
-                                        <Text style={styles.itinCardMeta}>
-                                            {itin.days} gün · {itin.itinerary_items?.length || 0} yer · {formatDate(itin.start_date)}
-                                        </Text>
-                                    </View>
-                                    <View style={styles.itinCardActions}>
-                                        <TouchableOpacity
-                                            style={styles.itinShareBtn}
-                                            onPress={() => handleShareItinerary(itin)}
-                                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                                        >
-                                            <Ionicons name="share-outline" size={15} color={COLORS.textSecondary} />
-                                        </TouchableOpacity>
-                                        <Ionicons name="chevron-forward" size={16} color={COLORS.textLight} />
-                                    </View>
-                                </LinearGradient>
+                                    <Ionicons name="share-outline" size={16} color={COLORS.textSecondary} />
+                                </TouchableOpacity>
+                                <Ionicons name="chevron-forward" size={16} color={COLORS.textLight} />
                             </TouchableOpacity>
                         );
                     })}
-                </View>
+                </Animated.View>
             )}
 
-            {/* ═══ AYARLAR ═══ */}
-            <View style={styles.section}>
+            {/* ═══ MENÜ ═══ */}
+            <Animated.View style={[styles.section, settingsAnim]}>
                 <Text style={styles.sectionTitle}>Hesap</Text>
-                <View style={styles.settingsCard}>
-                    {[
-                        { icon: 'person-outline', label: 'Profili Düzenle', onPress: () => setEditing(true) },
-                        { icon: 'share-social-outline', label: 'Profili Paylaş', onPress: handleShareProfile },
-                        { icon: 'shield-checkmark-outline', label: 'Gizlilik', onPress: () => Alert.alert('Gizlilik', 'Verileriniz yalnızca size aitti.') },
-                        { icon: 'help-circle-outline', label: 'Yardım & Destek', onPress: () => navigation.navigate('TravelAssistant', { context: {} }) },
-                    ].map((item, i, arr) => (
-                        <TouchableOpacity
-                            key={item.label}
-                            style={[styles.settingsRow, i < arr.length - 1 && styles.settingsRowBorder]}
-                            onPress={item.onPress}
-                            activeOpacity={0.7}
-                        >
-                            <View style={styles.settingsRowLeft}>
-                                <Ionicons name={item.icon} size={20} color={COLORS.primary} />
-                                <Text style={styles.settingsRowText}>{item.label}</Text>
-                            </View>
-                            <Ionicons name="chevron-forward" size={16} color={COLORS.textLight} />
-                        </TouchableOpacity>
-                    ))}
-                </View>
-            </View>
 
-            {/* Çıkış */}
+                {[
+                    {
+                        icon: 'create-outline',
+                        label: 'Profili Düzenle',
+                        onPress: () => setEditing(true),
+                    },
+                    {
+                        icon: 'heart-outline',
+                        label: 'Favorilerim',
+                        subtitle: `${favorites.length} mekan`,
+                        onPress: () => navigation.navigate('Favorites'),
+                    },
+                    {
+                        icon: 'map-outline',
+                        label: 'Kayıtlı Rotalar',
+                        subtitle: `${itineraries.length} rota`,
+                        onPress: openSavedPlans,
+                    },
+                    {
+                        icon: 'chatbubble-ellipses-outline',
+                        label: 'Yardım & Destek',
+                        onPress: () => navigation.navigate('TravelAssistant', { context: {} }),
+                    },
+                ].map((item, i, arr) => (
+                    <TouchableOpacity
+                        key={item.label}
+                        style={[styles.menuRow, i < arr.length - 1 && styles.menuRowBorder]}
+                        onPress={item.onPress}
+                        activeOpacity={0.7}
+                    >
+                        <View style={styles.menuLeft}>
+                            <View style={styles.menuIconWrap}>
+                                <Ionicons name={item.icon} size={18} color={COLORS.primary} />
+                            </View>
+                            <View>
+                                <Text style={styles.menuLabel}>{item.label}</Text>
+                                {item.subtitle && (
+                                    <Text style={styles.menuSubtitle}>{item.subtitle}</Text>
+                                )}
+                            </View>
+                        </View>
+                        <Ionicons name="chevron-forward" size={16} color={COLORS.textLight} />
+                    </TouchableOpacity>
+                ))}
+            </Animated.View>
+
+            {/* ═══ ÇIKIŞ ═══ */}
             <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
-                <Ionicons name="log-out-outline" size={18} color={COLORS.error} />
                 <Text style={styles.logoutText}>Çıkış Yap</Text>
             </TouchableOpacity>
 
@@ -469,302 +460,379 @@ const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: COLORS.background },
     contentContainer: { paddingBottom: 100 },
 
-    // ─── Header / Hero ───
+    // ─── Header ───
     profileHeader: {
-        paddingTop: Platform.OS === 'ios' ? 60 : 40,
+        paddingTop: Platform.OS === 'ios' ? 64 : 44,
         paddingBottom: SPACING.xl,
         paddingHorizontal: SPACING.lg,
         alignItems: 'center',
         position: 'relative',
         overflow: 'hidden',
     },
-    bgCircle1: {
-        position: 'absolute', width: 200, height: 200,
-        borderRadius: 100, backgroundColor: 'rgba(255,255,255,0.06)',
-        top: -50, right: -60,
+    patternDot1: {
+        position: 'absolute',
+        width: 180,
+        height: 180,
+        borderRadius: 90,
+        backgroundColor: 'rgba(255,255,255,0.04)',
+        top: -40,
+        right: -60,
     },
-    bgCircle2: {
-        position: 'absolute', width: 150, height: 150,
-        borderRadius: 75, backgroundColor: 'rgba(255,255,255,0.05)',
-        bottom: -40, left: -40,
+    patternDot2: {
+        position: 'absolute',
+        width: 120,
+        height: 120,
+        borderRadius: 60,
+        backgroundColor: 'rgba(255,255,255,0.03)',
+        bottom: -20,
+        left: -30,
     },
-    headerActions: {
-        flexDirection: 'row',
-        gap: SPACING.sm,
-        alignSelf: 'flex-end',
-        marginBottom: SPACING.sm,
-    },
-    headerAction: {
-        width: 36, height: 36, borderRadius: 18,
-        backgroundColor: 'rgba(255,255,255,0.2)',
-        justifyContent: 'center', alignItems: 'center',
+
+    editToggle: {
+        position: 'absolute',
+        top: Platform.OS === 'ios' ? 60 : 40,
+        right: SPACING.lg,
+        width: 34,
+        height: 34,
+        borderRadius: 17,
+        backgroundColor: 'rgba(255,255,255,0.18)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        zIndex: 10,
     },
 
     // Avatar
-    avatarWrapper: { position: 'relative', marginBottom: SPACING.sm },
+    avatarWrapper: {
+        position: 'relative',
+        marginBottom: SPACING.sm,
+    },
     avatarContainer: {
-        width: 90, height: 90, borderRadius: 45,
-        backgroundColor: 'rgba(255,255,255,0.25)',
-        justifyContent: 'center', alignItems: 'center',
-        borderWidth: 3, borderColor: 'rgba(255,255,255,0.5)',
+        width: 80,
+        height: 80,
+        borderRadius: 40,
+        backgroundColor: 'rgba(255,255,255,0.2)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 2.5,
+        borderColor: 'rgba(255,255,255,0.4)',
         overflow: 'hidden',
     },
     avatarImage: { width: '100%', height: '100%' },
-    avatarText: {
+    avatarInitials: {
         fontFamily: FONTS.heading,
-        fontSize: 36, color: '#fff',
+        fontSize: 32,
+        color: '#fff',
     },
-    avatarEditBadge: {
-        position: 'absolute', bottom: 2, right: 2,
-        width: 26, height: 26, borderRadius: 13,
+    avatarEditDot: {
+        position: 'absolute',
+        bottom: 0,
+        right: 0,
+        width: 24,
+        height: 24,
+        borderRadius: 12,
         backgroundColor: COLORS.primary,
-        justifyContent: 'center', alignItems: 'center',
-        borderWidth: 2, borderColor: '#fff',
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 2,
+        borderColor: '#fff',
     },
 
-    // Rozet
-    badgeChip: {
-        flexDirection: 'row', alignItems: 'center', gap: 5,
-        paddingHorizontal: 12, paddingVertical: 4,
-        borderRadius: BORDER_RADIUS.full,
-        borderWidth: 1, marginBottom: SPACING.sm,
+    // Info block
+    infoBlock: {
+        alignItems: 'center',
+        gap: 3,
     },
-    badgeEmoji: { fontSize: 14 },
-    badgeLabel: { fontFamily: FONTS.bodySemiBold, fontSize: FONT_SIZES.xs },
-
-    // İsim bloğu
-    nameBlock: { alignItems: 'center', gap: 4 },
     userName: {
         fontFamily: FONTS.heading,
-        fontSize: 22, color: '#fff', letterSpacing: -0.3,
+        fontSize: 20,
+        color: '#fff',
+        letterSpacing: -0.3,
     },
     userEmail: {
-        fontFamily: FONTS.body, fontSize: FONT_SIZES.xs,
-        color: 'rgba(255,255,255,0.75)',
+        fontFamily: FONTS.body,
+        fontSize: FONT_SIZES.xs,
+        color: 'rgba(255,255,255,0.65)',
     },
     userBio: {
-        fontFamily: FONTS.body, fontSize: FONT_SIZES.sm,
-        color: 'rgba(255,255,255,0.85)', textAlign: 'center',
-        marginTop: 4, paddingHorizontal: SPACING.md,
+        fontFamily: FONTS.body,
+        fontSize: FONT_SIZES.sm,
+        color: 'rgba(255,255,255,0.8)',
+        textAlign: 'center',
+        marginTop: 4,
+        paddingHorizontal: SPACING.lg,
         lineHeight: 20,
     },
-    travelStyleChip: {
-        flexDirection: 'row', alignItems: 'center', gap: 5,
-        backgroundColor: 'rgba(255,255,255,0.2)',
-        paddingHorizontal: 12, paddingVertical: 4,
-        borderRadius: BORDER_RADIUS.full, marginTop: 6,
+    tagRow: {
+        flexDirection: 'row',
+        gap: SPACING.xs,
+        marginTop: SPACING.sm,
     },
-    travelStyleText: {
-        fontFamily: FONTS.bodySemiBold, fontSize: FONT_SIZES.xs, color: '#fff',
+    tag: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        backgroundColor: 'rgba(255,255,255,0.15)',
+        paddingHorizontal: 10,
+        paddingVertical: 4,
+        borderRadius: BORDER_RADIUS.full,
+    },
+    tagEmoji: { fontSize: 12 },
+    tagLabel: {
+        fontFamily: FONTS.bodySemiBold,
+        fontSize: 10,
     },
 
-    // Edit form
-    editForm: { width: '100%', gap: SPACING.sm },
+    // Edit section
+    editSection: {
+        width: '100%',
+        gap: SPACING.sm,
+    },
     editInput: {
-        backgroundColor: 'rgba(255,255,255,0.15)',
-        borderRadius: BORDER_RADIUS.lg,
+        backgroundColor: 'rgba(255,255,255,0.12)',
+        borderRadius: BORDER_RADIUS.md,
         paddingHorizontal: SPACING.md,
         paddingVertical: 10,
         fontFamily: FONTS.body,
         fontSize: FONT_SIZES.md,
         color: '#fff',
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.25)',
+        borderColor: 'rgba(255,255,255,0.2)',
     },
-    editInputBio: { minHeight: 60, textAlignVertical: 'top' },
-    styleLabel: {
+    editBioInput: {
+        minHeight: 50,
+        textAlignVertical: 'top',
+    },
+    editLabel: {
         fontFamily: FONTS.bodySemiBold,
-        fontSize: FONT_SIZES.sm, color: 'rgba(255,255,255,0.9)',
-        marginTop: 4,
+        fontSize: FONT_SIZES.xs,
+        color: 'rgba(255,255,255,0.8)',
+        marginTop: 2,
     },
-    styleChips: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.xs },
+    styleChipsRow: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: SPACING.xs,
+    },
     styleChip: {
-        flexDirection: 'row', alignItems: 'center', gap: 4,
-        paddingHorizontal: 12, paddingVertical: 6,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        paddingHorizontal: 10,
+        paddingVertical: 5,
         borderRadius: BORDER_RADIUS.full,
-        backgroundColor: 'rgba(255,255,255,0.15)',
-        borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)',
+        backgroundColor: 'rgba(255,255,255,0.12)',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.15)',
     },
-    styleChipActive: {
-        backgroundColor: 'rgba(255,255,255,0.35)',
+    styleChipSelected: {
+        backgroundColor: 'rgba(255,255,255,0.3)',
         borderColor: '#fff',
     },
-    styleChipText: {
-        fontFamily: FONTS.body, fontSize: FONT_SIZES.xs, color: 'rgba(255,255,255,0.8)',
+    styleChipEmoji: { fontSize: 13 },
+    styleChipLabel: {
+        fontFamily: FONTS.body,
+        fontSize: FONT_SIZES.xs,
+        color: 'rgba(255,255,255,0.7)',
     },
-    styleChipTextActive: { color: '#fff', fontFamily: FONTS.bodySemiBold },
-    editActions: { flexDirection: 'row', gap: SPACING.sm, marginTop: 4 },
-    editCancelBtn: {
-        flex: 1, paddingVertical: 12,
-        borderRadius: BORDER_RADIUS.lg,
-        backgroundColor: 'rgba(255,255,255,0.15)',
-        alignItems: 'center',
-        borderWidth: 1, borderColor: 'rgba(255,255,255,0.3)',
+    styleChipLabelSelected: {
+        color: '#fff',
+        fontFamily: FONTS.bodySemiBold,
     },
-    editCancelText: { fontFamily: FONTS.bodySemiBold, fontSize: FONT_SIZES.sm, color: '#fff' },
-    editSaveBtn: {
-        flex: 2, flexDirection: 'row', gap: 6,
-        paddingVertical: 12,
-        borderRadius: BORDER_RADIUS.lg,
-        backgroundColor: 'rgba(255,255,255,0.9)',
-        alignItems: 'center', justifyContent: 'center',
-    },
-    editSaveText: { fontFamily: FONTS.bodySemiBold, fontSize: FONT_SIZES.sm, color: COLORS.primary },
-
-    // ─── Stats ───
-    statsRow: {
+    editBtnRow: {
         flexDirection: 'row',
-        marginHorizontal: SPACING.lg,
-        marginTop: -20,
         gap: SPACING.sm,
-        marginBottom: SPACING.md,
+        marginTop: 4,
     },
-    statCard: {
+    cancelBtn: {
         flex: 1,
-        backgroundColor: COLORS.surface,
-        borderRadius: BORDER_RADIUS.lg,
-        padding: SPACING.sm,
+        paddingVertical: 11,
+        borderRadius: BORDER_RADIUS.md,
+        backgroundColor: 'rgba(255,255,255,0.12)',
         alignItems: 'center',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.2)',
+    },
+    cancelBtnText: {
+        fontFamily: FONTS.bodySemiBold,
+        fontSize: FONT_SIZES.sm,
+        color: '#fff',
+    },
+    saveBtn: {
+        flex: 2,
+        paddingVertical: 11,
+        borderRadius: BORDER_RADIUS.md,
+        backgroundColor: 'rgba(255,255,255,0.9)',
+        alignItems: 'center',
+    },
+    saveBtnText: {
+        fontFamily: FONTS.bodySemiBold,
+        fontSize: FONT_SIZES.sm,
+        color: COLORS.primary,
+    },
+
+    // ─── Stats Bar ───
+    statsBar: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: COLORS.surface,
+        marginHorizontal: SPACING.lg,
+        marginTop: -16,
+        borderRadius: BORDER_RADIUS.lg,
+        paddingVertical: SPACING.sm + 4,
+        paddingHorizontal: SPACING.sm,
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.08,
-        shadowRadius: 12,
-        elevation: 4,
+        shadowRadius: 16,
+        elevation: 6,
+        marginBottom: SPACING.lg,
     },
-    statCardHighlight: {
-        backgroundColor: COLORS.primary,
+    statItem: {
+        flex: 1,
+        alignItems: 'center',
     },
-    statNumber: {
+    statValue: {
         fontFamily: FONTS.heading,
-        fontSize: 24, color: COLORS.textPrimary,
-        letterSpacing: -0.5,
+        fontSize: 20,
+        color: COLORS.textPrimary,
+        letterSpacing: -0.3,
     },
     statLabel: {
-        fontFamily: FONTS.body, fontSize: 10,
-        color: COLORS.textSecondary, marginTop: 1,
+        fontFamily: FONTS.body,
+        fontSize: 10,
+        color: COLORS.textSecondary,
+        marginTop: 1,
     },
-    statEmoji: { fontSize: 16, marginTop: 2 },
+    statDivider: {
+        width: 1,
+        height: 28,
+        backgroundColor: COLORS.divider,
+    },
 
     // ─── Sections ───
     section: {
         paddingHorizontal: SPACING.lg,
         marginBottom: SPACING.lg,
     },
-    sectionHeaderRow: {
+    sectionHeader: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
         marginBottom: SPACING.sm,
     },
     sectionTitle: {
-        fontFamily: FONTS.bodyBold,
-        fontSize: FONT_SIZES.lg,
+        fontFamily: FONTS.bodySemiBold,
+        fontSize: FONT_SIZES.md,
         color: COLORS.textPrimary,
-        marginBottom: SPACING.sm,
-        letterSpacing: -0.4,
+        marginBottom: SPACING.xs,
+        letterSpacing: -0.2,
     },
     seeAllBtn: {
-        flexDirection: 'row', alignItems: 'center', gap: 4,
-        backgroundColor: COLORS.primaryMuted,
-        paddingHorizontal: 10, paddingVertical: 5,
-        borderRadius: BORDER_RADIUS.full,
-    },
-    seeAllText: { fontFamily: FONTS.bodySemiBold, fontSize: FONT_SIZES.xs, color: COLORS.primary },
-
-    // ─── Hızlı Erişim ───
-    quickActions: {
         flexDirection: 'row',
-        justifyContent: 'space-between',
-        gap: SPACING.xs,
+        alignItems: 'center',
+        gap: 2,
     },
-    quickAction: { alignItems: 'center', flex: 1 },
-    quickActionIcon: {
-        width: 52, height: 52, borderRadius: 16,
-        justifyContent: 'center', alignItems: 'center',
-        marginBottom: 6,
-    },
-    quickActionLabel: {
-        fontFamily: FONTS.body, fontSize: 10, color: COLORS.textSecondary,
-        textAlign: 'center',
+    seeAllText: {
+        fontFamily: FONTS.bodySemiBold,
+        fontSize: FONT_SIZES.xs,
+        color: COLORS.primary,
     },
 
-    // ─── İtinerary Kartları ───
-    itinCard: {
-        borderRadius: BORDER_RADIUS.lg,
-        overflow: 'hidden',
-        marginBottom: SPACING.xs + 2,
+    // ─── Route Rows ───
+    routeRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: COLORS.surface,
+        paddingVertical: SPACING.sm + 2,
+        paddingHorizontal: SPACING.md,
+        borderRadius: BORDER_RADIUS.md,
+        marginBottom: SPACING.xs,
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.04,
+        shadowOpacity: 0.03,
         shadowRadius: 4,
         elevation: 1,
     },
-    itinCardGradient: {
-        flexDirection: 'row',
+    routeIndicator: {
+        width: 6,
+        height: 6,
+        borderRadius: 3,
+        marginRight: SPACING.sm,
+    },
+    routeInfo: {
+        flex: 1,
+    },
+    routeCity: {
+        fontFamily: FONTS.bodySemiBold,
+        fontSize: FONT_SIZES.sm,
+        color: COLORS.textPrimary,
+    },
+    routeMeta: {
+        fontFamily: FONTS.body,
+        fontSize: FONT_SIZES.xs,
+        color: COLORS.textSecondary,
+        marginTop: 1,
+    },
+    routeShareBtn: {
+        width: 30,
+        height: 30,
+        borderRadius: 15,
+        justifyContent: 'center',
         alignItems: 'center',
-        padding: SPACING.sm + 2,
-        backgroundColor: COLORS.surface,
-    },
-    itinCardLeft: { marginRight: SPACING.sm },
-    itinStatusDot: { width: 8, height: 8, borderRadius: 4 },
-    itinCardBody: { flex: 1 },
-    itinCardCity: {
-        fontFamily: FONTS.bodySemiBold, fontSize: FONT_SIZES.sm, color: COLORS.textPrimary,
-    },
-    itinCardMeta: {
-        fontFamily: FONTS.body, fontSize: FONT_SIZES.xs, color: COLORS.textSecondary, marginTop: 1,
-    },
-    itinCardActions: { flexDirection: 'row', alignItems: 'center', gap: SPACING.xs },
-    itinShareBtn: {
-        width: 28, height: 28, borderRadius: 14,
-        backgroundColor: COLORS.surfaceAlt,
-        justifyContent: 'center', alignItems: 'center',
+        marginRight: SPACING.xs,
     },
 
-    // ─── Ayarlar ───
-    settingsCard: {
-        backgroundColor: COLORS.surface,
-        borderRadius: BORDER_RADIUS.lg,
-        overflow: 'hidden',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
-        shadowRadius: 8,
-        elevation: 2,
-    },
-    settingsRow: {
+    // ─── Menu ───
+    menuRow: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
+        backgroundColor: COLORS.surface,
+        paddingVertical: SPACING.sm + 4,
         paddingHorizontal: SPACING.md,
-        paddingVertical: SPACING.sm + 2,
+        borderRadius: BORDER_RADIUS.md,
+        marginBottom: SPACING.xs,
     },
-    settingsRowBorder: {
-        borderBottomWidth: 1,
-        borderBottomColor: COLORS.divider,
-    },
-    settingsRowLeft: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
-    settingsRowText: {
-        fontFamily: FONTS.body, fontSize: FONT_SIZES.md, color: COLORS.textPrimary,
-    },
-
-    // ─── Çıkış ───
-    logoutBtn: {
+    menuRowBorder: {},
+    menuLeft: {
         flexDirection: 'row',
         alignItems: 'center',
-        justifyContent: 'center',
         gap: SPACING.sm,
+    },
+    menuIconWrap: {
+        width: 36,
+        height: 36,
+        borderRadius: 10,
+        backgroundColor: COLORS.primaryMuted,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    menuLabel: {
+        fontFamily: FONTS.bodySemiBold,
+        fontSize: FONT_SIZES.sm,
+        color: COLORS.textPrimary,
+    },
+    menuSubtitle: {
+        fontFamily: FONTS.body,
+        fontSize: FONT_SIZES.xs,
+        color: COLORS.textSecondary,
+        marginTop: 1,
+    },
+
+    // ─── Logout ───
+    logoutBtn: {
+        alignItems: 'center',
         marginHorizontal: SPACING.lg,
         paddingVertical: 14,
-        borderRadius: BORDER_RADIUS.lg,
-        backgroundColor: COLORS.error + '10',
+        borderRadius: BORDER_RADIUS.md,
+        backgroundColor: COLORS.error + '08',
         borderWidth: 1,
-        borderColor: COLORS.error + '30',
+        borderColor: COLORS.error + '20',
         marginBottom: SPACING.md,
     },
     logoutText: {
         fontFamily: FONTS.bodySemiBold,
-        fontSize: FONT_SIZES.md,
+        fontSize: FONT_SIZES.sm,
         color: COLORS.error,
     },
     version: {

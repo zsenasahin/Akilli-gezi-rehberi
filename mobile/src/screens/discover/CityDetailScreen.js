@@ -42,7 +42,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../../contexts/AuthContext';
 import { getCityCenter } from '../../constants/cities';
 import { CityDetailSkeleton, SkeletonLoader } from '../../components/common/SkeletonLoader';
-import WeatherWidget from '../../components/discover/WeatherWidget';
+// WeatherWidget kaldırıldı — Google Weather linki kullanılıyor
 import { useAssistantContext } from '../../contexts/AssistantContext';
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
@@ -797,9 +797,6 @@ const CityDetailScreen = ({ route, navigation }) => {
                     </View>
                 ) : null}
 
-                {/* ═══ Hava Durumu ═══ */}
-                <WeatherWidget cityName={cityName} />
-
                 {/* ═══ Hızlı aksiyonlar ═══ */}
                 <View style={styles.quickActions}>
                     <TouchableOpacity
@@ -816,7 +813,7 @@ const CityDetailScreen = ({ route, navigation }) => {
                     </TouchableOpacity>
                     <TouchableOpacity
                         style={styles.quickActionBtn}
-                        onPress={() => navigation.navigate('CreateItinerary', { city })}
+                        onPress={() => navigation.navigate('CreateItinerary', { preselectedCity: city })}
                     >
                         <LinearGradient
                             colors={[COLORS.accent + '18', COLORS.accent + '08']}
@@ -828,29 +825,18 @@ const CityDetailScreen = ({ route, navigation }) => {
                     </TouchableOpacity>
                     <TouchableOpacity
                         style={styles.quickActionBtn}
-                        onPress={() => navigation.navigate('TravelAssistant', {
-                            context: { city: cityName },
-                        })}
+                        onPress={() => {
+                            const query = encodeURIComponent(`${cityName} hava durumu`);
+                            Linking.openURL(`https://www.google.com/search?q=${query}`);
+                        }}
                     >
                         <LinearGradient
-                            colors={['#6C63FF18', '#6C63FF08']}
+                            colors={['#38BDF818', '#38BDF808']}
                             style={styles.quickActionIconGrad}
                         >
-                            <Ionicons name="sparkles" size={20} color="#6C63FF" />
+                            <Ionicons name="partly-sunny" size={20} color="#38BDF8" />
                         </LinearGradient>
-                        <Text style={styles.quickActionLabel}>AI Asistan</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                        style={styles.quickActionBtn}
-                        onPress={() => setActiveCategory('hotel')}
-                    >
-                        <LinearGradient
-                            colors={[COLORS.warning + '18', COLORS.warning + '08']}
-                            style={styles.quickActionIconGrad}
-                        >
-                            <Ionicons name="bed" size={20} color={COLORS.warning} />
-                        </LinearGradient>
-                        <Text style={styles.quickActionLabel}>Konaklama</Text>
+                        <Text style={styles.quickActionLabel}>Hava Durumu</Text>
                     </TouchableOpacity>
                 </View>
 

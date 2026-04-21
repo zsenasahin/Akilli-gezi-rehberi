@@ -13,17 +13,31 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 const CACHE_PREFIX = 'sgr_cache_';
 const DEFAULT_TTL_MIN = 60; // 1 saat
 
+/** Bellek içi önbellek (In-memory storage) — Async olmayan, anlık erişim için. */
+const inMemoryCache = new Map();
+
 /** Tek bir cache kaydını okur, süresi geçmişse null döner */
 const get = async (key) => {
+    if (!key) return null;
     try {
+        // 1. Önce belleğe bak (L1 Cache) — En hızlısı
+        if (inMemoryCache.has(key)) {
+            const { data, expiresAt } = inMemoryCache.get(key);
+            if (Date.now() < expiresAt) return data;
+            inMemoryCache.delete(key);
+        }
+
+        // 2. Bellekte yoksa AsyncStorage'a bak (L2 Cache)
         const raw = await AsyncStorage.getItem(CACHE_PREFIX + key);
         if (!raw) return null;
         const { data, expiresAt } = JSON.parse(raw);
         if (Date.now() > expiresAt) {
-            // Süresi dolmuş — arka planda sil
             AsyncStorage.removeItem(CACHE_PREFIX + key).catch(() => { });
             return null;
         }
+
+        // 3. Bulunduysa belleğe de yaz (L1'e al)
+        inMemoryCache.set(key, { data, expiresAt });
         return data;
     } catch {
         return null;
@@ -32,21 +46,27 @@ const get = async (key) => {
 
 /** Veriyi cache'e yaz, ttlMinutes dakika sonra geçersiz say */
 const set = async (key, data, ttlMinutes = DEFAULT_TTL_MIN) => {
+    if (!key) return;
     try {
+        const expiresAt = Date.now() + ttlMinutes * 60 * 1000;
         const entry = {
             data,
-            expiresAt: Date.now() + ttlMinutes * 60 * 1000,
+            expiresAt,
             createdAt: Date.now(),
         };
+
+        // 1. Belleğe yaz
+        inMemoryCache.set(key, entry);
+
+        // 2. Diske yaz
         await AsyncStorage.setItem(CACHE_PREFIX + key, JSON.stringify(entry));
-    } catch {
-        // Storage dolu olabilir, sessizce geç
-    }
+    } catch { }
 };
 
 /** Belirli bir anahtarı temizle */
 const invalidate = async (key) => {
     try {
+        inMemoryCache.delete(key);
         await AsyncStorage.removeItem(CACHE_PREFIX + key);
     } catch { /* ignore */ }
 };
@@ -54,6 +74,7 @@ const invalidate = async (key) => {
 /** sgr_cache_ ön eki olan tüm cache'i temizle */
 const clear = async () => {
     try {
+        inMemoryCache.clear();
         const keys = await AsyncStorage.getAllKeys();
         const cacheKeys = keys.filter(k => k.startsWith(CACHE_PREFIX));
         if (cacheKeys.length > 0) await AsyncStorage.multiRemove(cacheKeys);

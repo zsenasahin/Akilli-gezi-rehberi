@@ -199,14 +199,14 @@ const FavoritesScreen = ({ navigation }) => {
                     </View>
                     <Text style={styles.emptyTitle}>Henüz favori yer yok</Text>
                     <Text style={styles.emptyText}>
-                        Keşfet bölümünden beğendiğiniz yerleri{'\n'}kalp ikonuna basarak favorilere ekleyin.
+                        Şehirlere girerek beğendiğiniz yerleri{'\n'}kalp ikonuna basarak favorilere ekleyin.
                     </Text>
                     <TouchableOpacity
                         style={styles.emptyButton}
-                        onPress={() => navigation.navigate('Discover')}
+                        onPress={() => navigation.navigate('Home')}
                     >
                         <Ionicons name="compass" size={18} color="#fff" />
-                        <Text style={styles.emptyButtonText}>Keşfetmeye Başla</Text>
+                        <Text style={styles.emptyButtonText}>Şehirleri Keşfet</Text>
                     </TouchableOpacity>
                 </View>
             ) : (

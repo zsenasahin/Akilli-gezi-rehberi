@@ -1,49 +1,38 @@
 import 'react-native-url-polyfill/auto';
 import { createClient } from '@supabase/supabase-js';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as SecureStore from 'expo-secure-store';
+import Constants from 'expo-constants';
 
-// ─────────────────────────────────────────────
-// Supabase Yapılandırması
-// API key'ler secrets.js'den okunur (git'e gönderilmez)
-// ─────────────────────────────────────────────
+// secrets.js gitignore'da olduğu için EAS build'de yok.
+// Değerler app.config.js extra'sından okunur (hem local hem build çalışır).
+const SUPABASE_URL = Constants.expoConfig?.extra?.supabaseUrl;
+const SUPABASE_ANON_KEY = Constants.expoConfig?.extra?.supabaseAnonKey;
 
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from './secrets';
+if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+    console.error('Supabase config eksik! app.config.js extra alanını kontrol edin.');
+}
 
 /**
- * AsyncStorage adaptörü – Supabase'in beklediği formata uygun hale getiriyoruz.
- * Yeni AsyncStorage sürümlerinde dönüş tipleri farklı olabiliyor,
- * bu yüzden her metodu açıkça sarmalıyoruz.
+ * SecureStore adaptörü — JWT token'larını Keychain/Keystore'da saklar.
  */
-const ExpoSecureStoreAdapter = {
+const SecureStoreAdapter = {
     getItem: async (key) => {
-        try {
-            const value = await AsyncStorage.getItem(key);
-            return value;
-        } catch {
-            return null;
-        }
+        try { return await SecureStore.getItemAsync(key); } catch { return null; }
     },
     setItem: async (key, value) => {
-        try {
-            await AsyncStorage.setItem(key, value);
-        } catch {
-            // Sessizce devam et
-        }
+        try { await SecureStore.setItemAsync(key, value); } catch { }
     },
     removeItem: async (key) => {
-        try {
-            await AsyncStorage.removeItem(key);
-        } catch {
-            // Sessizce devam et
-        }
+        try { await SecureStore.deleteItemAsync(key); } catch { }
     },
 };
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     auth: {
-        storage: ExpoSecureStoreAdapter,
+        storage: SecureStoreAdapter,
         autoRefreshToken: true,
         persistSession: true,
-        detectSessionInUrl: false, // React Native için gerekli değil
+        detectSessionInUrl: false,
+        flowType: 'pkce',
     },
 });

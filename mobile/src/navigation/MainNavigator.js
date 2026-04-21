@@ -9,11 +9,9 @@ import { COLORS } from '../constants/colors';
 import { FONT_SIZES, FONTS } from '../constants/typography';
 import { SPACING, BORDER_RADIUS } from '../constants/layout';
 import { useAuth } from '../contexts/AuthContext';
-import FloatingAssistant from '../components/common/FloatingAssistant';
 
 // Screens
 import HomeScreen from '../screens/home/HomeScreen';
-import DiscoverScreen from '../screens/discover/DiscoverScreen';
 import CityDetailScreen from '../screens/discover/CityDetailScreen';
 import CreateItineraryScreen from '../screens/itinerary/CreateItineraryScreen';
 import ItineraryResultScreen from '../screens/itinerary/ItineraryResultScreen';
@@ -26,7 +24,6 @@ import TravelAssistantScreen from '../screens/assistant/TravelAssistantScreen';
 
 const Tab = createBottomTabNavigator();
 const HomeStack = createNativeStackNavigator();
-const DiscoverStack = createNativeStackNavigator();
 const SavedStack = createNativeStackNavigator();
 const FavoritesStack = createNativeStackNavigator();
 const ProfileStack = createNativeStackNavigator();
@@ -180,45 +177,6 @@ const HomeStackNavigator = () => (
     </HomeStack.Navigator>
 );
 
-const DiscoverStackNavigator = () => (
-    <DiscoverStack.Navigator screenOptions={stackScreenOptions}>
-        <DiscoverStack.Screen
-            name="DiscoverMain"
-            component={DiscoverScreen}
-            options={{ headerShown: false }}
-        />
-        <DiscoverStack.Screen
-            name="CityDetail"
-            component={CityDetailScreen}
-            options={{ headerShown: false }}
-        />
-        <DiscoverStack.Screen
-            name="MapScreen"
-            component={MapScreen}
-            options={{ headerShown: false }}
-        />
-        <DiscoverStack.Screen
-            name="CreateItinerary"
-            component={CreateItineraryScreen}
-            options={{ title: 'Gezi Planla' }}
-        />
-        <DiscoverStack.Screen
-            name="TravelAssistant"
-            component={TravelAssistantScreen}
-            options={{ headerShown: false }}
-        />
-        <DiscoverStack.Screen
-            name="Saved"
-            component={SavedItinerariesScreen}
-            options={{ title: 'Planlarım' }}
-        />
-        <DiscoverStack.Screen
-            name="ItineraryDetail"
-            component={ItineraryDetailScreen}
-            options={{ headerShown: false }}
-        />
-    </DiscoverStack.Navigator>
-);
 
 const SavedStackNavigator = () => {
     const { isGuest } = useAuth();
@@ -377,7 +335,6 @@ const TabsWithFloating = () => {
                     tabBarIcon: ({ focused, color, size }) => {
                         let iconName;
                         if (route.name === 'Home') iconName = focused ? 'home-sharp' : 'home-outline';
-                        else if (route.name === 'Discover') iconName = focused ? 'compass-sharp' : 'compass-outline';
                         else if (route.name === 'Saved') iconName = focused ? 'bookmarks' : 'bookmarks-outline';
                         else if (route.name === 'Favorites') iconName = focused ? 'heart-circle' : 'heart-outline';
                         else if (route.name === 'Profile') iconName = focused ? 'person-circle' : 'person-outline';
@@ -386,14 +343,10 @@ const TabsWithFloating = () => {
                 })}
             >
                 <Tab.Screen name="Home" component={HomeStackNavigator} options={{ tabBarLabel: 'Ana Sayfa' }} />
-                <Tab.Screen name="Discover" component={DiscoverStackNavigator} options={{ tabBarLabel: 'Keşfet' }} />
                 <Tab.Screen name="Saved" component={SavedStackNavigator} options={{ tabBarLabel: 'Planlar' }} />
                 <Tab.Screen name="Favorites" component={FavoritesStackNavigator} options={{ tabBarLabel: 'Favoriler' }} />
                 <Tab.Screen name="Profile" component={ProfileStackNavigator} options={{ tabBarLabel: 'Profil' }} />
             </Tab.Navigator>
-
-            {/* 🐱 Floating AI Asistan — context'i AssistantContext'ten otomatik alır */}
-            <FloatingAssistant />
         </View>
     );
 };

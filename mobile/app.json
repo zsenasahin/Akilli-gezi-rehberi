@@ -1,12 +1,13 @@
 {
   "expo": {
-    "name": "mobile",
-    "slug": "mobile",
+    "name": "Akıllı Gezi Rehberi",
+    "slug": "smart-travel-guide",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
+    "scheme": "smarttravelguide",
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
@@ -16,16 +17,22 @@
       "supportsTablet": true
     },
     "android": {
+      "package": "com.zeynepsenaas.smarttravelguide",
+      "versionCode": 1,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
-      }
+      },
+      "permissions": [
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
       "expo-font",
+      "expo-secure-store",
       [
         "expo-image-picker",
         {
@@ -33,6 +40,12 @@
           "cameraPermission": "Akıllı Gezi Rehberi profil fotoğrafı çekmek için kameranıza erişmek istiyor."
         }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "0ad1e6cd-3563-4569-8fab-b3fb8249d6c1"
+      }
+    },
+    "owner": "zeynepsenaas-organization"
   }
 }

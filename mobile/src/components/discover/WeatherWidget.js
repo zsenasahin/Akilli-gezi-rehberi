@@ -1,13 +1,13 @@
 /**
- * WeatherWidget — Premium 5 günlük hava durumu kartı
+ * WeatherWidget — Premium glassmorphism 5 günlük hava durumu kartı
  *
  * Open-Meteo API (ücretsiz, kayıtsız) üzerinden alınan verileri gösterir.
  * CityDetailScreen'e gömülür.
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
-    View, Text, StyleSheet, ActivityIndicator, ScrollView, Dimensions,
+    View, Text, StyleSheet, ActivityIndicator, Animated, Easing,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -16,23 +16,35 @@ import { FONTS, FONT_SIZES } from '../../constants/typography';
 import { SPACING, BORDER_RADIUS } from '../../constants/layout';
 import { getWeatherForecast, getDayLabel } from '../../services/weatherService';
 
-const SCREEN_W = Dimensions.get('window').width;
-
-// Hava durumuna göre gradient renkleri
+// Hava durumuna göre gradient renkleri - daha canlı ve modern
 const getWeatherGradient = (emoji) => {
-    if (emoji === '☀️') return ['#FF9A56', '#FF6B35'];
-    if (emoji === '⛅' || emoji === '🌤️') return ['#4DA0E8', '#3578C4'];
-    if (emoji === '☁️') return ['#8E9AAF', '#6B7A8D'];
-    if (emoji === '🌧️' || emoji === '🌦️') return ['#5B86A9', '#3D6580'];
-    if (emoji === '⛈️') return ['#4A5568', '#2D3748'];
-    if (emoji === '❄️') return ['#A8D8EA', '#77A5C8'];
-    return ['#4DA0E8', '#3578C4'];
+    if (emoji === '☀️') return ['#F59E0B', '#EF4444', '#DC2626'];
+    if (emoji === '⛅' || emoji === '🌤️') return ['#38BDF8', '#3B82F6', '#6366F1'];
+    if (emoji === '☁️') return ['#94A3B8', '#64748B', '#475569'];
+    if (emoji === '🌧️' || emoji === '🌦️') return ['#60A5FA', '#3B82F6', '#1D4ED8'];
+    if (emoji === '⛈️') return ['#6366F1', '#4F46E5', '#4338CA'];
+    if (emoji === '❄️') return ['#93C5FD', '#60A5FA', '#3B82F6'];
+    return ['#38BDF8', '#3B82F6', '#6366F1'];
+};
+
+// Hava durumu ikonu
+const getWeatherIcon = (emoji) => {
+    if (emoji === '☀️') return 'sunny';
+    if (emoji === '⛅' || emoji === '🌤️') return 'partly-sunny';
+    if (emoji === '☁️') return 'cloudy';
+    if (emoji === '🌧️' || emoji === '🌦️') return 'rainy';
+    if (emoji === '⛈️') return 'thunderstorm';
+    if (emoji === '❄️') return 'snow';
+    return 'partly-sunny';
 };
 
 const WeatherWidget = ({ cityName }) => {
     const [forecast, setForecast] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+
+    const fadeAnim = useRef(new Animated.Value(0)).current;
+    const slideAnim = useRef(new Animated.Value(20)).current;
 
     useEffect(() => {
         if (!cityName) return;
@@ -41,6 +53,22 @@ const WeatherWidget = ({ cityName }) => {
             if (err) setError(err);
             else setForecast(data);
             setLoading(false);
+
+            // Animasyon
+            Animated.parallel([
+                Animated.timing(fadeAnim, {
+                    toValue: 1,
+                    duration: 500,
+                    easing: Easing.out(Easing.cubic),
+                    useNativeDriver: true,
+                }),
+                Animated.timing(slideAnim, {
+                    toValue: 0,
+                    duration: 500,
+                    easing: Easing.out(Easing.cubic),
+                    useNativeDriver: true,
+                }),
+            ]).start();
         });
     }, [cityName]);
 
@@ -48,15 +76,18 @@ const WeatherWidget = ({ cityName }) => {
         return (
             <View style={styles.container}>
                 <LinearGradient
-                    colors={['#4DA0E8', '#3578C4']}
+                    colors={['#38BDF8', '#3B82F6', '#6366F1']}
                     style={styles.gradientBg}
                     start={{ x: 0, y: 0 }}
                     end={{ x: 1, y: 1 }}
                 >
+                    <View style={styles.glassOverlay} />
                     <View style={styles.loadingContent}>
-                        <Ionicons name="partly-sunny-outline" size={20} color="rgba(255,255,255,0.7)" />
+                        <View style={styles.loadingIconWrap}>
+                            <Ionicons name="cloud-outline" size={28} color="#fff" />
+                        </View>
                         <Text style={styles.loadingText}>Hava durumu yükleniyor...</Text>
-                        <ActivityIndicator size="small" color="#fff" style={{ marginTop: 8 }} />
+                        <ActivityIndicator size="small" color="rgba(255,255,255,0.9)" style={{ marginTop: 12 }} />
                     </View>
                 </LinearGradient>
             </View>
@@ -68,111 +99,197 @@ const WeatherWidget = ({ cityName }) => {
     const today = forecast[0];
     const hasRainWarning = forecast.some(d => d.rainChance >= 60);
     const gradient = getWeatherGradient(today.emoji);
+    const weatherIcon = getWeatherIcon(today.emoji);
 
     return (
-        <View style={styles.container}>
+        <Animated.View style={[
+            styles.container,
+            {
+                opacity: fadeAnim,
+                transform: [{ translateY: slideAnim }],
+            }
+        ]}>
             <LinearGradient
                 colors={gradient}
                 style={styles.gradientBg}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
             >
+                {/* Glass overlay effect */}
+                <View style={styles.glassOverlay} />
+
+                {/* Decorative circles */}
+                <View style={styles.decorCircle1} />
+                <View style={styles.decorCircle2} />
+
                 {/* Header */}
                 <View style={styles.header}>
                     <View style={styles.headerLeft}>
-                        <Ionicons name="location" size={12} color="rgba(255,255,255,0.8)" />
-                        <Text style={styles.cityName}>{cityName}</Text>
+                        <View style={styles.locationBadge}>
+                            <Ionicons name="location" size={12} color="#fff" />
+                            <Text style={styles.cityName}>{cityName}</Text>
+                        </View>
                     </View>
-                    <View style={styles.weatherLabel}>
-                        <Text style={styles.weatherLabelText}>{today.label}</Text>
+                    <View style={styles.dateBadge}>
+                        <Text style={styles.dateText}>Bugün</Text>
                     </View>
                 </View>
 
                 {/* Today's weather — large display */}
                 <View style={styles.todaySection}>
-                    <View style={styles.todayLeft}>
-                        <Text style={styles.todayEmoji}>{today.emoji}</Text>
+                    <View style={styles.todayMain}>
+                        <View style={styles.iconWrapper}>
+                            <Ionicons name={weatherIcon} size={64} color="#fff" />
+                        </View>
+                        <View style={styles.tempWrapper}>
+                            <Text style={styles.todayTemp}>{today.tempMax}°</Text>
+                            <Text style={styles.todayTempMin}>/{today.tempMin}°</Text>
+                        </View>
                     </View>
-                    <View style={styles.todayCenter}>
-                        <Text style={styles.todayTemp}>{today.tempMax}°</Text>
-                        <Text style={styles.todayTempMin}>/ {today.tempMin}°</Text>
-                    </View>
-                    <View style={styles.todayRight}>
-                        {today.rainChance > 0 && (
-                            <View style={styles.rainInfo}>
-                                <Ionicons name="water" size={14} color="rgba(255,255,255,0.9)" />
-                                <Text style={styles.rainPercent}>%{today.rainChance}</Text>
+
+                    <View style={styles.todayDetails}>
+                        <View style={styles.weatherBadge}>
+                            <Text style={styles.weatherLabel}>{today.label}</Text>
+                        </View>
+
+                        <View style={styles.statsRow}>
+                            {today.rainChance > 0 && (
+                                <View style={styles.statItem}>
+                                    <Ionicons name="water" size={16} color="rgba(255,255,255,0.9)" />
+                                    <Text style={styles.statValue}>{today.rainChance}%</Text>
+                                    <Text style={styles.statLabel}>Yağış</Text>
+                                </View>
+                            )}
+                            {today.windSpeed && (
+                                <View style={styles.statItem}>
+                                    <Ionicons name="leaf" size={16} color="rgba(255,255,255,0.9)" />
+                                    <Text style={styles.statValue}>{today.windSpeed}</Text>
+                                    <Text style={styles.statLabel}>km/s</Text>
+                                </View>
+                            )}
+                            <View style={styles.statItem}>
+                                <Ionicons name="thermometer" size={16} color="rgba(255,255,255,0.9)" />
+                                <Text style={styles.statValue}>{Math.round((today.tempMax + today.tempMin) / 2)}°</Text>
+                                <Text style={styles.statLabel}>Ortalama</Text>
                             </View>
-                        )}
-                        {today.windSpeed && (
-                            <View style={styles.windInfo}>
-                                <Ionicons name="speedometer-outline" size={13} color="rgba(255,255,255,0.7)" />
-                                <Text style={styles.windText}>{today.windSpeed} km/s</Text>
-                            </View>
-                        )}
+                        </View>
                     </View>
                 </View>
 
-                {/* Divider */}
-                <View style={styles.divider} />
-
                 {/* 4-day forecast */}
-                <View style={styles.forecastRow}>
-                    {forecast.slice(1).map((day) => (
-                        <View key={day.date} style={styles.dayItem}>
-                            <Text style={styles.dayName}>{getDayLabel(day.date)}</Text>
-                            <Text style={styles.dayEmoji}>{day.emoji}</Text>
-                            <Text style={styles.dayTempMax}>{day.tempMax}°</Text>
-                            <Text style={styles.dayTempMin}>{day.tempMin}°</Text>
-                            {day.rainChance >= 40 && (
-                                <View style={styles.dayRainBadge}>
-                                    <Text style={styles.dayRainText}>💧{day.rainChance}%</Text>
+                <View style={styles.forecastSection}>
+                    <View style={styles.forecastHeader}>
+                        <Ionicons name="calendar-outline" size={14} color="rgba(255,255,255,0.7)" />
+                        <Text style={styles.forecastTitle}>5 Günlük Tahmin</Text>
+                    </View>
+                    <View style={styles.forecastRow}>
+                        {forecast.slice(1).map((day, index) => (
+                            <View
+                                key={day.date}
+                                style={[
+                                    styles.dayItem,
+                                    index === 0 && styles.dayItemFirst
+                                ]}
+                            >
+                                <Text style={styles.dayName}>{getDayLabel(day.date)}</Text>
+                                <View style={styles.dayIconWrap}>
+                                    <Ionicons
+                                        name={getWeatherIcon(day.emoji)}
+                                        size={24}
+                                        color="#fff"
+                                    />
                                 </View>
-                            )}
-                        </View>
-                    ))}
+                                <View style={styles.dayTemps}>
+                                    <Text style={styles.dayTempMax}>{day.tempMax}°</Text>
+                                    <Text style={styles.dayTempMin}>{day.tempMin}°</Text>
+                                </View>
+                                {day.rainChance >= 40 && (
+                                    <View style={styles.dayRainBadge}>
+                                        <Ionicons name="water" size={10} color="rgba(255,255,255,0.9)" />
+                                        <Text style={styles.dayRainText}>{day.rainChance}%</Text>
+                                    </View>
+                                )}
+                            </View>
+                        ))}
+                    </View>
                 </View>
 
                 {/* Rain warning */}
                 {hasRainWarning && (
                     <View style={styles.warningBox}>
-                        <Ionicons name="umbrella-outline" size={14} color="#fff" />
+                        <View style={styles.warningIconWrap}>
+                            <Ionicons name="umbrella" size={16} color="#fff" />
+                        </View>
                         <Text style={styles.warningText}>
-                            Yağış bekleniyor — kapalı mekân planlamayı unutma!
+                            Yağış bekleniyor - kapalı mekan alternatifleri planlamayı unutma!
                         </Text>
                     </View>
                 )}
             </LinearGradient>
-        </View>
+        </Animated.View>
     );
 };
 
 const styles = StyleSheet.create({
     container: {
         marginHorizontal: SPACING.lg,
-        marginBottom: SPACING.md,
-        borderRadius: 20,
+        marginBottom: SPACING.lg,
+        borderRadius: 24,
         overflow: 'hidden',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 6 },
-        shadowOpacity: 0.15,
-        shadowRadius: 16,
-        elevation: 8,
+        shadowColor: '#3B82F6',
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.3,
+        shadowRadius: 20,
+        elevation: 12,
     },
     gradientBg: {
-        padding: SPACING.md + 4,
+        padding: SPACING.lg,
+        position: 'relative',
+        overflow: 'hidden',
+    },
+    glassOverlay: {
+        ...StyleSheet.absoluteFillObject,
+        backgroundColor: 'rgba(255,255,255,0.1)',
+    },
+
+    // Decorative elements
+    decorCircle1: {
+        position: 'absolute',
+        top: -40,
+        right: -40,
+        width: 120,
+        height: 120,
+        borderRadius: 60,
+        backgroundColor: 'rgba(255,255,255,0.1)',
+    },
+    decorCircle2: {
+        position: 'absolute',
+        bottom: -30,
+        left: -30,
+        width: 80,
+        height: 80,
+        borderRadius: 40,
+        backgroundColor: 'rgba(255,255,255,0.08)',
     },
 
     // Loading
     loadingContent: {
         alignItems: 'center',
-        paddingVertical: SPACING.lg,
+        paddingVertical: SPACING.xl,
+    },
+    loadingIconWrap: {
+        width: 56,
+        height: 56,
+        borderRadius: 28,
+        backgroundColor: 'rgba(255,255,255,0.2)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginBottom: SPACING.sm,
     },
     loadingText: {
-        fontFamily: FONTS.body,
+        fontFamily: FONTS.bodyMedium,
         fontSize: FONT_SIZES.sm,
-        color: 'rgba(255,255,255,0.8)',
-        marginTop: 6,
+        color: 'rgba(255,255,255,0.9)',
     },
 
     // Header
@@ -181,11 +298,20 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'space-between',
         marginBottom: SPACING.md,
+        zIndex: 1,
     },
     headerLeft: {
         flexDirection: 'row',
         alignItems: 'center',
+    },
+    locationBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
         gap: 4,
+        backgroundColor: 'rgba(255,255,255,0.2)',
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: BORDER_RADIUS.full,
     },
     cityName: {
         fontFamily: FONTS.bodySemiBold,
@@ -193,84 +319,110 @@ const styles = StyleSheet.create({
         color: '#fff',
         letterSpacing: 0.3,
     },
-    weatherLabel: {
-        backgroundColor: 'rgba(255,255,255,0.2)',
+    dateBadge: {
+        backgroundColor: 'rgba(0,0,0,0.15)',
         paddingHorizontal: 10,
-        paddingVertical: 3,
+        paddingVertical: 4,
         borderRadius: BORDER_RADIUS.full,
     },
-    weatherLabelText: {
-        fontFamily: FONTS.body,
+    dateText: {
+        fontFamily: FONTS.bodySemiBold,
         fontSize: 11,
         color: 'rgba(255,255,255,0.9)',
+        textTransform: 'uppercase',
+        letterSpacing: 0.5,
     },
 
     // Today
     todaySection: {
+        marginBottom: SPACING.lg,
+        zIndex: 1,
+    },
+    todayMain: {
         flexDirection: 'row',
         alignItems: 'center',
-        marginBottom: SPACING.sm,
+        marginBottom: SPACING.md,
     },
-    todayLeft: {
-        marginRight: SPACING.sm,
+    iconWrapper: {
+        width: 100,
+        height: 100,
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: 'rgba(255,255,255,0.15)',
+        borderRadius: 28,
+        marginRight: SPACING.md,
     },
-    todayEmoji: {
-        fontSize: 52,
-    },
-    todayCenter: {
-        flex: 1,
+    tempWrapper: {
         flexDirection: 'row',
         alignItems: 'baseline',
     },
     todayTemp: {
         fontFamily: FONTS.heading,
-        fontSize: 48,
+        fontSize: 72,
         color: '#fff',
-        letterSpacing: -2,
+        letterSpacing: -3,
+        lineHeight: 80,
     },
     todayTempMin: {
-        fontFamily: FONTS.body,
-        fontSize: FONT_SIZES.lg,
+        fontFamily: FONTS.bodyMedium,
+        fontSize: FONT_SIZES.xl,
         color: 'rgba(255,255,255,0.6)',
-        marginLeft: 4,
+        marginLeft: 2,
     },
-    todayRight: {
-        alignItems: 'flex-end',
-        gap: 6,
+    todayDetails: {
+        gap: SPACING.sm,
     },
-    rainInfo: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 4,
-        backgroundColor: 'rgba(255,255,255,0.18)',
-        paddingHorizontal: 8,
-        paddingVertical: 4,
+    weatherBadge: {
+        alignSelf: 'flex-start',
+        backgroundColor: 'rgba(255,255,255,0.2)',
+        paddingHorizontal: 14,
+        paddingVertical: 6,
         borderRadius: BORDER_RADIUS.full,
     },
-    rainPercent: {
+    weatherLabel: {
         fontFamily: FONTS.bodySemiBold,
-        fontSize: 12,
+        fontSize: FONT_SIZES.sm,
         color: '#fff',
     },
-    windInfo: {
+    statsRow: {
         flexDirection: 'row',
-        alignItems: 'center',
-        gap: 3,
+        gap: SPACING.lg,
     },
-    windText: {
+    statItem: {
+        alignItems: 'center',
+        gap: 2,
+    },
+    statValue: {
+        fontFamily: FONTS.bodySemiBold,
+        fontSize: FONT_SIZES.md,
+        color: '#fff',
+    },
+    statLabel: {
         fontFamily: FONTS.body,
-        fontSize: 11,
+        fontSize: 10,
         color: 'rgba(255,255,255,0.7)',
     },
 
-    // Divider
-    divider: {
-        height: 1,
-        backgroundColor: 'rgba(255,255,255,0.2)',
-        marginBottom: SPACING.sm + 2,
-    },
-
     // Forecast
+    forecastSection: {
+        backgroundColor: 'rgba(0,0,0,0.15)',
+        borderRadius: BORDER_RADIUS.lg,
+        padding: SPACING.md,
+        zIndex: 1,
+    },
+    forecastHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        marginBottom: SPACING.sm,
+    },
+    forecastTitle: {
+        fontFamily: FONTS.bodySemiBold,
+        fontSize: FONT_SIZES.xs,
+        color: 'rgba(255,255,255,0.7)',
+        textTransform: 'uppercase',
+        letterSpacing: 0.5,
+    },
     forecastRow: {
         flexDirection: 'row',
         justifyContent: 'space-between',
@@ -278,18 +430,31 @@ const styles = StyleSheet.create({
     dayItem: {
         flex: 1,
         alignItems: 'center',
-        gap: 3,
+        paddingVertical: SPACING.xs,
+    },
+    dayItemFirst: {
+        backgroundColor: 'rgba(255,255,255,0.1)',
+        borderRadius: BORDER_RADIUS.md,
+        marginHorizontal: -4,
+        paddingHorizontal: 4,
     },
     dayName: {
         fontFamily: FONTS.bodySemiBold,
         fontSize: 11,
-        color: 'rgba(255,255,255,0.7)',
+        color: 'rgba(255,255,255,0.8)',
         textTransform: 'uppercase',
         letterSpacing: 0.5,
+        marginBottom: 4,
     },
-    dayEmoji: {
-        fontSize: 24,
-        marginVertical: 2,
+    dayIconWrap: {
+        width: 36,
+        height: 36,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginBottom: 4,
+    },
+    dayTemps: {
+        alignItems: 'center',
     },
     dayTempMax: {
         fontFamily: FONTS.bodySemiBold,
@@ -299,33 +464,49 @@ const styles = StyleSheet.create({
     dayTempMin: {
         fontFamily: FONTS.body,
         fontSize: FONT_SIZES.xs,
-        color: 'rgba(255,255,255,0.55)',
+        color: 'rgba(255,255,255,0.5)',
     },
     dayRainBadge: {
-        marginTop: 2,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 2,
+        backgroundColor: 'rgba(255,255,255,0.2)',
+        paddingHorizontal: 6,
+        paddingVertical: 2,
+        borderRadius: BORDER_RADIUS.full,
+        marginTop: 4,
     },
     dayRainText: {
-        fontFamily: FONTS.body,
-        fontSize: 10,
-        color: 'rgba(255,255,255,0.8)',
+        fontFamily: FONTS.bodySemiBold,
+        fontSize: 9,
+        color: '#fff',
     },
 
     // Warning
     warningBox: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 6,
-        backgroundColor: 'rgba(255,255,255,0.15)',
-        borderRadius: BORDER_RADIUS.md,
-        padding: SPACING.sm,
-        marginTop: SPACING.sm + 2,
+        gap: SPACING.sm,
+        backgroundColor: 'rgba(0,0,0,0.2)',
+        borderRadius: BORDER_RADIUS.lg,
+        padding: SPACING.md,
+        marginTop: SPACING.md,
+        zIndex: 1,
+    },
+    warningIconWrap: {
+        width: 32,
+        height: 32,
+        borderRadius: 16,
+        backgroundColor: 'rgba(255,255,255,0.2)',
+        justifyContent: 'center',
+        alignItems: 'center',
     },
     warningText: {
-        fontFamily: FONTS.body,
+        fontFamily: FONTS.bodyMedium,
         fontSize: FONT_SIZES.xs,
-        color: 'rgba(255,255,255,0.9)',
+        color: 'rgba(255,255,255,0.95)',
         flex: 1,
-        lineHeight: 16,
+        lineHeight: 18,
     },
 });
 

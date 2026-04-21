@@ -1,30 +1,27 @@
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
-import { Alert } from 'react-native';
-import { onAuthStateChange, getSession } from '../data/repositories/authRepository';
+import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
+import { Alert, AppState } from 'react-native';
+import { onAuthStateChange, getSession, refreshSession, signOut } from '../data/repositories/authRepository';
 import { supabase } from '../config/supabase';
 
-/**
- * AuthContext provides the current user session and loading state
- * to the entire component tree.
- */
 const AuthContext = createContext({
     session: null,
     user: null,
     isLoading: true,
+    isGuest: true,
 });
 
 export const AuthProvider = ({ children }) => {
     const [session, setSession] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
+    const appState = useRef(AppState.currentState);
 
     useEffect(() => {
-        // 1. Check for an existing session on app launch
+        // 1. Uygulama açılışında mevcut session'ı kontrol et
         const initSession = async () => {
             try {
                 const { data, error } = await getSession();
                 if (error) {
-                    // Geçersiz refresh token — eski oturumu temizle
-                    console.warn('Session hatası, oturum temizleniyor:', error.message);
+                    console.warn('Session hatası, temizleniyor:', error.message);
                     await supabase.auth.signOut();
                     setSession(null);
                 } else {
@@ -33,20 +30,51 @@ export const AuthProvider = ({ children }) => {
             } catch (err) {
                 console.warn('Session kontrol hatası:', err);
                 setSession(null);
+            } finally {
+                setIsLoading(false);
             }
-            setIsLoading(false);
         };
 
         initSession();
 
-        // 2. Listen for changes (login, logout, token refresh)
-        const { data: listener } = onAuthStateChange((_event, newSession) => {
+        // 2. Auth state değişikliklerini dinle (login, logout, token refresh)
+        const { data: listener } = onAuthStateChange((event, newSession) => {
             setSession(newSession);
+
+            // TOKEN_REFRESHED: yeni JWT alındı, loglayabiliriz
+            if (event === 'TOKEN_REFRESHED') {
+                console.log('JWT token yenilendi');
+            }
+
+            // SIGNED_OUT: tüm state'i temizle
+            if (event === 'SIGNED_OUT') {
+                setSession(null);
+            }
         });
 
-        // Cleanup subscription on unmount
+        // 3. Uygulama arka plandan öne gelince token'ı yenile
+        // (Uzun süre arka planda kalan uygulamalarda token expire olabilir)
+        const appStateSubscription = AppState.addEventListener('change', async (nextState) => {
+            if (
+                appState.current.match(/inactive|background/) &&
+                nextState === 'active'
+            ) {
+                const { data } = await getSession();
+                if (data?.session) {
+                    // Token 5 dakikadan az kaldıysa yenile
+                    const expiresAt = data.session.expires_at;
+                    const now = Math.floor(Date.now() / 1000);
+                    if (expiresAt && expiresAt - now < 300) {
+                        await refreshSession();
+                    }
+                }
+            }
+            appState.current = nextState;
+        });
+
         return () => {
             listener?.subscription?.unsubscribe();
+            appStateSubscription?.remove();
         };
     }, []);
 
@@ -55,15 +83,13 @@ export const AuthProvider = ({ children }) => {
         user: session?.user ?? null,
         isLoading,
         isGuest: !session,
+        // JWT access token'ı direkt almak için
+        accessToken: session?.access_token ?? null,
     };
 
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
-/**
- * Custom hook – provides quick access to auth state.
- * Usage: const { user, session, isLoading, isGuest } = useAuth();
- */
 export const useAuth = () => {
     const context = useContext(AuthContext);
     if (!context) {
@@ -73,13 +99,7 @@ export const useAuth = () => {
 };
 
 /**
- * useRequireAuth – Korumalı işlemler öncesinde çağrılır.
- * Kullanıcı giriş yapmadıysa Alert gösterir ve false döner.
- * Giriş yapılmışsa true döner, işlem devam edebilir.
- *
- * Usage:
- *   const requireAuth = useRequireAuth(navigation);
- *   const handleFavorite = () => { if (!requireAuth()) return; ... };
+ * Korumalı işlemler için — kullanıcı giriş yapmadıysa Alert gösterir.
  */
 export const useRequireAuth = (navigation) => {
     const { isGuest } = useAuth();
@@ -94,11 +114,7 @@ export const useRequireAuth = (navigation) => {
                 { text: 'Vazgeç', style: 'cancel' },
                 {
                     text: 'Giriş Yap',
-                    onPress: () => {
-                        if (navigation) {
-                            navigation.navigate('AuthModal');
-                        }
-                    },
+                    onPress: () => navigation?.navigate('AuthModal'),
                 },
             ],
         );

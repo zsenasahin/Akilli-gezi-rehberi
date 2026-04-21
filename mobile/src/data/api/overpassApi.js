@@ -134,7 +134,7 @@ function parseElement(el) {
     };
 }
 
-// ─── Public API ────────────────────────────────────────────────────────────
+import { cache, TTL } from '../../services/cacheService';
 
 /**
  * Belirli kategorideki POI'ları getirir.
@@ -144,7 +144,19 @@ function parseElement(el) {
  * @param {number} [radius=2000]
  */
 export async function getCityPOIs(lat, lng, category = 'all', radius = 2000) {
+    if (lat === undefined || lat === null || lng === undefined || lng === null) {
+        return { data: [], error: 'Geçersiz koordinatlar' };
+    }
+    
+    // Koordinatları 0.01 hassasiyetle yuvarlayarak cache anahtarı oluştur
+    const roundedLat = Math.round(lat * 100) / 100;
+    const roundedLng = Math.round(lng * 100) / 100;
+    const CACHE_KEY = `pois_${category}_${roundedLat}_${roundedLng}_${radius}`;
+    
     try {
+        const cached = await cache.get(CACHE_KEY);
+        if (cached) return { data: cached, error: null, fromCache: true };
+
         const limit = category === 'atm' || category === 'pharmacy' ? 10 : 25;
         const filter = buildFilter(category, radius, lat, lng);
         const query = `[out:json][timeout:20];(${filter});out body ${limit};`;
@@ -155,7 +167,11 @@ export async function getCityPOIs(lat, lng, category = 'all', radius = 2000) {
             .map(parseElement)
             .filter((p) => p.lat && p.lng);
 
-        return { data: pois, error: null };
+        if (pois.length > 0) {
+            await cache.set(CACHE_KEY, pois, TTL.MEDIUM); // 1 saatlik cache
+        }
+
+        return { data: pois, error: null, fromCache: false };
     } catch (err) {
         console.error('getCityPOIs error:', err.message);
         return { data: [], error: err.message };

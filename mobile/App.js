@@ -7,6 +7,7 @@ import { AuthProvider } from './src/contexts/AuthContext';
 import { AssistantProvider } from './src/contexts/AssistantContext';
 import AppNavigator from './src/navigation/AppNavigator';
 import LoadingSpinner from './src/components/common/LoadingSpinner';
+import { initPrefetch } from './src/services/prefetchService';
 
 /**
  * Root component – wraps the entire app in:
@@ -22,6 +23,10 @@ export default function App() {
     Inter_600SemiBold,
     Inter_700Bold,
   });
+
+  React.useEffect(() => {
+    initPrefetch();
+  }, []);
 
   if (!fontsLoaded) {
     return <LoadingSpinner message="Yükleniyor..." />;

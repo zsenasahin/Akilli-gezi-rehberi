@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
     View,
     Text,
@@ -10,6 +10,7 @@ import {
     Animated,
     Easing,
     Platform,
+    TextInput,
 } from 'react-native';
 import SmartImage from '../../components/common/SmartImage';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -27,9 +28,22 @@ import { HomeScreenSkeleton } from '../../components/common/SkeletonLoader';
 import ErrorMessage from '../../components/common/ErrorMessage';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
-const HERO_HEIGHT = SCREEN.height * 0.58;
+const HERO_HEIGHT = SCREEN.height * 0.48;
+const CITY_CARD_WIDTH = (SCREEN_WIDTH - SPACING.lg * 2 - SPACING.sm) / 2;
 
 const HERO_IMAGE = 'https://images.unsplash.com/photo-1524231757912-21f4fe3a7200?w=1200&h=900&fit=crop&q=85';
+
+// Bölge renk haritası — emoji yerine renkli nokta
+const REGION_COLORS = {
+    'Tümü': COLORS.primary,
+    'Marmara': '#6366F1',
+    'Ege': '#0891B2',
+    'Akdeniz': '#F59E0B',
+    'İç Anadolu': '#84CC16',
+    'Karadeniz': '#10B981',
+    'Doğu Anadolu': '#8B5CF6',
+    'Güneydoğu Anadolu': '#EF4444',
+};
 
 const HomeScreen = ({ navigation }) => {
     const { user, isGuest } = useAuth();
@@ -41,8 +55,13 @@ const HomeScreen = ({ navigation }) => {
     const [refreshing, setRefreshing] = useState(false);
     const [error, setError] = useState(null);
 
+    // Arama & filtre
+    const [searchQuery, setSearchQuery] = useState('');
+    const [activeRegion, setActiveRegion] = useState('Tümü');
+
     // Scroll animasyonu – parallax için
     const scrollY = useRef(new Animated.Value(0)).current;
+    const scrollViewRef = useRef(null);
 
     // Kart animasyonları
     const cityCardAnim = useRef(new Animated.Value(0)).current;
@@ -102,12 +121,27 @@ const HomeScreen = ({ navigation }) => {
         navigation.navigate('CityDetail', { city });
     };
 
-    const openDiscoverTab = () => {
-        // Navigate to the Discover tab. React Navigation resolves nested
-        // navigators automatically: this targets the Tab navigator's
-        // "Discover" route and then its initial "DiscoverMain" screen.
-        navigation.navigate('Discover', { screen: 'DiscoverMain' });
-    };
+    // Bölge listesi (oluştur)
+    const regions = useMemo(() => {
+        const uniqueRegions = [...new Set(cities.map(c => c.region))];
+        return ['Tümü', ...uniqueRegions];
+    }, [cities]);
+
+    // Arama + bölge filtresi
+    const filteredCities = useMemo(() => {
+        let result = cities;
+        if (activeRegion !== 'Tümü') {
+            result = result.filter(c => c.region === activeRegion);
+        }
+        if (searchQuery.trim().length > 0) {
+            const q = searchQuery.trim().toLowerCase();
+            result = result.filter(c =>
+                c.name.toLowerCase().includes(q) ||
+                c.region.toLowerCase().includes(q)
+            );
+        }
+        return result;
+    }, [cities, activeRegion, searchQuery]);
 
     if (loading) return <HomeScreenSkeleton />;
 
@@ -122,7 +156,7 @@ const HomeScreen = ({ navigation }) => {
 
     return (
         <View style={styles.root}>
-            {/* ═══ HERO — STICKY ARKAPLAN (sadece resim) ═══ */}
+            {/* ═══ HERO — STICKY ARKAPLAN ═══ */}
             <View style={styles.heroSection}>
                 <Animated.View
                     style={[
@@ -145,6 +179,7 @@ const HomeScreen = ({ navigation }) => {
 
             {/* ═══ SCROLLABLE İÇERİK ═══ */}
             <Animated.ScrollView
+                ref={scrollViewRef}
                 style={styles.scrollView}
                 contentContainerStyle={styles.contentContainer}
                 showsVerticalScrollIndicator={false}
@@ -162,7 +197,7 @@ const HomeScreen = ({ navigation }) => {
                     />
                 }
             >
-                {/* Hero içeriği — ScrollView içinde, dokunulabilir */}
+                {/* Hero içeriği */}
                 <View style={styles.heroContent}>
                     <View style={styles.heroBadge}>
                         <Ionicons name="location" size={14} color="#fff" />
@@ -174,17 +209,9 @@ const HomeScreen = ({ navigation }) => {
                     <Text style={styles.heroSubtitle}>
                         Akıllı rotalar oluştur, hayalindeki seyahati planla
                     </Text>
-                    <TouchableOpacity
-                        style={styles.heroCTA}
-                        onPress={openDiscoverTab}
-                        activeOpacity={0.85}
-                    >
-                        <Ionicons name="compass" size={16} color="#fff" />
-                        <Text style={styles.heroCTAText}>Şehirleri Keşfet</Text>
-                        <Ionicons name="arrow-forward" size={16} color="#fff" />
-                    </TouchableOpacity>
                 </View>
-                {/* İçerik kartı — beyaz yüzey üstünde */}
+
+                {/* İçerik kartı — beyaz yüzey */}
                 <View style={styles.contentCard}>
                     {error && <ErrorMessage message={error} onRetry={fetchData} />}
 
@@ -208,101 +235,144 @@ const HomeScreen = ({ navigation }) => {
                         </TouchableOpacity>
                     )}
 
-                    {/* Gezi Planla CTA */}
-                    <TouchableOpacity
-                        style={styles.planCTA}
-                        onPress={() => {
-                            if (!requireAuth('Gezi planı oluşturmak için giriş yapmalısınız.')) return;
-                            navigation.navigate('CreateItinerary', {});
-                        }}
-                        activeOpacity={0.88}
-                    >
-                        <LinearGradient
-                            colors={COLORS.gradients.brand}
-                            style={styles.planCTAGradient}
-                            start={{ x: 0, y: 0 }}
-                            end={{ x: 1, y: 0 }}
-                        >
-                            <View style={styles.planCTAContent}>
-                                <View style={styles.planCTALeft}>
-                                    <View style={styles.planCTAIconWrap}>
-                                        <Ionicons name="calendar" size={22} color="#fff" />
-                                    </View>
-                                    <View>
-                                        <Text style={styles.planCTATitle}>Gezi Planla</Text>
-                                        <Text style={styles.planCTASub}>Şehir seç, akıllı rota oluştur</Text>
-                                    </View>
-                                </View>
-                                <View style={styles.planCTAArrow}>
-                                    <Ionicons name="arrow-forward" size={18} color="#fff" />
-                                </View>
-                            </View>
-                        </LinearGradient>
-                    </TouchableOpacity>
-
-                    {/* Aktif Plan Banner */}
-                    {ongoingCount > 0 && (
+                    {/* ═══ HIZLI İŞLEMLER — Minimalist ═══ */}
+                    <View style={styles.quickRow}>
                         <TouchableOpacity
-                            style={styles.activePlanBanner}
-                            onPress={() => navigation.navigate('Saved')}
-                            activeOpacity={0.88}
+                            style={styles.quickItem}
+                            onPress={() => {
+                                if (!requireAuth('Gezi planı oluşturmak için giriş yapmalısınız.')) return;
+                                navigation.navigate('CreateItinerary', {});
+                            }}
+                            activeOpacity={0.7}
                         >
-                            <LinearGradient
-                                colors={COLORS.gradients.brand}
-                                style={styles.bannerGradient}
-                                start={{ x: 0, y: 0 }}
-                                end={{ x: 1, y: 0 }}
-                            >
-                                <View style={styles.bannerIconContainer}>
-                                    <Ionicons name="map" size={20} color="#fff" />
-                                </View>
-                                <View style={styles.bannerTextContainer}>
-                                    <Text style={styles.bannerLabel}>AKTİF PLAN</Text>
-                                    <Text style={styles.bannerTitle}>
-                                        {ongoingCount} gezi planın seni bekliyor!
-                                    </Text>
-                                </View>
-                                <Ionicons name="chevron-forward" size={18} color="rgba(255,255,255,0.8)" />
-                            </LinearGradient>
+                            <View style={[styles.quickIcon, { backgroundColor: COLORS.primary + '12' }]}>
+                                <Ionicons name="add-circle-outline" size={22} color={COLORS.primary} />
+                            </View>
+                            <Text style={styles.quickLabel}>Gezi Planla</Text>
                         </TouchableOpacity>
-                    )}
 
-                    {/* Popüler Şehirler */}
+                        {ongoingCount > 0 && (
+                            <TouchableOpacity
+                                style={styles.quickItem}
+                                onPress={() => navigation.navigate('Saved')}
+                                activeOpacity={0.7}
+                            >
+                                <View style={[styles.quickIcon, { backgroundColor: COLORS.success + '12' }]}>
+                                    <View style={styles.quickBadge}>
+                                        <Text style={styles.quickBadgeText}>{ongoingCount}</Text>
+                                    </View>
+                                    <Ionicons name="map-outline" size={22} color={COLORS.success} />
+                                </View>
+                                <Text style={styles.quickLabel}>Aktif Plan</Text>
+                            </TouchableOpacity>
+                        )}
+
+                        <TouchableOpacity
+                            style={styles.quickItem}
+                            onPress={() => navigation.navigate('Saved')}
+                            activeOpacity={0.7}
+                        >
+                            <View style={[styles.quickIcon, { backgroundColor: COLORS.accent + '12' }]}>
+                                <Ionicons name="bookmarks-outline" size={20} color={COLORS.accent} />
+                            </View>
+                            <Text style={styles.quickLabel}>Planlarım</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                            style={styles.quickItem}
+                            onPress={() => navigation.navigate('Favorites')}
+                            activeOpacity={0.7}
+                        >
+                            <View style={[styles.quickIcon, { backgroundColor: '#EF444412' }]}>
+                                <Ionicons name="heart-outline" size={20} color="#EF4444" />
+                            </View>
+                            <Text style={styles.quickLabel}>Favoriler</Text>
+                        </TouchableOpacity>
+                    </View>
+
+                    {/* ═══ ŞEHİRLER — Arama + Filtre + Grid ═══ */}
                     <Animated.View style={[styles.section, {
                         opacity: cityCardAnim,
                         transform: [{ translateY: cityCardAnim.interpolate({ inputRange: [0, 1], outputRange: [30, 0] }) }]
                     }]}>
                         <View style={styles.sectionHeaderRow}>
                             <View>
-                                <Text style={styles.sectionTitle}>Popüler Şehirler</Text>
-                                <Text style={styles.sectionSubtitle}>Bir şehre dokun, içini keşfet</Text>
+                                <Text style={styles.sectionTitle}>Şehirler</Text>
+                                <Text style={styles.sectionSubtitle}>{filteredCities.length} şehir</Text>
                             </View>
-                            <TouchableOpacity
-                                onPress={openDiscoverTab}
-                                style={styles.seeAllBtn}
-                            >
-                                <Text style={styles.seeAllText}>Tümü</Text>
-                                <Ionicons name="arrow-forward" size={12} color={COLORS.primary} />
-                            </TouchableOpacity>
                         </View>
-                        <View style={styles.cityGrid}>
-                            {cities.map((city, index) => {
-                                const images = getCityImages(city.name, city.region);
+
+                        {/* Arama kutusu */}
+                        <View style={styles.searchContainer}>
+                            <Ionicons name="search-outline" size={18} color={COLORS.textSecondary} />
+                            <TextInput
+                                style={styles.searchInput}
+                                placeholder="Şehir veya bölge ara..."
+                                placeholderTextColor={COLORS.textLight}
+                                value={searchQuery}
+                                onChangeText={setSearchQuery}
+                                returnKeyType="search"
+                                clearButtonMode="while-editing"
+                            />
+                            {searchQuery.length > 0 && (
+                                <TouchableOpacity onPress={() => setSearchQuery('')}>
+                                    <Ionicons name="close-circle" size={18} color={COLORS.textLight} />
+                                </TouchableOpacity>
+                            )}
+                        </View>
+
+                        {/* Bölge filtreleri */}
+                        <ScrollView
+                            horizontal
+                            showsHorizontalScrollIndicator={false}
+                            contentContainerStyle={styles.regionFilters}
+                        >
+                            {regions.map((region) => {
+                                const isActive = activeRegion === region;
+                                const dotColor = REGION_COLORS[region] || COLORS.primary;
                                 return (
-                                    <CityCard
-                                        key={city.id}
-                                        city={city}
-                                        images={images}
-                                        index={index}
-                                        onPress={() => handleCityPress(city)}
-                                        onPlanPress={() => {
-                                            if (!requireAuth('Gezi planı oluşturmak için giriş yapmalısınız.')) return;
-                                            navigation.navigate('CreateItinerary', { preselectedCity: city });
-                                        }}
-                                    />
+                                    <TouchableOpacity
+                                        key={region}
+                                        style={[styles.regionChip, isActive && styles.regionChipActive, isActive && { borderColor: dotColor + '60', backgroundColor: dotColor + '12' }]}
+                                        onPress={() => setActiveRegion(region)}
+                                        activeOpacity={0.7}
+                                    >
+                                        <View style={[styles.regionDot, { backgroundColor: dotColor }]} />
+                                        <Text style={[styles.regionText, isActive && styles.regionTextActive, isActive && { color: dotColor }]}>{region}</Text>
+                                    </TouchableOpacity>
                                 );
                             })}
-                        </View>
+                        </ScrollView>
+
+                        {/* Şehir grid'i — 2'li sütun */}
+                        {filteredCities.length === 0 ? (
+                            <View style={styles.emptySearch}>
+                                <Ionicons name="search-outline" size={36} color={COLORS.textLight} />
+                                <Text style={styles.emptySearchTitle}>Sonuç bulunamadı</Text>
+                                <Text style={styles.emptySearchText}>
+                                    Farklı bir arama terimi veya bölge deneyin
+                                </Text>
+                            </View>
+                        ) : (
+                            <View style={styles.cityGrid}>
+                                {filteredCities.map((city, index) => {
+                                    const images = getCityImages(city.name, city.region);
+                                    return (
+                                        <CityCard
+                                            key={city.id}
+                                            city={city}
+                                            images={images}
+                                            index={index}
+                                            onPress={() => handleCityPress(city)}
+                                            onPlanPress={() => {
+                                                if (!requireAuth('Gezi planı oluşturmak için giriş yapmalısınız.')) return;
+                                                navigation.navigate('CreateItinerary', { preselectedCity: city });
+                                            }}
+                                        />
+                                    );
+                                })}
+                            </View>
+                        )}
                     </Animated.View>
 
                     {/* Son Planlar */}
@@ -373,7 +443,7 @@ const HomeScreen = ({ navigation }) => {
     );
 };
 
-// ─── City Card — memoized ─────────────────────────────────────────────────
+// ─── City Card — Grid kartı ─────────────────────────────────────────────────
 const CityCard = React.memo(({ city, images, index, onPress, onPlanPress }) => {
     const scaleAnim = useRef(new Animated.Value(1)).current;
 
@@ -401,7 +471,7 @@ const CityCard = React.memo(({ city, images, index, onPress, onPlanPress }) => {
                     transition={500}
                 />
                 <LinearGradient
-                    colors={['transparent', 'rgba(0,0,0,0.35)', 'rgba(0,0,0,0.82)']}
+                    colors={['transparent', 'rgba(0,0,0,0.35)', 'rgba(0,0,0,0.85)']}
                     style={styles.cityCardGradient}
                 />
                 <View style={styles.cityCardContent}>
@@ -437,13 +507,13 @@ const styles = StyleSheet.create({
     },
     heroImage: {
         width: '100%',
-        height: HERO_HEIGHT + 60, // erken kesilmesin
+        height: HERO_HEIGHT + 60,
     },
     heroContent: {
         height: HERO_HEIGHT,
-        justifyContent: 'center',
+        justifyContent: 'flex-start',
         paddingHorizontal: SPACING.lg,
-        paddingTop: SPACING.xxl,
+        paddingTop: Platform.OS === 'ios' ? 80 : 60,
     },
     heroBadge: {
         flexDirection: 'row',
@@ -465,36 +535,22 @@ const styles = StyleSheet.create({
         letterSpacing: 0.5,
     },
     heroTitle: {
-        fontFamily: FONTS.heading,
-        fontSize: 40,
+        fontFamily: FONTS.display,
+        fontSize: FONT_SIZES.display,
         color: '#fff',
-        lineHeight: 48,
-        marginBottom: SPACING.sm,
-        letterSpacing: -1,
+        lineHeight: 50,
+        marginBottom: SPACING.md,
+        letterSpacing: -1.5,
+        textShadowColor: 'rgba(0,0,0,0.3)',
+        textShadowOffset: { width: 0, height: 2 },
+        textShadowRadius: 8,
     },
     heroSubtitle: {
-        fontFamily: FONTS.body,
-        fontSize: FONT_SIZES.sm,
-        color: 'rgba(255,255,255,0.82)',
-        lineHeight: 20,
-        marginBottom: SPACING.md,
-    },
-    heroCTA: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 8,
-        backgroundColor: COLORS.primaryDark,
-        paddingVertical: 12,
-        paddingHorizontal: 22,
-        borderRadius: BORDER_RADIUS.lg,
-        alignSelf: 'flex-start',
-        borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.2)',
-    },
-    heroCTAText: {
-        fontFamily: FONTS.bodySemiBold,
-        fontSize: FONT_SIZES.sm,
-        color: '#fff',
+        fontFamily: FONTS.bodyMedium,
+        fontSize: FONT_SIZES.md,
+        color: 'rgba(255,255,255,0.9)',
+        lineHeight: 24,
+        maxWidth: '85%',
     },
 
     // ─── SCROLLVIEW ───
@@ -543,91 +599,48 @@ const styles = StyleSheet.create({
         color: COLORS.textSecondary, marginTop: 1,
     },
 
-    // ─── PLAN CTA ───
-    planCTA: {
+    // ─── HIZLI İŞLEMLER (Minimalist) ───
+    quickRow: {
+        flexDirection: 'row',
+        justifyContent: 'center',
+        gap: SPACING.lg,
         marginHorizontal: SPACING.lg,
-        marginBottom: SPACING.md,
-        borderRadius: BORDER_RADIUS.xl,
-        overflow: 'hidden',
-        shadowColor: COLORS.primary,
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.25,
-        shadowRadius: 12,
-        elevation: 6,
+        marginBottom: SPACING.lg,
+        paddingVertical: SPACING.sm,
     },
-    planCTAGradient: {
-        borderRadius: BORDER_RADIUS.xl,
-    },
-    planCTAContent: {
-        flexDirection: 'row',
+    quickItem: {
         alignItems: 'center',
-        justifyContent: 'space-between',
-        padding: SPACING.md + 2,
+        gap: 6,
     },
-    planCTALeft: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: SPACING.sm,
-    },
-    planCTAIconWrap: {
-        width: 44,
-        height: 44,
-        borderRadius: 14,
-        backgroundColor: 'rgba(255,255,255,0.2)',
+    quickIcon: {
+        width: 52,
+        height: 52,
+        borderRadius: 16,
         justifyContent: 'center',
         alignItems: 'center',
     },
-    planCTATitle: {
+    quickLabel: {
+        fontFamily: FONTS.bodyMedium,
+        fontSize: 11,
+        color: COLORS.textSecondary,
+        textAlign: 'center',
+    },
+    quickBadge: {
+        position: 'absolute',
+        top: -4,
+        right: -4,
+        width: 18,
+        height: 18,
+        borderRadius: 9,
+        backgroundColor: COLORS.success,
+        justifyContent: 'center',
+        alignItems: 'center',
+        zIndex: 1,
+    },
+    quickBadgeText: {
         fontFamily: FONTS.bodySemiBold,
-        fontSize: FONT_SIZES.md,
+        fontSize: 10,
         color: '#fff',
-        letterSpacing: -0.2,
-    },
-    planCTASub: {
-        fontFamily: FONTS.body,
-        fontSize: FONT_SIZES.xs,
-        color: 'rgba(255,255,255,0.8)',
-        marginTop: 1,
-    },
-    planCTAArrow: {
-        width: 32,
-        height: 32,
-        borderRadius: 10,
-        backgroundColor: 'rgba(255,255,255,0.2)',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-
-    // ─── ACTIVE PLAN BANNER ───
-    activePlanBanner: {
-        marginHorizontal: SPACING.lg,
-        marginBottom: SPACING.md,
-        borderRadius: BORDER_RADIUS.xl,
-        overflow: 'hidden',
-        shadowColor: COLORS.primary,
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.2,
-        shadowRadius: 12,
-        elevation: 5,
-    },
-    bannerGradient: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        padding: SPACING.md,
-        gap: SPACING.sm,
-    },
-    bannerIconContainer: {
-        width: 40, height: 40, borderRadius: 12,
-        backgroundColor: 'rgba(255,255,255,0.2)',
-        justifyContent: 'center', alignItems: 'center',
-    },
-    bannerTextContainer: { flex: 1 },
-    bannerLabel: {
-        fontFamily: FONTS.bodySemiBold, fontSize: 9,
-        color: 'rgba(255,255,255,0.75)', letterSpacing: 1.5, marginBottom: 2,
-    },
-    bannerTitle: {
-        fontFamily: FONTS.bodySemiBold, fontSize: FONT_SIZES.md, color: '#fff',
     },
 
     // ─── SECTIONS ───
@@ -639,7 +652,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'flex-end',
-        marginBottom: SPACING.sm + 2,
+        marginBottom: SPACING.sm,
     },
     sectionTitle: {
         fontFamily: FONTS.bodySemiBold,
@@ -668,23 +681,79 @@ const styles = StyleSheet.create({
         color: COLORS.primary,
     },
 
-    // ─── CITY GRID ───
+    // ─── ARAMA ───
+    searchContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: COLORS.surface,
+        borderRadius: BORDER_RADIUS.lg,
+        paddingHorizontal: SPACING.md,
+        paddingVertical: Platform.OS === 'ios' ? 12 : 6,
+        marginBottom: SPACING.sm,
+        borderWidth: 1,
+        borderColor: COLORS.border,
+        gap: SPACING.sm,
+    },
+    searchInput: {
+        flex: 1,
+        fontFamily: FONTS.body,
+        fontSize: FONT_SIZES.md,
+        color: COLORS.textPrimary,
+        paddingVertical: 0,
+    },
+
+    // ─── BÖLGE FİLTRELERİ ───
+    regionFilters: {
+        gap: 8,
+        paddingBottom: SPACING.sm + 4,
+    },
+    regionChip: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        paddingHorizontal: 14,
+        paddingVertical: 8,
+        borderRadius: BORDER_RADIUS.full,
+        backgroundColor: COLORS.surface,
+        borderWidth: 1,
+        borderColor: COLORS.border,
+    },
+    regionChipActive: {
+        backgroundColor: COLORS.primary + '12',
+        borderColor: COLORS.primary + '40',
+    },
+    regionDot: {
+        width: 7,
+        height: 7,
+        borderRadius: 4,
+    },
+    regionText: {
+        fontFamily: FONTS.bodyMedium,
+        fontSize: FONT_SIZES.xs,
+        color: COLORS.textSecondary,
+    },
+    regionTextActive: {
+        color: COLORS.primary,
+        fontFamily: FONTS.bodySemiBold,
+    },
+
+    // ─── ŞEHİR GRID ───
     cityGrid: {
         flexDirection: 'row',
         flexWrap: 'wrap',
         gap: SPACING.sm,
     },
     cityCard: {
-        width: (SCREEN_WIDTH - SPACING.lg * 2 - SPACING.sm) / 2,
-        height: 165,
+        width: CITY_CARD_WIDTH,
+        height: 160,
         borderRadius: BORDER_RADIUS.xl,
         overflow: 'hidden',
         position: 'relative',
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.15,
-        shadowRadius: 10,
-        elevation: 5,
+        shadowOffset: { width: 0, height: 3 },
+        shadowOpacity: 0.12,
+        shadowRadius: 8,
+        elevation: 4,
     },
     cityCardImage: {
         ...StyleSheet.absoluteFillObject,
@@ -723,6 +792,24 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         borderWidth: 1,
         borderColor: 'rgba(255,255,255,0.3)',
+    },
+
+    // ─── BOŞTA ARAMA ───
+    emptySearch: {
+        alignItems: 'center',
+        paddingVertical: SPACING.xxl,
+        gap: SPACING.sm,
+    },
+    emptySearchTitle: {
+        fontFamily: FONTS.bodySemiBold,
+        fontSize: FONT_SIZES.md,
+        color: COLORS.textPrimary,
+    },
+    emptySearchText: {
+        fontFamily: FONTS.body,
+        fontSize: FONT_SIZES.sm,
+        color: COLORS.textSecondary,
+        textAlign: 'center',
     },
 
     // ─── RECENT PLANS ───
