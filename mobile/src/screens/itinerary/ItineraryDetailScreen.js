@@ -333,55 +333,14 @@ const ItineraryDetailScreen = ({ route, navigation }) => {
                             <View style={[styles.overviewProgressFill, { width: `${progress.percentage}%` }]} />
                         </View>
 
-                        <View style={styles.overviewPreviewRow}>
-                            {routePreview.map((item, idx, arr) => (
-                                    <React.Fragment key={item.id}>
-                                        <View style={styles.overviewPreviewStop}>
-                                            <View style={[styles.overviewPreviewDot, item.is_completed && styles.overviewPreviewDotDone]}>
-                                                {item.is_completed
-                                                    ? <Ionicons name="checkmark" size={10} color="#fff" />
-                                                    : <Text style={styles.overviewPreviewNum}>{idx + 1}</Text>
-                                                }
-                                            </View>
-                                            <Text style={styles.overviewPreviewName} numberOfLines={1}>
-                                                {item.places?.name?.split(' ')[0] || `Durak ${idx + 1}`}
-                                            </Text>
-                                        </View>
-                                        {idx < arr.length - 1 && (
-                                            <View style={styles.overviewPreviewConnector}>
-                                                <View style={styles.overviewPreviewConnectorDot} />
-                                                <View style={styles.overviewPreviewConnectorDot} />
-                                                <View style={styles.overviewPreviewConnectorDot} />
-                                            </View>
-                                        )}
-                                    </React.Fragment>
-                                ))
-                            }
-                            {routeItems.length > 4 && (
-                                <View style={styles.overviewPreviewMoreBadge}>
-                                    <Text style={styles.overviewPreviewMoreText}>+{routeItems.length - 4}</Text>
-                                </View>
-                            )}
-                        </View>
-
-                        <View style={styles.overviewActionsRow}>
-                            <TouchableOpacity
-                                style={styles.overviewMainBtn}
-                                onPress={() => openRouteInMaps('driving')}
-                                activeOpacity={0.85}
-                            >
-                                <Ionicons name="car" size={18} color="#fff" />
-                                <Text style={styles.overviewMainBtnText}>Arabayla Aç</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                                style={styles.overviewGhostBtn}
-                                onPress={() => openRouteInMaps('walking')}
-                                activeOpacity={0.85}
-                            >
-                                <Ionicons name="walk-outline" size={18} color={COLORS.primary} />
-                                <Text style={styles.overviewGhostBtnText}>Yürüyüş</Text>
-                            </TouchableOpacity>
-                        </View>
+                        <TouchableOpacity
+                            style={styles.overviewMainBtn}
+                            onPress={() => openRouteInMaps('driving')}
+                            activeOpacity={0.85}
+                        >
+                            <Ionicons name="car" size={18} color="#fff" />
+                            <Text style={styles.overviewMainBtnText}>Google Maps'te Aç</Text>
+                        </TouchableOpacity>
                     </View>
                 </View>
 
@@ -706,7 +665,6 @@ const styles = StyleSheet.create({
         gap: SPACING.sm,
     },
     overviewMainBtn: {
-        flex: 1,
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',

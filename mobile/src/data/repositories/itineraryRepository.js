@@ -76,7 +76,7 @@ export const getItineraryById = async (itineraryId) => {
             id, user_id, city_id, days, status,
             has_accommodation, has_transport,
             start_location_lat, start_location_lng,
-            total_budget, plan, created_at,
+            start_date, total_budget, plan, created_at,
             cities ( name ),
             itinerary_items (
                 id, place_id, day_number, order_index, is_completed,

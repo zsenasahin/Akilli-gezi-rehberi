@@ -69,6 +69,7 @@ export const COLORS = {
         brand: [PALETTE.brand[500], PALETTE.brand[600], PALETTE.accent[500]],
         primary: [PALETTE.brand[500], PALETTE.brand[600]],
         accent: [PALETTE.accent[500], PALETTE.accent[600]],
+        success: ['#22C55E', '#16A34A'],
         heroOverlay: ['rgba(0,0,0,0.15)', 'rgba(0,0,0,0.4)', 'rgba(0,0,0,0.85)'],
         cardOverlay: ['transparent', 'rgba(0,0,0,0.6)'],
     },

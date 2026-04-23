@@ -3,6 +3,7 @@ import {
     View,
     Text,
     StyleSheet,
+    Image,
     KeyboardAvoidingView,
     Platform,
     ScrollView,
@@ -18,13 +19,13 @@ import { COLORS } from '../../constants/colors';
 import { FONTS, FONT_SIZES } from '../../constants/typography';
 import { SPACING, BORDER_RADIUS } from '../../constants/layout';
 import Input from '../../components/common/Input';
-import Button from '../../components/common/Button';
 import ErrorMessage from '../../components/common/ErrorMessage';
 import { signUp, signInWithGoogle, signInWithApple, resendVerificationEmail } from '../../services/authService';
 import { createProfile } from '../../services/profileService';
 import { isValidEmail, isValidPassword } from '../../utils/validators';
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
+const registerHeroImage = require('../../../assets/Trip-amico.png');
 
 // ─── Floating orbs ──────────────────────────────────────────────────────────
 const FloatingOrb = ({ size, startX, startY, delay, color }) => {
@@ -259,13 +260,13 @@ const RegisterScreen = ({ navigation }) => {
         return (
             <View style={styles.root}>
                 <LinearGradient
-                    colors={['#0C4A6E', '#0E7490', '#0891B2', '#14B8A6']}
+                    colors={['#FFF6E5', '#E9F7EF', '#EAF4FF']}
                     style={StyleSheet.absoluteFill}
                     start={{ x: 0.1, y: 0 }}
                     end={{ x: 0.9, y: 1 }}
                 />
-                <FloatingOrb size={100} startX={-20} startY={120} delay={0} color="rgba(255,255,255,0.06)" />
-                <FloatingOrb size={70} startX={SCREEN_W - 40} startY={200} delay={200} color="rgba(20,184,166,0.1)" />
+                <FloatingOrb size={100} startX={-20} startY={120} delay={0} color="rgba(255,255,255,0.4)" />
+                <FloatingOrb size={70} startX={SCREEN_W - 40} startY={200} delay={200} color="rgba(110,231,183,0.22)" />
 
                 <View style={styles.verifyWrapper}>
                     <Animated.View style={[styles.verifyCard, verifyAnim]}>
@@ -296,7 +297,7 @@ const RegisterScreen = ({ navigation }) => {
                             activeOpacity={0.9}
                         >
                             <LinearGradient
-                                colors={['#0891B2', '#0E7490']}
+                                colors={['#1D4ED8', '#2563EB']}
                                 style={styles.verifyPrimaryBtnInner}
                                 start={{ x: 0, y: 0 }}
                                 end={{ x: 1, y: 0 }}
@@ -331,16 +332,16 @@ const RegisterScreen = ({ navigation }) => {
         <View style={styles.root}>
             {/* Multi-layer gradient background */}
             <LinearGradient
-                colors={['#134E5E', '#0E7490', '#14B8A6', '#0891B2']}
+                colors={['#FFF6E5', '#E9F7EF', '#EAF4FF']}
                 style={StyleSheet.absoluteFill}
                 start={{ x: 0.2, y: 0 }}
                 end={{ x: 0.8, y: 1 }}
             />
 
             {/* Floating orbs */}
-            <FloatingOrb size={110} startX={SCREEN_W - 50} startY={70} delay={0} color="rgba(255,255,255,0.06)" />
-            <FloatingOrb size={70} startX={20} startY={150} delay={300} color="rgba(20,184,166,0.12)" />
-            <FloatingOrb size={90} startX={SCREEN_W * 0.3} startY={50} delay={500} color="rgba(255,255,255,0.08)" />
+            <FloatingOrb size={110} startX={SCREEN_W - 50} startY={70} delay={0} color="rgba(255,255,255,0.4)" />
+            <FloatingOrb size={70} startX={20} startY={150} delay={300} color="rgba(253,164,175,0.2)" />
+            <FloatingOrb size={90} startX={SCREEN_W * 0.3} startY={50} delay={500} color="rgba(125,211,252,0.2)" />
 
             {/* Close button */}
             <TouchableOpacity
@@ -366,14 +367,10 @@ const RegisterScreen = ({ navigation }) => {
                 >
                     {/* ═══ Header ═══ */}
                     <Animated.View style={[styles.headerArea, headerAnim]}>
-                        <View style={styles.logoContainer}>
-                            <View style={styles.logoRing}>
-                                <Ionicons name="person-add" size={26} color="#fff" />
-                            </View>
-                        </View>
+                        <Image source={registerHeroImage} style={styles.heroImage} resizeMode="contain" />
                         <Text style={styles.brandTitle}>Hesap Oluştur</Text>
                         <Text style={styles.brandSubtitle}>
-                            Gezi planlamaya hemen başla
+                            Kendi gezi koleksiyonunu olusturmak icin hemen katil
                         </Text>
                     </Animated.View>
 
@@ -465,7 +462,7 @@ const RegisterScreen = ({ navigation }) => {
                                 activeOpacity={0.9}
                             >
                                 <LinearGradient
-                                    colors={['#14B8A6', '#0891B2']}
+                                    colors={['#1D4ED8', '#2563EB']}
                                     style={styles.primaryBtnGradient}
                                     start={{ x: 0, y: 0 }}
                                     end={{ x: 1, y: 0 }}
@@ -554,11 +551,11 @@ const styles = StyleSheet.create({
         width: 36,
         height: 36,
         borderRadius: 18,
-        backgroundColor: 'rgba(255,255,255,0.15)',
+        backgroundColor: 'rgba(15,23,42,0.12)',
         justifyContent: 'center',
         alignItems: 'center',
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.2)',
+        borderColor: 'rgba(15,23,42,0.15)',
     },
 
     // Orbs
@@ -567,45 +564,37 @@ const styles = StyleSheet.create({
     // Header
     headerArea: {
         alignItems: 'center',
-        marginBottom: SPACING.xl - 8,
+        marginBottom: SPACING.md,
     },
-    logoContainer: {
-        marginBottom: SPACING.sm,
-    },
-    logoRing: {
-        width: 56,
-        height: 56,
-        borderRadius: 28,
-        backgroundColor: 'rgba(255,255,255,0.15)',
-        justifyContent: 'center',
-        alignItems: 'center',
-        borderWidth: 1.5,
-        borderColor: 'rgba(255,255,255,0.25)',
+    heroImage: {
+        width: SCREEN_W * 0.62,
+        height: 160,
+        marginBottom: 6,
     },
     brandTitle: {
         fontFamily: FONTS.heading,
         fontSize: 30,
-        color: '#fff',
+        color: '#0F172A',
         letterSpacing: -0.8,
         marginBottom: 4,
     },
     brandSubtitle: {
         fontFamily: FONTS.body,
         fontSize: FONT_SIZES.sm,
-        color: 'rgba(255,255,255,0.7)',
+        color: '#334155',
         textAlign: 'center',
     },
 
     // Form Card
     formCard: {
-        backgroundColor: 'rgba(255,255,255,0.95)',
+        backgroundColor: 'rgba(255,255,255,0.97)',
         borderRadius: 24,
         padding: SPACING.lg,
         marginBottom: SPACING.lg,
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 12 },
-        shadowOpacity: 0.15,
-        shadowRadius: 30,
+        shadowOpacity: 0.12,
+        shadowRadius: 20,
         elevation: 15,
     },
     inputGroup: {
@@ -697,12 +686,12 @@ const styles = StyleSheet.create({
     dividerLine: {
         flex: 1,
         height: 1,
-        backgroundColor: 'rgba(255,255,255,0.2)',
+        backgroundColor: 'rgba(30,41,59,0.2)',
     },
     dividerText: {
         fontFamily: FONTS.body,
         fontSize: FONT_SIZES.xs,
-        color: 'rgba(255,255,255,0.6)',
+        color: 'rgba(15,23,42,0.6)',
         marginHorizontal: SPACING.md,
     },
     socialBtn: {
@@ -755,12 +744,12 @@ const styles = StyleSheet.create({
     footerText: {
         fontFamily: FONTS.body,
         fontSize: FONT_SIZES.sm,
-        color: 'rgba(255,255,255,0.7)',
+        color: 'rgba(15,23,42,0.7)',
     },
     footerLink: {
         fontFamily: FONTS.bodySemiBold,
         fontSize: FONT_SIZES.sm,
-        color: '#fff',
+        color: '#1D4ED8',
         textDecorationLine: 'underline',
     },
 

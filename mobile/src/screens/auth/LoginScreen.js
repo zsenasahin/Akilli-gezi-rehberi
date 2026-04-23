@@ -3,6 +3,7 @@ import {
     View,
     Text,
     StyleSheet,
+    Image,
     KeyboardAvoidingView,
     Platform,
     ScrollView,
@@ -18,12 +19,12 @@ import { COLORS } from '../../constants/colors';
 import { FONTS, FONT_SIZES } from '../../constants/typography';
 import { SPACING, BORDER_RADIUS } from '../../constants/layout';
 import Input from '../../components/common/Input';
-import Button from '../../components/common/Button';
 import ErrorMessage from '../../components/common/ErrorMessage';
 import { signIn, signInWithGoogle, signInWithApple, sendPasswordReset } from '../../services/authService';
 import { isValidEmail, isValidPassword } from '../../utils/validators';
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
+const loginHeroImage = require('../../../assets/Flying around the world-cuate.png');
 
 // ─── Floating orbs animasyonu ───────────────────────────────────────────────
 const FloatingOrb = ({ size, startX, startY, delay, color }) => {
@@ -237,17 +238,17 @@ const LoginScreen = ({ navigation }) => {
         <View style={styles.root}>
             {/* Multi-layer gradient background */}
             <LinearGradient
-                colors={['#0C4A6E', '#0E7490', '#0891B2', '#14B8A6']}
+                colors={['#FFF6E5', '#E9F7EF', '#EAF4FF']}
                 style={StyleSheet.absoluteFill}
                 start={{ x: 0.1, y: 0 }}
                 end={{ x: 0.9, y: 1 }}
             />
 
             {/* Floating orbs */}
-            <FloatingOrb size={120} startX={-30} startY={80} delay={0} color="rgba(255,255,255,0.06)" />
-            <FloatingOrb size={80} startX={SCREEN_W - 60} startY={140} delay={300} color="rgba(20,184,166,0.12)" />
-            <FloatingOrb size={60} startX={SCREEN_W * 0.4} startY={60} delay={600} color="rgba(255,255,255,0.08)" />
-            <FloatingOrb size={100} startX={SCREEN_W * 0.6} startY={200} delay={150} color="rgba(8,145,178,0.1)" />
+            <FloatingOrb size={120} startX={-30} startY={80} delay={0} color="rgba(255,255,255,0.4)" />
+            <FloatingOrb size={80} startX={SCREEN_W - 60} startY={140} delay={300} color="rgba(253,164,175,0.2)" />
+            <FloatingOrb size={60} startX={SCREEN_W * 0.4} startY={60} delay={600} color="rgba(125,211,252,0.2)" />
+            <FloatingOrb size={100} startX={SCREEN_W * 0.6} startY={200} delay={150} color="rgba(110,231,183,0.22)" />
 
             {/* Close button */}
             <TouchableOpacity
@@ -273,14 +274,10 @@ const LoginScreen = ({ navigation }) => {
                 >
                     {/* ═══ Header ═══ */}
                     <Animated.View style={[styles.headerArea, headerAnim]}>
-                        <View style={styles.logoContainer}>
-                            <View style={styles.logoRing}>
-                                <Ionicons name="compass" size={28} color="#fff" />
-                            </View>
-                        </View>
-                        <Text style={styles.brandTitle}>Hoş Geldin</Text>
+                        <Image source={loginHeroImage} style={styles.heroImage} resizeMode="contain" />
+                        <Text style={styles.brandTitle}>Yeniden Hos Geldin</Text>
                         <Text style={styles.brandSubtitle}>
-                            Hesabına giriş yaparak kaldığın yerden devam et
+                            Gezi planlarini yonetmek ve yeni rotalar kesfetmek icin giris yap
                         </Text>
                     </Animated.View>
 
@@ -337,7 +334,7 @@ const LoginScreen = ({ navigation }) => {
                                 activeOpacity={0.9}
                             >
                                 <LinearGradient
-                                    colors={['#0891B2', '#0E7490']}
+                                    colors={['#1D4ED8', '#2563EB']}
                                     style={styles.primaryBtnGradient}
                                     start={{ x: 0, y: 0 }}
                                     end={{ x: 1, y: 0 }}
@@ -445,11 +442,11 @@ const styles = StyleSheet.create({
         width: 36,
         height: 36,
         borderRadius: 18,
-        backgroundColor: 'rgba(255,255,255,0.15)',
+        backgroundColor: 'rgba(15,23,42,0.12)',
         justifyContent: 'center',
         alignItems: 'center',
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.2)',
+        borderColor: 'rgba(15,23,42,0.15)',
     },
 
     // Floating orbs
@@ -460,32 +457,24 @@ const styles = StyleSheet.create({
     // Header
     headerArea: {
         alignItems: 'center',
-        marginBottom: SPACING.xl,
-    },
-    logoContainer: {
         marginBottom: SPACING.md,
     },
-    logoRing: {
-        width: 60,
-        height: 60,
-        borderRadius: 30,
-        backgroundColor: 'rgba(255,255,255,0.15)',
-        justifyContent: 'center',
-        alignItems: 'center',
-        borderWidth: 1.5,
-        borderColor: 'rgba(255,255,255,0.25)',
+    heroImage: {
+        width: SCREEN_W * 0.6,
+        height: 150,
+        marginBottom: 6,
     },
     brandTitle: {
         fontFamily: FONTS.heading,
         fontSize: 32,
-        color: '#fff',
+        color: '#0F172A',
         letterSpacing: -0.8,
         marginBottom: 6,
     },
     brandSubtitle: {
         fontFamily: FONTS.body,
         fontSize: FONT_SIZES.sm,
-        color: 'rgba(255,255,255,0.7)',
+        color: '#334155',
         textAlign: 'center',
         lineHeight: 20,
         paddingHorizontal: SPACING.lg,
@@ -493,14 +482,14 @@ const styles = StyleSheet.create({
 
     // Form Card
     formCard: {
-        backgroundColor: 'rgba(255,255,255,0.95)',
+        backgroundColor: 'rgba(255,255,255,0.97)',
         borderRadius: 24,
         padding: SPACING.lg,
         marginBottom: SPACING.lg,
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 12 },
-        shadowOpacity: 0.15,
-        shadowRadius: 30,
+        shadowOpacity: 0.12,
+        shadowRadius: 20,
         elevation: 15,
     },
     inputGroup: {
@@ -597,12 +586,12 @@ const styles = StyleSheet.create({
     dividerLine: {
         flex: 1,
         height: 1,
-        backgroundColor: 'rgba(255,255,255,0.2)',
+        backgroundColor: 'rgba(30,41,59,0.2)',
     },
     dividerText: {
         fontFamily: FONTS.body,
         fontSize: FONT_SIZES.xs,
-        color: 'rgba(255,255,255,0.6)',
+        color: 'rgba(15,23,42,0.6)',
         marginHorizontal: SPACING.md,
     },
     socialBtn: {
@@ -655,12 +644,12 @@ const styles = StyleSheet.create({
     footerText: {
         fontFamily: FONTS.body,
         fontSize: FONT_SIZES.sm,
-        color: 'rgba(255,255,255,0.7)',
+        color: 'rgba(15,23,42,0.7)',
     },
     footerLink: {
         fontFamily: FONTS.bodySemiBold,
         fontSize: FONT_SIZES.sm,
-        color: '#fff',
+        color: '#1D4ED8',
         textDecorationLine: 'underline',
     },
 });

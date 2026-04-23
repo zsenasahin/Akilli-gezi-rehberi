@@ -326,8 +326,11 @@ const styles = StyleSheet.create({
 
     // Empty state
     emptyContainer: {
-        flex: 1, justifyContent: 'center', alignItems: 'center',
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
         paddingHorizontal: SPACING.xl,
+        paddingBottom: 100,
     },
     emptyIcon: {
         width: 100, height: 100, borderRadius: 50,

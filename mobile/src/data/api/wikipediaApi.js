@@ -12,15 +12,27 @@ import { cache, TTL } from '../../services/cacheService';
 const TR_API = 'https://tr.wikipedia.org/api/rest_v1';
 const EN_API = 'https://en.wikipedia.org/api/rest_v1';
 
+/**
+ * Timeout wrapper - fetch çağrılarına zaman aşımı ekler
+ */
+const fetchWithTimeout = (url, options = {}, timeout = 15000) => {
+    return Promise.race([
+        fetch(url, options),
+        new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('İstek zaman aşımına uğradı')), timeout)
+        )
+    ]);
+};
+
 async function fetchSummary(url) {
     if (!url || typeof url !== 'string') return null;
     try {
-        const res = await fetch(url, {
+        const res = await fetchWithTimeout(url, {
             headers: {
                 Accept: 'application/json',
                 'User-Agent': 'SmartTravelGuide/1.0 (React Native App)',
             },
-        });
+        }, 15000);
 
         if (!res.ok) return null;
 
@@ -33,7 +45,8 @@ async function fetchSummary(url) {
             imageUrl: data.thumbnail?.source || null,
             fullImageUrl: data.originalimage?.source || null,
         };
-    } catch {
+    } catch (err) {
+        console.warn('Wikipedia fetch error:', err.message);
         return null;
     }
 }

@@ -131,6 +131,8 @@ const diversityScore = (place, dayCategories) => {
  * @returns {{ plan, totalHours, totalDistance, totalBudget, items, stats }}
  */
 export const generateItinerary = (places, days, options = {}) => {
+    console.log('🚀 generateItinerary başladı:', { placesCount: places.length, days });
+    
     const {
         startLocation = null,
         maxHoursPerDay = MAX_HOURS_PER_DAY,
@@ -139,8 +141,10 @@ export const generateItinerary = (places, days, options = {}) => {
 
     // Koordinatsız yerleri filtrele
     const validPlaces = places.filter(p => p.lat != null && p.lng != null);
+    console.log('✅ Geçerli yerler:', validPlaces.length);
 
     if (validPlaces.length === 0 || days <= 0) {
+        console.log('⚠️ Geçersiz parametreler, boş sonuç dönüyor');
         return emptyResult(days);
     }
 
@@ -163,7 +167,9 @@ export const generateItinerary = (places, days, options = {}) => {
         .slice(0, maxPlaces);
 
     // ── Coğrafi kümeleme: k = gün sayısı ──────────────────────────────────
+    console.log('🗺️ Kümeleme başlıyor:', { topPlacesCount: topPlaces.length, effectiveDays });
     const clustered = kMeansClusters(topPlaces, effectiveDays);
+    console.log('✅ Kümeleme tamamlandı');
 
     // Kümeleri gruplara ayır
     const clusterGroups = {};
@@ -285,6 +291,7 @@ export const generateItinerary = (places, days, options = {}) => {
         totalDistance: Math.round(totalDistance * 10) / 10,
     };
 
+    console.log('✅ Plan oluşturuldu:', { totalPlaces: items.length, totalHours, totalBudget });
     return { plan, totalHours: Math.round(totalHours * 10) / 10, totalDistance: stats.totalDistance, totalBudget, items, stats };
 };
 

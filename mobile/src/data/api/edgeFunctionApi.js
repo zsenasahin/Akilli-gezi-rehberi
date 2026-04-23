@@ -7,6 +7,18 @@ import { getNearbyHotels, getNearbyRestaurants } from './overpassApi';
  */
 
 /**
+ * Timeout wrapper - fetch çağrılarına zaman aşımı ekler
+ */
+const fetchWithTimeout = (url, options = {}, timeout = 15000) => {
+    return Promise.race([
+        fetch(url, options),
+        new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('İstek zaman aşımına uğradı')), timeout)
+        )
+    ]);
+};
+
+/**
  * optimize-route Edge Function — OpenRouteService ile rota optimizasyonu.
  * Edge Function erişilemezse null döner; çağıran kod haversine fallback uygular.
  *
@@ -15,14 +27,14 @@ import { getNearbyHotels, getNearbyRestaurants } from './overpassApi';
  */
 export const getOptimizedRoute = async (accommodation, places) => {
     try {
-        const response = await fetch(`${SUPABASE_URL}/functions/v1/optimize-route`, {
+        const response = await fetchWithTimeout(`${SUPABASE_URL}/functions/v1/optimize-route`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
             },
             body: JSON.stringify({ accommodation, places }),
-        });
+        }, 15000);
 
         if (!response.ok) {
             const errorText = await response.text();
@@ -73,7 +85,7 @@ export const askTravelAssistant = async (message, context = {}, history = []) =>
             { role: 'user', parts: [{ text: message }] },
         ];
 
-        const response = await fetch(
+        const response = await fetchWithTimeout(
             `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${GEMINI_API_KEY}`,
             {
                 method: 'POST',
@@ -86,7 +98,8 @@ export const askTravelAssistant = async (message, context = {}, history = []) =>
                         topP: 0.9,
                     },
                 }),
-            }
+            },
+            15000
         );
 
         if (!response.ok) {

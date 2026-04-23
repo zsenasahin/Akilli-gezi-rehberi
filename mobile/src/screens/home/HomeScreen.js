@@ -296,10 +296,8 @@ const HomeScreen = ({ navigation }) => {
                         transform: [{ translateY: cityCardAnim.interpolate({ inputRange: [0, 1], outputRange: [30, 0] }) }]
                     }]}>
                         <View style={styles.sectionHeaderRow}>
-                            <View>
-                                <Text style={styles.sectionTitle}>Şehirler</Text>
-                                <Text style={styles.sectionSubtitle}>{filteredCities.length} şehir</Text>
-                            </View>
+                            <Text style={styles.sectionTitle}>Şehirler</Text>
+                            <Text style={styles.sectionSubtitle}>{filteredCities.length} şehir</Text>
                         </View>
 
                         {/* Arama kutusu */}
@@ -568,17 +566,12 @@ const styles = StyleSheet.create({
         borderTopRightRadius: 28,
         paddingTop: SPACING.lg,
         minHeight: SCREEN.height * 0.6,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: -4 },
-        shadowOpacity: 0.08,
-        shadowRadius: 16,
-        elevation: 8,
     },
 
     // ─── GUEST BANNER ───
     guestBanner: {
         flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-        marginHorizontal: SPACING.lg, marginBottom: SPACING.md,
+        marginHorizontal: SPACING.md, marginBottom: SPACING.md,
         backgroundColor: COLORS.primaryMuted,
         borderRadius: BORDER_RADIUS.lg,
         paddingHorizontal: SPACING.md, paddingVertical: 12,
@@ -604,7 +597,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         justifyContent: 'center',
         gap: SPACING.lg,
-        marginHorizontal: SPACING.lg,
+        marginHorizontal: SPACING.md,
         marginBottom: SPACING.lg,
         paddingVertical: SPACING.sm,
     },
@@ -645,13 +638,13 @@ const styles = StyleSheet.create({
 
     // ─── SECTIONS ───
     section: {
-        paddingHorizontal: SPACING.lg,
+        paddingHorizontal: SPACING.md,
         marginBottom: SPACING.lg,
     },
     sectionHeaderRow: {
         flexDirection: 'row',
         justifyContent: 'space-between',
-        alignItems: 'flex-end',
+        alignItems: 'center',
         marginBottom: SPACING.sm,
     },
     sectionTitle: {
@@ -659,12 +652,12 @@ const styles = StyleSheet.create({
         fontSize: FONT_SIZES.xl,
         color: COLORS.textPrimary,
         letterSpacing: -0.5,
-        marginBottom: 2,
     },
     sectionSubtitle: {
         fontFamily: FONTS.body,
-        fontSize: FONT_SIZES.xs,
+        fontSize: FONT_SIZES.sm,
         color: COLORS.textSecondary,
+        marginLeft: SPACING.sm,
     },
     seeAllBtn: {
         flexDirection: 'row',
@@ -705,6 +698,7 @@ const styles = StyleSheet.create({
     // ─── BÖLGE FİLTRELERİ ───
     regionFilters: {
         gap: 8,
+        paddingHorizontal: SPACING.md,
         paddingBottom: SPACING.sm + 4,
     },
     regionChip: {
@@ -742,6 +736,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         flexWrap: 'wrap',
         gap: SPACING.sm,
+        justifyContent: 'space-between',
     },
     cityCard: {
         width: CITY_CARD_WIDTH,

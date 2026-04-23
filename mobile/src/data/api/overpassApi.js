@@ -12,6 +12,18 @@ const OVERPASS_SERVERS = [
     'https://overpass.kumi.systems/api/interpreter',
 ];
 
+/**
+ * Timeout wrapper - fetch çağrılarına zaman aşımı ekler
+ */
+const fetchWithTimeout = (url, options = {}, timeout = 20000) => {
+    return Promise.race([
+        fetch(url, options),
+        new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('İstek zaman aşımına uğradı')), timeout)
+        )
+    ]);
+};
+
 // ─── Yardımcı çevirici fonksiyonlar ───────────────────────────────────────
 
 function translateCuisine(cuisine) {
@@ -76,16 +88,17 @@ function getAmenityPrice(amenity) {
 async function queryOverpass(query) {
     for (const server of OVERPASS_SERVERS) {
         try {
-            const res = await fetch(server, {
+            const res = await fetchWithTimeout(server, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
                 body: `data=${encodeURIComponent(query)}`,
-            });
+            }, 20000);
             if (res.ok) {
                 const data = await res.json();
                 if (data.elements) return data;
             }
-        } catch {
+        } catch (err) {
+            console.warn(`Overpass sunucu hatası (${server}):`, err.message);
             // Bir sonraki sunucuyu dene
         }
     }

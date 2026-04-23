@@ -33,8 +33,18 @@ export const signUp = async (email, password) => {
         password,
         options: {
             emailRedirectTo: redirectUrl,
+            // Email doğrulamasını devre dışı bırak (development için)
+            data: {
+                email_confirm: false
+            }
         },
     });
+    
+    // Eğer email confirmation kapalıysa direkt session döner
+    if (data?.session) {
+        console.log('Kayıt başarılı, session oluşturuldu');
+    }
+    
     return { data, error };
 };
 

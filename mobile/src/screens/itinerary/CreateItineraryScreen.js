@@ -2,18 +2,22 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
     View, Text, StyleSheet, ScrollView, TouchableOpacity,
     Switch, Alert, KeyboardAvoidingView, Platform, TextInput,
-    ActivityIndicator,
+    ActivityIndicator, Modal, Linking, FlatList,
 } from 'react-native';
+import { Calendar } from 'react-native-calendars';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { COLORS } from '../../constants/colors';
 import { FONT_SIZES, FONTS } from '../../constants/typography';
 import { SPACING, BORDER_RADIUS } from '../../constants/layout';
+import { getCityCenter } from '../../constants/cities';
 import { useAuth } from '../../contexts/AuthContext';
 import { getCities } from '../../data/repositories/cityRepository';
 import { getPlacesByCity } from '../../data/repositories/placeRepository';
 import { createItinerary } from '../../data/repositories/itineraryRepository';
 import { generateItinerary } from '../../domain/itineraryGenerator';
+import { getMockHotels } from '../../services/hotelService';
+import PlaceSelectionCard from '../../components/itinerary/PlaceSelectionCard';
 import ErrorMessage from '../../components/common/ErrorMessage';
 
 const CATEGORY_COLORS = {
@@ -40,7 +44,7 @@ function formatDate(date) {
     return `${date.getDate()} ${TR_MONTHS[date.getMonth()]} ${date.getFullYear()} ${TR_DAYS[date.getDay()]}`;
 }
 
-export default function CreateItineraryScreen({ navigation }) {
+export default function CreateItineraryScreen({ navigation, route }) {
     const { user } = useAuth();
 
     const [step, setStep] = useState(0);
@@ -55,25 +59,51 @@ export default function CreateItineraryScreen({ navigation }) {
     const [autoSelect, setAutoSelect] = useState(true);
 
     // Step 2
-    const [days, setDays] = useState(2);
-    const [startDate, setStartDate] = useState(new Date());
+    const [markedDates, setMarkedDates] = useState({});
+    const [startDate, setStartDate] = useState(null);
+    const [endDate, setEndDate] = useState(null);
+    const [days, setDays] = useState(0);
 
     // Step 3
     const [hasAccommodation, setHasAccommodation] = useState(true);
-    const [accommodationName, setAccommodationName] = useState('');
+    const [accommodationType, setAccommodationType] = useState('hotel'); // 'hotel' | 'own'
+    const [hotels, setHotels] = useState([]);
+    const [selectedHotel, setSelectedHotel] = useState(null);
+    const [loadingHotels, setLoadingHotels] = useState(false);
 
     // UI
     const [loading, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState(null);
 
+    // Preselected city varsa direkt yer seçimine geç
+    useEffect(() => {
+        const preselectedCity = route?.params?.preselectedCity;
+        if (preselectedCity) {
+            setSelectedCity(preselectedCity);
+            setStep(1); // Direkt yer seçimine geç
+        }
+    }, [route?.params?.preselectedCity]);
+
     useEffect(() => {
         loadCities();
     }, []);
 
     useEffect(() => {
-        if (selectedCity) loadPlaces(selectedCity.id);
+        if (selectedCity) {
+            loadPlaces(selectedCity.id);
+            loadHotels();
+        }
     }, [selectedCity]);
+
+    const loadHotels = async () => {
+        if (!selectedCity) return;
+        setLoadingHotels(true);
+        // Şimdilik direkt mock data kullan (Overpass API yavaş/hatalı olabiliyor)
+        const mock = getMockHotels(selectedCity.name);
+        setHotels(mock.data);
+        setLoadingHotels(false);
+    };
 
     const loadCities = async () => {
         setLoading(true);
@@ -100,6 +130,73 @@ export default function CreateItineraryScreen({ navigation }) {
         );
     }, []);
 
+    const handleDayPress = useCallback((day) => {
+        const selectedDate = day.dateString;
+        
+        if (!startDate || (startDate && endDate)) {
+            // Yeni seçim başlat
+            setStartDate(selectedDate);
+            setEndDate(null);
+            setMarkedDates({
+                [selectedDate]: {
+                    startingDay: true,
+                    color: COLORS.primary,
+                    textColor: '#fff',
+                },
+            });
+            setDays(1);
+        } else if (startDate && !endDate) {
+            // Bitiş tarihini seç
+            if (selectedDate < startDate) {
+                // Başlangıçtan önce seçildi, başlangıcı değiştir
+                setStartDate(selectedDate);
+                setEndDate(null);
+                setMarkedDates({
+                    [selectedDate]: {
+                        startingDay: true,
+                        color: COLORS.primary,
+                        textColor: '#fff',
+                    },
+                });
+                setDays(1);
+            } else {
+                // Normal bitiş seçimi
+                setEndDate(selectedDate);
+                const start = new Date(startDate);
+                const end = new Date(selectedDate);
+                const daysDiff = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
+                setDays(daysDiff);
+                
+                // Aradaki günleri işaretle
+                const marked = {};
+                let current = new Date(start);
+                while (current <= end) {
+                    const dateStr = current.toISOString().split('T')[0];
+                    if (dateStr === startDate) {
+                        marked[dateStr] = {
+                            startingDay: true,
+                            color: COLORS.primary,
+                            textColor: '#fff',
+                        };
+                    } else if (dateStr === selectedDate) {
+                        marked[dateStr] = {
+                            endingDay: true,
+                            color: COLORS.primary,
+                            textColor: '#fff',
+                        };
+                    } else {
+                        marked[dateStr] = {
+                            color: COLORS.primaryMuted,
+                            textColor: COLORS.primary,
+                        };
+                    }
+                    current.setDate(current.getDate() + 1);
+                }
+                setMarkedDates(marked);
+            }
+        }
+    }, [startDate, endDate]);
+
     const handleNext = () => {
         setError(null);
         if (step === 0 && !selectedCity) {
@@ -108,6 +205,18 @@ export default function CreateItineraryScreen({ navigation }) {
         }
         if (step === 1 && !autoSelect && selectedPlaces.length === 0) {
             setError('Lütfen en az bir yer seçin.');
+            return;
+        }
+        if (step === 2 && !startDate) {
+            setError('Lütfen tarih aralığı seçin.');
+            return;
+        }
+        // Tek gün seçildiyse endDate = startDate
+        if (step === 2 && startDate && !endDate) {
+            setEndDate(startDate);
+        }
+        if (step === 3 && hasAccommodation && accommodationType === 'hotel' && !selectedHotel) {
+            setError('Lütfen bir otel seçin veya kendi konaklamanızı işaretleyin.');
             return;
         }
         if (step < 3) setStep(s => s + 1);
@@ -125,13 +234,17 @@ export default function CreateItineraryScreen({ navigation }) {
             setError('Plan oluşturmak için yer bulunamadı.');
             return;
         }
+        if (!startDate) {
+            setError('Lütfen başlangıç tarihi seçin.');
+            return;
+        }
         setLoading(true);
         const result = generateItinerary(placesToUse, days, {});
         const { data: saved, error: saveError } = await createItinerary({
             userId: user.id,
             cityId: selectedCity.id,
             days,
-            startDate: startDate.toISOString().split('T')[0],
+            startDate: startDate,
             hasAccommodation,
             hasTransport: false,
             items: result.items,
@@ -144,7 +257,7 @@ export default function CreateItineraryScreen({ navigation }) {
     const adjustDate = (delta) => {
         const d = new Date(startDate);
         d.setDate(d.getDate() + delta);
-        setStartDate(d);
+        setStartDate(d.toISOString().split('T')[0]);
     };
 
     return (
@@ -196,21 +309,27 @@ export default function CreateItineraryScreen({ navigation }) {
                         )}
                         {step === 2 && (
                             <StepDuration
-                                days={days}
-                                onSelectDays={setDays}
+                                markedDates={markedDates}
+                                onDayPress={handleDayPress}
                                 startDate={startDate}
-                                onAdjustDate={adjustDate}
+                                endDate={endDate}
+                                days={days}
                             />
                         )}
                         {step === 3 && (
                             <StepAccommodation
                                 hasAccommodation={hasAccommodation}
                                 onToggle={setHasAccommodation}
-                                accommodationName={accommodationName}
-                                onChangeName={setAccommodationName}
+                                accommodationType={accommodationType}
+                                onChangeType={setAccommodationType}
+                                hotels={hotels}
+                                selectedHotel={selectedHotel}
+                                onSelectHotel={setSelectedHotel}
+                                loadingHotels={loadingHotels}
                                 selectedCity={selectedCity}
                                 days={days}
                                 startDate={startDate}
+                                endDate={endDate}
                             />
                         )}
                     </>
@@ -295,6 +414,7 @@ function StepCity({ cities, selectedCity, onSelect }) {
     return (
         <View>
             <Text style={styles.stepTitle}>Nereye gidiyorsunuz?</Text>
+            <Text style={styles.stepSubtitle}>Keşfetmek istediğiniz şehri seçin</Text>
             <View style={styles.cityGrid}>
                 {cities.map(city => {
                     const isSelected = selectedCity?.id === city.id;
@@ -303,8 +423,13 @@ function StepCity({ cities, selectedCity, onSelect }) {
                             key={city.id}
                             style={[styles.cityCard, isSelected && styles.cityCardSelected]}
                             onPress={() => onSelect(city)}
-                            activeOpacity={0.75}
+                            activeOpacity={0.7}
                         >
+                            {isSelected && (
+                                <View style={styles.cityCardCheckmark}>
+                                    <Ionicons name="checkmark-circle" size={24} color={COLORS.primary} />
+                                </View>
+                            )}
                             <Text style={[styles.cityName, isSelected && styles.cityNameSelected]}>
                                 {city.name}
                             </Text>
@@ -322,160 +447,383 @@ function StepCity({ cities, selectedCity, onSelect }) {
 }
 
 function StepPlaces({ places, selectedPlaces, autoSelect, onToggleAuto, onTogglePlace }) {
+    const [searchQuery, setSearchQuery] = useState('');
+    const [selectedCategory, setSelectedCategory] = useState('all');
+
+    const categories = ['all', ...new Set(places.map(p => p.category).filter(Boolean))];
+    
+    const filteredPlaces = places.filter(place => {
+        const matchesSearch = place.name.toLowerCase().includes(searchQuery.toLowerCase());
+        const matchesCategory = selectedCategory === 'all' || place.category === selectedCategory;
+        return matchesSearch && matchesCategory;
+    });
+
     return (
         <View>
-            <Text style={styles.stepTitle}>Gezilecek yerleri seçin</Text>
+            <Text style={styles.stepTitle}>Gezilecek Yerler</Text>
+            <Text style={styles.stepSubtitle}>
+                {autoSelect ? 'En popüler yerler otomatik seçilecek' : 'Görmek istediğiniz yerleri seçin'}
+            </Text>
 
-            <View style={styles.autoRow}>
-                <View style={styles.autoRowLeft}>
-                    <Ionicons name="flash" size={18} color={COLORS.primary} style={{ marginRight: 8 }} />
-                    <Text style={styles.autoLabel}>Otomatik Seç</Text>
+            <View style={styles.toggleCard}>
+                <View style={styles.toggleCardLeft}>
+                    <View style={styles.iconCircle}>
+                        <Ionicons name="flash" size={24} color={COLORS.primary} />
+                    </View>
+                    <View style={styles.toggleCardText}>
+                        <Text style={styles.toggleCardTitle}>Otomatik Seçim</Text>
+                        <Text style={styles.toggleCardSubtitle}>
+                            {autoSelect ? 'En iyi yerler seçilecek' : 'Manuel seçim yapılacak'}
+                        </Text>
+                    </View>
                 </View>
                 <Switch
                     value={autoSelect}
                     onValueChange={onToggleAuto}
                     trackColor={{ false: COLORS.border, true: COLORS.primaryMuted }}
                     thumbColor={autoSelect ? COLORS.primary : COLORS.textLight}
+                    ios_backgroundColor={COLORS.border}
                 />
             </View>
 
-            {autoSelect ? (
-                <View style={styles.infoCard}>
-                    <Ionicons name="information-circle-outline" size={16} color={COLORS.primary} />
-                    <Text style={styles.infoText}>En iyi yerler otomatik seçilecek</Text>
-                </View>
-            ) : (
+            {!autoSelect && (
                 <>
-                    <Text style={styles.selectedCount}>
-                        {selectedPlaces.length} yer seçildi
-                    </Text>
-                    {places.map(place => {
-                        const isChecked = !!selectedPlaces.find(p => p.id === place.id);
-                        const catColor = CATEGORY_COLORS[place.category?.toLowerCase()] || COLORS.primary;
-                        return (
-                            <TouchableOpacity
-                                key={place.id}
-                                style={styles.placeRow}
-                                onPress={() => onTogglePlace(place)}
-                                activeOpacity={0.7}
-                            >
-                                <View style={styles.placeInfo}>
-                                    <Text style={styles.placeName}>{place.name}</Text>
-                                    <View style={styles.placeMeta}>
-                                        {place.category ? (
-                                            <View style={[styles.categoryBadge, { backgroundColor: catColor + '22' }]}>
-                                                <Text style={[styles.categoryText, { color: catColor }]}>
-                                                    {place.category}
-                                                </Text>
-                                            </View>
-                                        ) : null}
-                                        {place.avg_duration ? (
-                                            <Text style={styles.durationText}>~{place.avg_duration} dk</Text>
-                                        ) : null}
-                                    </View>
-                                </View>
-                                <View style={[styles.checkbox, isChecked && styles.checkboxChecked]}>
-                                    {isChecked && <Ionicons name="checkmark" size={14} color="#fff" />}
-                                </View>
+                    {/* Arama */}
+                    <View style={styles.searchContainer}>
+                        <Ionicons name="search" size={20} color={COLORS.textSecondary} />
+                        <TextInput
+                            style={styles.searchInput}
+                            placeholder="Yer ara..."
+                            placeholderTextColor={COLORS.textLight}
+                            value={searchQuery}
+                            onChangeText={setSearchQuery}
+                        />
+                        {searchQuery.length > 0 && (
+                            <TouchableOpacity onPress={() => setSearchQuery('')}>
+                                <Ionicons name="close-circle" size={20} color={COLORS.textLight} />
                             </TouchableOpacity>
-                        );
-                    })}
+                        )}
+                    </View>
+
+                    {/* Kategori Filtreleri */}
+                    <ScrollView
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        contentContainerStyle={styles.categoryFilters}
+                    >
+                        {categories.map(cat => {
+                            const isActive = selectedCategory === cat;
+                            return (
+                                <TouchableOpacity
+                                    key={cat}
+                                    style={[styles.categoryChip, isActive && styles.categoryChipActive]}
+                                    onPress={() => setSelectedCategory(cat)}
+                                >
+                                    <Text style={[styles.categoryChipText, isActive && styles.categoryChipTextActive]}>
+                                        {cat === 'all' ? 'Tümü' : cat}
+                                    </Text>
+                                </TouchableOpacity>
+                            );
+                        })}
+                    </ScrollView>
+
+                    <View style={styles.selectedCountBadge}>
+                        <Ionicons name="checkmark-circle" size={16} color={COLORS.primary} />
+                        <Text style={styles.selectedCount}>
+                            {selectedPlaces.length} yer seçildi
+                        </Text>
+                    </View>
+
+                    {/* Yer Kartları */}
+                    <View style={styles.placeGrid}>
+                        {filteredPlaces.map(place => (
+                            <PlaceSelectionCard
+                                key={place.id}
+                                place={place}
+                                selected={!!selectedPlaces.find(p => p.id === place.id)}
+                                onPress={() => onTogglePlace(place)}
+                            />
+                        ))}
+                    </View>
                 </>
             )}
         </View>
     );
 }
 
-function StepDuration({ days, onSelectDays, startDate, onAdjustDate }) {
+function StepDuration({ markedDates, onDayPress, startDate, endDate, days }) {
+    const today = new Date().toISOString().split('T')[0];
+    
     return (
         <View>
-            <Text style={styles.stepTitle}>Kaç gün kalacaksınız?</Text>
+            <Text style={styles.stepTitle}>Ne Kadar Kalacaksınız?</Text>
+            <Text style={styles.stepSubtitle}>
+                Takvimde başlangıç ve bitiş tarihlerini seçin
+            </Text>
 
-            <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.dayPickerRow}
-            >
-                {Array.from({ length: 14 }, (_, i) => i + 1).map(d => {
-                    const isSelected = d === days;
-                    return (
-                        <TouchableOpacity
-                            key={d}
-                            style={[styles.dayCard, isSelected && styles.dayCardSelected]}
-                            onPress={() => onSelectDays(d)}
-                            activeOpacity={0.75}
-                        >
-                            <Text style={[styles.dayNumber, isSelected && styles.dayNumberSelected]}>{d}</Text>
-                            <Text style={[styles.dayLabel, isSelected && styles.dayLabelSelected]}>gün</Text>
-                        </TouchableOpacity>
-                    );
-                })}
-            </ScrollView>
+            {days > 0 && (
+                <View style={styles.durationSummary}>
+                    <View style={styles.durationBadge}>
+                        <Ionicons name="calendar" size={20} color={COLORS.primary} />
+                        <Text style={styles.durationText}>{days} gün</Text>
+                    </View>
+                    {startDate && endDate && (
+                        <Text style={styles.dateRangeText}>
+                            {formatDateShort(startDate)} - {formatDateShort(endDate)}
+                        </Text>
+                    )}
+                </View>
+            )}
 
-            <Text style={styles.sectionLabel}>Başlangıç Tarihi</Text>
-            <View style={styles.dateRow}>
-                <TouchableOpacity style={styles.dateBtn} onPress={() => onAdjustDate(-1)}>
-                    <Ionicons name="chevron-back" size={20} color={COLORS.primary} />
-                </TouchableOpacity>
-                <Text style={styles.dateText}>{formatDate(startDate)}</Text>
-                <TouchableOpacity style={styles.dateBtn} onPress={() => onAdjustDate(1)}>
-                    <Ionicons name="chevron-forward" size={20} color={COLORS.primary} />
-                </TouchableOpacity>
+            <View style={styles.calendarContainer}>
+                <Calendar
+                    current={today}
+                    minDate={today}
+                    onDayPress={onDayPress}
+                    markingType={'period'}
+                    markedDates={markedDates}
+                    theme={{
+                        backgroundColor: COLORS.surface,
+                        calendarBackground: COLORS.surface,
+                        textSectionTitleColor: COLORS.textSecondary,
+                        selectedDayBackgroundColor: COLORS.primary,
+                        selectedDayTextColor: '#fff',
+                        todayTextColor: COLORS.primary,
+                        dayTextColor: COLORS.textPrimary,
+                        textDisabledColor: COLORS.textLight,
+                        dotColor: COLORS.primary,
+                        selectedDotColor: '#fff',
+                        arrowColor: COLORS.primary,
+                        monthTextColor: COLORS.textPrimary,
+                        indicatorColor: COLORS.primary,
+                        textDayFontFamily: FONTS.body,
+                        textMonthFontFamily: FONTS.bodyBold,
+                        textDayHeaderFontFamily: FONTS.bodyMedium,
+                        textDayFontSize: FONT_SIZES.md,
+                        textMonthFontSize: FONT_SIZES.lg,
+                        textDayHeaderFontSize: FONT_SIZES.sm,
+                    }}
+                    style={styles.calendar}
+                />
+            </View>
+
+            <View style={styles.calendarHint}>
+                <Ionicons name="information-circle" size={18} color={COLORS.primary} />
+                <Text style={styles.calendarHintText}>
+                    İlk tıklama başlangıç, ikinci tıklama bitiş tarihini belirler
+                </Text>
             </View>
         </View>
     );
 }
 
-function StepAccommodation({ hasAccommodation, onToggle, accommodationName, onChangeName, selectedCity, days, startDate }) {
+function formatDateShort(dateString) {
+    const date = new Date(dateString);
+    const day = date.getDate();
+    const month = TR_MONTHS[date.getMonth()];
+    return `${day} ${month}`;
+}
+
+
+
+function StepAccommodation({ 
+    hasAccommodation, onToggle, accommodationType, onChangeType,
+    hotels, selectedHotel, onSelectHotel, loadingHotels,
+    selectedCity, days, startDate, endDate 
+}) {
+    const openGoogleMaps = () => {
+        const cityCenter = selectedCity ? getCityCenter(selectedCity.name) : { lat: 41.0082, lng: 28.9784 };
+        Linking.openURL(`https://www.google.com/maps/search/hotels/@${cityCenter.lat},${cityCenter.lng},14z`);
+    };
+
     return (
         <View>
             <Text style={styles.stepTitle}>Konaklama</Text>
+            <Text style={styles.stepSubtitle}>Nerede kalacağınızı belirleyin</Text>
 
-            <View style={styles.autoRow}>
-                <View style={styles.autoRowLeft}>
-                    <Ionicons name="bed-outline" size={18} color={COLORS.primary} style={{ marginRight: 8 }} />
-                    <Text style={styles.autoLabel}>Konaklama bilgisi ekle</Text>
+            <View style={styles.toggleCard}>
+                <View style={styles.toggleCardLeft}>
+                    <View style={styles.iconCircle}>
+                        <Ionicons name="bed" size={24} color={COLORS.primary} />
+                    </View>
+                    <View style={styles.toggleCardText}>
+                        <Text style={styles.toggleCardTitle}>Konaklama gerekli</Text>
+                        <Text style={styles.toggleCardSubtitle}>
+                            {hasAccommodation ? 'Konaklama eklenecek' : 'Günübirlik gezi'}
+                        </Text>
+                    </View>
                 </View>
                 <Switch
                     value={hasAccommodation}
                     onValueChange={onToggle}
                     trackColor={{ false: COLORS.border, true: COLORS.primaryMuted }}
                     thumbColor={hasAccommodation ? COLORS.primary : COLORS.textLight}
+                    ios_backgroundColor={COLORS.border}
                 />
             </View>
 
             {hasAccommodation && (
-                <TextInput
-                    style={styles.textInput}
-                    placeholder="Otel veya konaklama adı"
-                    placeholderTextColor={COLORS.textLight}
-                    value={accommodationName}
-                    onChangeText={onChangeName}
-                    returnKeyType="done"
-                />
+                <View style={styles.accommodationSection}>
+                    {/* Tip Seçimi */}
+                    <View style={styles.accommodationTypeSelector}>
+                        <TouchableOpacity
+                            style={[
+                                styles.typeButton,
+                                accommodationType === 'hotel' && styles.typeButtonActive
+                            ]}
+                            onPress={() => onChangeType('hotel')}
+                        >
+                            <Ionicons 
+                                name="business" 
+                                size={20} 
+                                color={accommodationType === 'hotel' ? '#fff' : COLORS.textSecondary} 
+                            />
+                            <Text style={[
+                                styles.typeButtonText,
+                                accommodationType === 'hotel' && styles.typeButtonTextActive
+                            ]}>
+                                Otel Öner
+                            </Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                            style={[
+                                styles.typeButton,
+                                accommodationType === 'own' && styles.typeButtonActive
+                            ]}
+                            onPress={() => onChangeType('own')}
+                        >
+                            <Ionicons 
+                                name="location" 
+                                size={20} 
+                                color={accommodationType === 'own' ? '#fff' : COLORS.textSecondary} 
+                            />
+                            <Text style={[
+                                styles.typeButtonText,
+                                accommodationType === 'own' && styles.typeButtonTextActive
+                            ]}>
+                                Kendi Yerim
+                            </Text>
+                        </TouchableOpacity>
+                    </View>
+
+                    {/* Otel Listesi */}
+                    {accommodationType === 'hotel' && (
+                        <View style={styles.hotelList}>
+                            {loadingHotels ? (
+                                <ActivityIndicator size="large" color={COLORS.primary} style={{ marginVertical: SPACING.xl }} />
+                            ) : (
+                                <>
+                                    <Text style={styles.hotelListTitle}>Önerilen Oteller</Text>
+                                    {hotels.map(hotel => (
+                                        <TouchableOpacity
+                                            key={hotel.id}
+                                            style={[
+                                                styles.hotelCard,
+                                                selectedHotel?.id === hotel.id && styles.hotelCardSelected
+                                            ]}
+                                            onPress={() => onSelectHotel(hotel)}
+                                            activeOpacity={0.7}
+                                        >
+                                            <View style={styles.hotelCardLeft}>
+                                                <View style={[
+                                                    styles.hotelIcon,
+                                                    selectedHotel?.id === hotel.id && styles.hotelIconSelected
+                                                ]}>
+                                                    <Ionicons 
+                                                        name={hotel.type === 'Otel' ? 'business' : 'home'} 
+                                                        size={20} 
+                                                        color={selectedHotel?.id === hotel.id ? '#fff' : COLORS.primary} 
+                                                    />
+                                                </View>
+                                                <View style={styles.hotelInfo}>
+                                                    <Text style={styles.hotelName}>{hotel.name}</Text>
+                                                    <View style={styles.hotelMeta}>
+                                                        <Text style={styles.hotelType}>{hotel.type}</Text>
+                                                        {hotel.stars && (
+                                                            <View style={styles.hotelStars}>
+                                                                {[...Array(hotel.stars)].map((_, i) => (
+                                                                    <Ionicons key={i} name="star" size={12} color="#FFB800" />
+                                                                ))}
+                                                            </View>
+                                                        )}
+                                                    </View>
+                                                    {hotel.address && (
+                                                        <Text style={styles.hotelAddress}>{hotel.address}</Text>
+                                                    )}
+                                                </View>
+                                            </View>
+                                            {selectedHotel?.id === hotel.id && (
+                                                <Ionicons name="checkmark-circle" size={24} color={COLORS.primary} />
+                                            )}
+                                        </TouchableOpacity>
+                                    ))}
+                                </>
+                            )}
+                        </View>
+                    )}
+
+                    {/* Google Maps Butonu */}
+                    {accommodationType === 'own' && (
+                        <TouchableOpacity 
+                            style={styles.mapSelectButton}
+                            onPress={openGoogleMaps}
+                            activeOpacity={0.7}
+                        >
+                            <LinearGradient
+                                colors={COLORS.gradients.primary}
+                                start={{ x: 0, y: 0 }}
+                                end={{ x: 1, y: 1 }}
+                                style={styles.mapSelectGradient}
+                            >
+                                <View style={styles.mapSelectContent}>
+                                    <Ionicons name="location" size={28} color="#fff" />
+                                    <View style={styles.mapSelectTextContainer}>
+                                        <Text style={styles.mapSelectTitle}>
+                                            Google Maps'te Seç
+                                        </Text>
+                                        <Text style={styles.mapSelectSubtitle}>
+                                            Konaklama yerinizi haritada işaretleyin
+                                        </Text>
+                                    </View>
+                                    <Ionicons name="chevron-forward" size={24} color="rgba(255,255,255,0.8)" />
+                                </View>
+                            </LinearGradient>
+                        </TouchableOpacity>
+                    )}
+                </View>
             )}
 
             {/* Summary card */}
-            <View style={styles.summaryCard}>
-                <Text style={styles.summaryTitle}>Plan Özeti</Text>
-                <View style={styles.summaryRow}>
-                    <Ionicons name="location-outline" size={16} color={COLORS.primary} />
-                    <Text style={styles.summaryText}>{selectedCity?.name || '—'}</Text>
-                </View>
-                <View style={styles.summaryRow}>
-                    <Ionicons name="calendar-outline" size={16} color={COLORS.primary} />
-                    <Text style={styles.summaryText}>{days} gün · {formatDate(startDate)}</Text>
-                </View>
-                {hasAccommodation && accommodationName ? (
-                    <View style={styles.summaryRow}>
-                        <Ionicons name="bed-outline" size={16} color={COLORS.primary} />
-                        <Text style={styles.summaryText}>{accommodationName}</Text>
+            {startDate && endDate && (
+                <View style={styles.summaryCard}>
+                    <View style={styles.summaryHeader}>
+                        <Ionicons name="document-text" size={20} color={COLORS.primary} />
+                        <Text style={styles.summaryTitle}>Plan Özeti</Text>
                     </View>
-                ) : null}
-            </View>
+                    <View style={styles.summaryDivider} />
+                    <View style={styles.summaryRow}>
+                        <Ionicons name="location" size={18} color={COLORS.primary} />
+                        <Text style={styles.summaryText}>{selectedCity?.name || '—'}</Text>
+                    </View>
+                    <View style={styles.summaryRow}>
+                        <Ionicons name="calendar" size={18} color={COLORS.primary} />
+                        <Text style={styles.summaryText}>
+                            {days} gün · {formatDateShort(startDate)} - {formatDateShort(endDate)}
+                        </Text>
+                    </View>
+                    {hasAccommodation && selectedHotel && (
+                        <View style={styles.summaryRow}>
+                            <Ionicons name="bed" size={18} color={COLORS.primary} />
+                            <Text style={styles.summaryText}>{selectedHotel.name}</Text>
+                        </View>
+                    )}
+                </View>
+            )}
         </View>
     );
 }
+
 
 // ─── Styles ──────────────────────────────────────────────────────────────────
 
@@ -586,47 +934,67 @@ const styles = StyleSheet.create({
     // Step title
     stepTitle: {
         fontFamily: FONTS.heading,
-        fontSize: FONT_SIZES.xl,
+        fontSize: FONT_SIZES.xxl,
         color: COLORS.textPrimary,
+        marginBottom: SPACING.xs,
+        letterSpacing: -0.5,
+    },
+    stepSubtitle: {
+        fontFamily: FONTS.body,
+        fontSize: FONT_SIZES.md,
+        color: COLORS.textSecondary,
         marginBottom: SPACING.lg,
+        lineHeight: 22,
     },
 
     // City grid
     cityGrid: {
         flexDirection: 'row',
         flexWrap: 'wrap',
-        gap: SPACING.sm,
+        gap: SPACING.md,
     },
     cityCard: {
-        width: '47.5%',
+        width: '47%',
         backgroundColor: COLORS.surface,
-        borderRadius: BORDER_RADIUS.md,
-        padding: SPACING.md,
+        borderRadius: BORDER_RADIUS.xl,
+        padding: SPACING.lg,
         borderWidth: 2,
         borderColor: COLORS.border,
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.06,
-        shadowRadius: 4,
-        elevation: 2,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.08,
+        shadowRadius: 8,
+        elevation: 3,
+        position: 'relative',
+        minHeight: 100,
+        justifyContent: 'center',
     },
     cityCardSelected: {
         borderColor: COLORS.primary,
         backgroundColor: COLORS.primaryMuted,
+        shadowColor: COLORS.primary,
+        shadowOpacity: 0.2,
+        shadowRadius: 12,
+        elevation: 6,
+    },
+    cityCardCheckmark: {
+        position: 'absolute',
+        top: SPACING.sm,
+        right: SPACING.sm,
     },
     cityName: {
         fontFamily: FONTS.bodyBold,
-        fontSize: FONT_SIZES.md,
+        fontSize: FONT_SIZES.lg,
         color: COLORS.textPrimary,
+        marginBottom: 4,
     },
     cityNameSelected: {
         color: COLORS.primary,
     },
     cityRegion: {
         fontFamily: FONTS.body,
-        fontSize: FONT_SIZES.xs,
+        fontSize: FONT_SIZES.sm,
         color: COLORS.textLight,
-        marginTop: 2,
     },
     cityRegionSelected: {
         color: COLORS.primaryDark,
@@ -672,11 +1040,78 @@ const styles = StyleSheet.create({
     },
 
     // Places
-    selectedCount: {
+    searchContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: COLORS.surface,
+        borderRadius: BORDER_RADIUS.lg,
+        paddingHorizontal: SPACING.md,
+        paddingVertical: SPACING.sm,
+        marginBottom: SPACING.md,
+        borderWidth: 1,
+        borderColor: COLORS.border,
+        gap: SPACING.sm,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 4,
+        elevation: 2,
+    },
+    searchInput: {
+        flex: 1,
+        fontFamily: FONTS.body,
+        fontSize: FONT_SIZES.md,
+        color: COLORS.textPrimary,
+        paddingVertical: 6,
+    },
+    categoryFilters: {
+        paddingVertical: SPACING.sm,
+        gap: SPACING.sm,
+        marginBottom: SPACING.md,
+    },
+    categoryChip: {
+        paddingHorizontal: SPACING.lg,
+        paddingVertical: SPACING.sm,
+        borderRadius: BORDER_RADIUS.full,
+        backgroundColor: COLORS.surface,
+        borderWidth: 1.5,
+        borderColor: COLORS.border,
+    },
+    categoryChipActive: {
+        backgroundColor: COLORS.primary,
+        borderColor: COLORS.primary,
+    },
+    categoryChipText: {
         fontFamily: FONTS.bodyMedium,
         fontSize: FONT_SIZES.sm,
         color: COLORS.textSecondary,
-        marginBottom: SPACING.sm,
+        textTransform: 'capitalize',
+    },
+    categoryChipTextActive: {
+        color: '#fff',
+        fontFamily: FONTS.bodyBold,
+    },
+    selectedCountBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: SPACING.xs,
+        backgroundColor: COLORS.primaryMuted,
+        paddingHorizontal: SPACING.md,
+        paddingVertical: SPACING.xs,
+        borderRadius: BORDER_RADIUS.full,
+        alignSelf: 'flex-start',
+        marginBottom: SPACING.md,
+    },
+    selectedCount: {
+        fontFamily: FONTS.bodyBold,
+        fontSize: FONT_SIZES.sm,
+        color: COLORS.primary,
+    },
+    placeGrid: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        justifyContent: 'space-between',
+        gap: SPACING.sm,
     },
     placeRow: {
         flexDirection: 'row',
@@ -736,49 +1171,160 @@ const styles = StyleSheet.create({
         borderColor: COLORS.primary,
     },
 
-    // Day picker
-    dayPickerRow: {
-        paddingVertical: SPACING.sm,
-        gap: SPACING.sm,
-        paddingHorizontal: 2,
+    // Duration - Calendar
+    durationSummary: {
+        backgroundColor: COLORS.primaryMuted,
+        borderRadius: BORDER_RADIUS.lg,
+        padding: SPACING.md,
+        marginBottom: SPACING.md,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
     },
-    dayCard: {
-        width: 56,
-        height: 72,
-        borderRadius: BORDER_RADIUS.md,
+    durationBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: SPACING.sm,
+    },
+    durationText: {
+        fontFamily: FONTS.bodyBold,
+        fontSize: FONT_SIZES.xl,
+        color: COLORS.primary,
+    },
+    dateRangeText: {
+        fontFamily: FONTS.bodyMedium,
+        fontSize: FONT_SIZES.sm,
+        color: COLORS.primary,
+    },
+    calendarContainer: {
         backgroundColor: COLORS.surface,
-        borderWidth: 2,
+        borderRadius: BORDER_RADIUS.xl,
+        overflow: 'hidden',
+        borderWidth: 1,
         borderColor: COLORS.border,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.1,
+        shadowRadius: 12,
+        elevation: 4,
+        marginBottom: SPACING.md,
+    },
+    calendar: {
+        borderRadius: BORDER_RADIUS.xl,
+    },
+    calendarHint: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: SPACING.sm,
+        backgroundColor: COLORS.surface,
+        padding: SPACING.md,
+        borderRadius: BORDER_RADIUS.md,
+        borderWidth: 1,
+        borderColor: COLORS.border,
+    },
+    calendarHintText: {
+        flex: 1,
+        fontFamily: FONTS.body,
+        fontSize: FONT_SIZES.sm,
+        color: COLORS.textSecondary,
+        lineHeight: 20,
+    },
+    daysSelector: {
+        backgroundColor: COLORS.surface,
+        borderRadius: BORDER_RADIUS.lg,
+        padding: SPACING.lg,
+        marginBottom: SPACING.md,
+        borderWidth: 1,
+        borderColor: COLORS.border,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.06,
+        shadowRadius: 6,
+        elevation: 2,
+    },
+    daysSelectorHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: SPACING.md,
+    },
+    sliderLabel: {
+        fontFamily: FONTS.bodyMedium,
+        fontSize: FONT_SIZES.md,
+        color: COLORS.textSecondary,
+    },
+    daysDisplay: {
+        flexDirection: 'row',
+        alignItems: 'baseline',
+        gap: 4,
+    },
+    daysNumber: {
+        fontFamily: FONTS.heading,
+        fontSize: 32,
+        color: COLORS.primary,
+    },
+    daysText: {
+        fontFamily: FONTS.bodyMedium,
+        fontSize: FONT_SIZES.md,
+        color: COLORS.textSecondary,
+    },
+    daysButtons: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: SPACING.sm,
+        marginBottom: SPACING.sm,
+    },
+    dayAdjustBtn: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: COLORS.primaryMuted,
         alignItems: 'center',
         justifyContent: 'center',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.05,
-        shadowRadius: 3,
-        elevation: 1,
     },
-    dayCardSelected: {
-        borderColor: COLORS.primary,
+    dayAdjustBtnDisabled: {
+        backgroundColor: COLORS.border,
+        opacity: 0.5,
+    },
+    daysRange: {
+        flex: 1,
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: SPACING.xs,
+        justifyContent: 'center',
+    },
+    quickDayBtn: {
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: BORDER_RADIUS.md,
+        backgroundColor: COLORS.surface,
+        borderWidth: 1,
+        borderColor: COLORS.border,
+    },
+    quickDayBtnActive: {
         backgroundColor: COLORS.primary,
+        borderColor: COLORS.primary,
     },
-    dayNumber: {
-        fontFamily: FONTS.heading,
-        fontSize: FONT_SIZES.xl,
-        color: COLORS.textPrimary,
+    quickDayText: {
+        fontFamily: FONTS.bodyMedium,
+        fontSize: FONT_SIZES.sm,
+        color: COLORS.textSecondary,
     },
-    dayNumberSelected: {
+    quickDayTextActive: {
         color: '#fff',
+        fontFamily: FONTS.bodySemiBold,
     },
-    dayLabel: {
+    daysLimits: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+    },
+    daysLimitText: {
         fontFamily: FONTS.body,
         fontSize: FONT_SIZES.xs,
         color: COLORS.textLight,
     },
-    dayLabelSelected: {
-        color: 'rgba(255,255,255,0.8)',
-    },
 
-    // Date row
+    // Date range
     sectionLabel: {
         fontFamily: FONTS.bodyMedium,
         fontSize: FONT_SIZES.sm,
@@ -786,31 +1332,265 @@ const styles = StyleSheet.create({
         marginTop: SPACING.lg,
         marginBottom: SPACING.sm,
     },
-    dateRow: {
+    dateRangeContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: SPACING.sm,
+        marginTop: SPACING.sm,
+    },
+    dateCard: {
+        flex: 1,
+        backgroundColor: COLORS.surface,
+        borderRadius: BORDER_RADIUS.md,
+        padding: SPACING.md,
+        borderWidth: 1,
+        borderColor: COLORS.border,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.05,
+        shadowRadius: 4,
+        elevation: 2,
+    },
+    dateCardHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        marginBottom: 6,
+    },
+    dateCardLabel: {
+        fontFamily: FONTS.bodyMedium,
+        fontSize: FONT_SIZES.xs,
+        color: COLORS.textSecondary,
+    },
+    dateCardDate: {
+        fontFamily: FONTS.bodyBold,
+        fontSize: FONT_SIZES.sm,
+        color: COLORS.textPrimary,
+    },
+    dateAdjustRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: SPACING.md,
+        marginTop: SPACING.sm,
+    },
+    dateAdjustBtn: {
+        width: 36,
+        height: 36,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    dateInfo: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        marginTop: SPACING.sm,
+    },
+    dateInfoText: {
+        fontFamily: FONTS.body,
+        fontSize: FONT_SIZES.xs,
+        color: COLORS.textLight,
+    },
+    dateArrow: {
+        width: 32,
+        height: 32,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+
+    // Accommodation
+    toggleCard: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
         backgroundColor: COLORS.surface,
-        borderRadius: BORDER_RADIUS.md,
-        padding: SPACING.sm,
+        borderRadius: BORDER_RADIUS.lg,
+        padding: SPACING.lg,
+        marginBottom: SPACING.md,
         borderWidth: 1,
         borderColor: COLORS.border,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.08,
+        shadowRadius: 8,
+        elevation: 3,
     },
-    dateBtn: {
-        width: 40,
-        height: 40,
+    toggleCardLeft: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        flex: 1,
+        gap: SPACING.md,
+    },
+    iconCircle: {
+        width: 48,
+        height: 48,
+        borderRadius: 24,
+        backgroundColor: COLORS.primaryMuted,
         alignItems: 'center',
         justifyContent: 'center',
     },
-    dateText: {
-        fontFamily: FONTS.bodyMedium,
+    toggleCardText: {
+        flex: 1,
+    },
+    toggleCardTitle: {
+        fontFamily: FONTS.bodyBold,
         fontSize: FONT_SIZES.md,
         color: COLORS.textPrimary,
-        flex: 1,
-        textAlign: 'center',
+        marginBottom: 2,
     },
-
-    // Accommodation
+    toggleCardSubtitle: {
+        fontFamily: FONTS.body,
+        fontSize: FONT_SIZES.sm,
+        color: COLORS.textSecondary,
+    },
+    accommodationSection: {
+        marginTop: SPACING.md,
+    },
+    accommodationTypeSelector: {
+        flexDirection: 'row',
+        gap: SPACING.sm,
+        marginBottom: SPACING.md,
+    },
+    typeButton: {
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: SPACING.sm,
+        backgroundColor: COLORS.surface,
+        borderRadius: BORDER_RADIUS.lg,
+        padding: SPACING.md,
+        borderWidth: 2,
+        borderColor: COLORS.border,
+    },
+    typeButtonActive: {
+        backgroundColor: COLORS.primary,
+        borderColor: COLORS.primary,
+    },
+    typeButtonText: {
+        fontFamily: FONTS.bodyBold,
+        fontSize: FONT_SIZES.md,
+        color: COLORS.textSecondary,
+    },
+    typeButtonTextActive: {
+        color: '#fff',
+    },
+    hotelList: {
+        marginTop: SPACING.sm,
+    },
+    hotelListTitle: {
+        fontFamily: FONTS.bodyBold,
+        fontSize: FONT_SIZES.md,
+        color: COLORS.textPrimary,
+        marginBottom: SPACING.sm,
+    },
+    hotelCard: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        backgroundColor: COLORS.surface,
+        borderRadius: BORDER_RADIUS.lg,
+        padding: SPACING.md,
+        marginBottom: SPACING.sm,
+        borderWidth: 2,
+        borderColor: COLORS.border,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 4,
+        elevation: 2,
+    },
+    hotelCardSelected: {
+        borderColor: COLORS.primary,
+        backgroundColor: COLORS.primaryMuted,
+        shadowColor: COLORS.primary,
+        shadowOpacity: 0.15,
+        shadowRadius: 8,
+        elevation: 4,
+    },
+    hotelCardLeft: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: SPACING.md,
+        flex: 1,
+    },
+    hotelIcon: {
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        backgroundColor: COLORS.primaryMuted,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    hotelIconSelected: {
+        backgroundColor: COLORS.primary,
+    },
+    hotelInfo: {
+        flex: 1,
+    },
+    hotelName: {
+        fontFamily: FONTS.bodyBold,
+        fontSize: FONT_SIZES.md,
+        color: COLORS.textPrimary,
+        marginBottom: 4,
+    },
+    hotelMeta: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: SPACING.sm,
+        marginBottom: 2,
+    },
+    hotelType: {
+        fontFamily: FONTS.bodyMedium,
+        fontSize: FONT_SIZES.sm,
+        color: COLORS.textSecondary,
+    },
+    hotelStars: {
+        flexDirection: 'row',
+        gap: 2,
+    },
+    hotelAddress: {
+        fontFamily: FONTS.body,
+        fontSize: FONT_SIZES.xs,
+        color: COLORS.textLight,
+    },
+    mapSelectButton: {
+        marginBottom: SPACING.md,
+        borderRadius: BORDER_RADIUS.lg,
+        overflow: 'hidden',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.15,
+        shadowRadius: 12,
+        elevation: 5,
+    },
+    mapSelectGradient: {
+        padding: SPACING.lg,
+    },
+    mapSelectContent: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: SPACING.md,
+    },
+    mapSelectTextContainer: {
+        flex: 1,
+    },
+    mapSelectTitle: {
+        fontFamily: FONTS.bodyBold,
+        fontSize: FONT_SIZES.lg,
+        color: '#fff',
+        marginBottom: 4,
+    },
+    mapSelectSubtitle: {
+        fontFamily: FONTS.body,
+        fontSize: FONT_SIZES.sm,
+        color: 'rgba(255,255,255,0.9)',
+        lineHeight: 18,
+    },
+    accommodationForm: {
+        marginTop: SPACING.sm,
+        marginBottom: SPACING.md,
+    },
     textInput: {
         backgroundColor: COLORS.surface,
         borderRadius: BORDER_RADIUS.md,
@@ -827,34 +1607,209 @@ const styles = StyleSheet.create({
     // Summary card
     summaryCard: {
         backgroundColor: COLORS.surface,
-        borderRadius: BORDER_RADIUS.lg,
-        padding: SPACING.md,
-        marginTop: SPACING.md,
+        borderRadius: BORDER_RADIUS.xl,
+        padding: SPACING.lg,
+        marginTop: SPACING.xl,
         borderWidth: 1,
         borderColor: COLORS.border,
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.06,
-        shadowRadius: 6,
-        elevation: 2,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.1,
+        shadowRadius: 12,
+        elevation: 4,
+    },
+    summaryHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: SPACING.sm,
+        marginBottom: SPACING.md,
     },
     summaryTitle: {
         fontFamily: FONTS.bodyBold,
-        fontSize: FONT_SIZES.md,
+        fontSize: FONT_SIZES.lg,
         color: COLORS.textPrimary,
-        marginBottom: SPACING.sm,
+    },
+    summaryDivider: {
+        height: 1,
+        backgroundColor: COLORS.border,
+        marginBottom: SPACING.md,
     },
     summaryRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: SPACING.md,
+        marginBottom: SPACING.sm,
+        paddingVertical: SPACING.xs,
+    },
+    summaryText: {
+        fontFamily: FONTS.bodyMedium,
+        fontSize: FONT_SIZES.md,
+        color: COLORS.textSecondary,
+        flex: 1,
+    },
+
+    // Date picker styles
+    datePickersContainer: {
+        gap: SPACING.md,
+        marginTop: SPACING.md,
+    },
+    dateSummary: {
+        backgroundColor: COLORS.surface,
+        borderRadius: BORDER_RADIUS.md,
+        padding: SPACING.md,
+        marginBottom: SPACING.md,
+        borderWidth: 1,
+        borderColor: COLORS.border,
+    },
+    dateSummaryItem: {
         flexDirection: 'row',
         alignItems: 'center',
         gap: SPACING.sm,
         marginBottom: SPACING.xs,
     },
-    summaryText: {
+    dateSummaryText: {
+        fontFamily: FONTS.bodyMedium,
+        fontSize: FONT_SIZES.md,
+        color: COLORS.textPrimary,
+    },
+    daysBadge: {
+        backgroundColor: COLORS.primaryMuted,
+        paddingHorizontal: SPACING.sm,
+        paddingVertical: SPACING.xs,
+        borderRadius: BORDER_RADIUS.full,
+        alignSelf: 'flex-start',
+        marginTop: SPACING.xs,
+    },
+    daysBadgeText: {
+        fontFamily: FONTS.bodyBold,
+        fontSize: FONT_SIZES.sm,
+        color: COLORS.primary,
+    },
+    datePickerCard: {
+        backgroundColor: COLORS.surface,
+        borderRadius: BORDER_RADIUS.md,
+        padding: SPACING.md,
+        borderWidth: 1,
+        borderColor: COLORS.border,
+    },
+    datePickerLabel: {
+        fontFamily: FONTS.bodyMedium,
+        fontSize: FONT_SIZES.sm,
+        color: COLORS.textSecondary,
+        marginBottom: SPACING.xs,
+    },
+    datePickerButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        padding: SPACING.sm,
+        backgroundColor: COLORS.background,
+        borderRadius: BORDER_RADIUS.sm,
+        gap: SPACING.sm,
+    },
+    datePickerButtonText: {
+        flex: 1,
+        fontFamily: FONTS.bodyMedium,
+        fontSize: FONT_SIZES.md,
+        color: COLORS.textPrimary,
+    },
+    dateHint: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: SPACING.xs,
+        marginTop: SPACING.sm,
+    },
+    dateHintText: {
         fontFamily: FONTS.body,
         fontSize: FONT_SIZES.sm,
         color: COLORS.textSecondary,
-        marginLeft: SPACING.xs,
+    },
+
+    // Map styles
+    mapButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: COLORS.surface,
+        borderRadius: BORDER_RADIUS.md,
+        padding: SPACING.md,
+        marginTop: SPACING.sm,
+        marginBottom: SPACING.sm,
+        borderWidth: 1,
+        borderColor: COLORS.border,
+        gap: SPACING.sm,
+    },
+    mapButtonText: {
+        flex: 1,
+        fontFamily: FONTS.bodyMedium,
+        fontSize: FONT_SIZES.md,
+    },
+
+    // Map styles
+    modalContainer: {
+        flex: 1,
+        backgroundColor: COLORS.background,
+    },
+    modalHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingHorizontal: SPACING.md,
+        paddingTop: SPACING.xl,
+        paddingBottom: SPACING.sm,
+        backgroundColor: COLORS.surface,
+        borderBottomWidth: 1,
+        borderBottomColor: COLORS.border,
+    },
+    modalCloseBtn: {
+        width: 40,
+        height: 40,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    modalTitle: {
+        fontFamily: FONTS.bodyBold,
+        fontSize: FONT_SIZES.lg,
+        color: COLORS.textPrimary,
+    },
+    modalContent: {
+        flex: 1,
+        padding: SPACING.lg,
+    },
+    mapPlaceholder: {
+        flex: 1,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: COLORS.surface,
+        borderRadius: BORDER_RADIUS.xl,
+        padding: SPACING.xl,
+    },
+    mapPlaceholderText: {
+        fontFamily: FONTS.body,
+        fontSize: FONT_SIZES.md,
+        color: COLORS.textSecondary,
+        marginTop: SPACING.md,
+        marginBottom: SPACING.xl,
+        textAlign: 'center',
+    },
+    openGoogleMapsBtn: {
+        borderRadius: BORDER_RADIUS.full,
+        overflow: 'hidden',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.2,
+        shadowRadius: 8,
+        elevation: 5,
+    },
+    openGoogleMapsGradient: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: SPACING.sm,
+        paddingHorizontal: SPACING.xl,
+        paddingVertical: SPACING.md,
+    },
+    openGoogleMapsText: {
+        fontFamily: FONTS.bodyBold,
+        fontSize: FONT_SIZES.md,
+        color: '#fff',
     },
 
     // Bottom nav

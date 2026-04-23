@@ -38,6 +38,8 @@ import { getPlaceSummary } from '../../services/wikipediaService';
 import { getBatchPlacePhotos } from '../../services/placePhotoService';
 import { toggleFavorite, getFavoriteIds } from '../../services/favoriteService';
 import { useFocusEffect } from '@react-navigation/native';
+import { loadCityPlaces } from '../../services/placeDataManager';
+import { cache, TTL } from '../../services/cacheService';
 
 import { useAuth } from '../../contexts/AuthContext';
 import { getCityCenter } from '../../constants/cities';
@@ -70,15 +72,15 @@ const CityDetailScreen = ({ route, navigation }) => {
     const [places, setPlaces] = useState([]);
     const [pois, setPois] = useState({});
     const [loading, setLoading] = useState(true);
+    const [loadingProgress, setLoadingProgress] = useState('');
     const [poiLoading, setPoiLoading] = useState(false);
     const [cityDescription, setCityDescription] = useState('');
     const [descLoading, setDescLoading] = useState(true);
-    const [favorites, setFavorites] = useState({});  // { placeId: true }
+    const [favorites, setFavorites] = useState({});
     const [selectedItem, setSelectedItem] = useState(null);
     const [wikiInfo, setWikiInfo] = useState(null);
     const [wikiLoading, setWikiLoading] = useState(false);
     const [placeSearch, setPlaceSearch] = useState('');
-    // Gerçek Wikipedia/Commons fotoğrafları: { "Mevlana Müzesi": { imageUrl, source } }
     const [placePhotos, setPlacePhotos] = useState({});
 
     // Animation
@@ -108,61 +110,63 @@ const CityDetailScreen = ({ route, navigation }) => {
 
     const loadCityData = async () => {
         setLoading(true);
+        setLoadingProgress('');
         try {
-            // Paralel yükleme: DB yerler + Wikipedia açıklama + Favoriler
-            const [placesResult, wikiResult] = await Promise.all([
-                getPlacesByCity(city.id),
-                getPlaceSummary(cityName),
-            ]);
+            // Wikipedia şehir açıklaması (paralel)
+            getPlaceSummary(cityName).then(wikiResult => {
+                if (wikiResult?.description) setCityDescription(wikiResult.description);
+                setDescLoading(false);
+            });
 
-            const dbPlaces = placesResult.data || [];
-            if (dbPlaces.length > 0) {
-                setPlaces(dbPlaces);
-                // Arka planda gerçek Wikipedia fotoğraflarını çek
-                getBatchPlacePhotos(dbPlaces).then(photos => {
-                    setPlacePhotos(photos);
-                }).catch(() => {}); // Sessizce başarısız ol
-            } else {
-                // DB'de şehir için yer yoksa ücretsiz OSM/Overpass turistik yerleri göster.
-                const { data: nearbyAttractions } = await getCityPOIs(
-                    cityCenter.lat,
-                    cityCenter.lng,
-                    'attraction',
-                    7000
-                );
-                const normalized = (nearbyAttractions || []).map((poi, idx) => ({
-                    id: `osm-${poi.id || idx}`,
-                    name: poi.name || 'Turistik Yer',
-                    category: 'historical',
+            // placeDataManager: Supabase cache → Overpass → Wikidata → Wikipedia → Commons
+            const cityWithCoords = {
+                id: city.id,
+                name: cityName,
+                lat: cityCenter.lat,
+                lng: cityCenter.lng,
+            };
+
+            const osmPlaces = await loadCityPlaces(cityWithCoords, (step) => {
+                setLoadingProgress(step);
+            });
+
+            if (osmPlaces.length > 0) {
+                // OSM verisi varsa kullan
+                const normalized = osmPlaces.map((p, idx) => ({
+                    id: p.osm_id || `osm-${idx}`,
+                    name: p.name,
+                    category: p.category,
                     avg_duration: 1,
                     entry_fee: 0,
                     popularity_score: 50,
-                    image_url: null,
-                    lat: poi.lat,
-                    lng: poi.lng,
-                    source: 'overpass',
-                    categoryLabel: poi.categoryLabel,
-                    emoji: poi.emoji,
-                    address: poi.address,
-                    website: poi.website,
-                    phone: poi.phone,
-                    openingHours: poi.openingHours,
+                    image_url: p.imageUrl || null,
+                    short_description: p.description || null,
+                    lat: p.lat,
+                    lng: p.lng,
+                    source: 'osm',
+                    emoji: p.emoji,
+                    address: p.address,
+                    website: p.website,
+                    phone: p.phone,
+                    openingHours: p.opening_hours,
+                    wikidata_id: p.wikidata_id,
                 }));
                 setPlaces(normalized);
-            }
-            if (wikiResult) {
-                setCityDescription(wikiResult.description);
+            } else {
+                // OSM boş dönerse DB'ye bak
+                const { data: dbPlaces } = await getPlacesByCity(city.id);
+                if (dbPlaces?.length) {
+                    setPlaces(dbPlaces);
+                    getBatchPlacePhotos(dbPlaces).then(photos => setPlacePhotos(photos)).catch(() => {});
+                }
             }
 
-            // Favorileri toplu çek (user varsa)
-            if (user) {
-                checkFavorites();
-            }
+            if (user) checkFavorites();
         } catch (err) {
-            console.error('Load city data error:', err);
+            console.warn('loadCityData error:', err);
         }
         setLoading(false);
-        setDescLoading(false);
+        setLoadingProgress('');
     };
 
 
@@ -623,7 +627,16 @@ const CityDetailScreen = ({ route, navigation }) => {
     // ═══════════════════════════════════════
     const renderCategoryContent = () => {
         if (activeCategory === 'places') {
-            if (loading) return <CityDetailSkeleton />;
+            if (loading) return (
+                <View>
+                    <CityDetailSkeleton />
+                    {loadingProgress ? (
+                        <Text style={{ textAlign: 'center', color: COLORS.textLight, fontSize: 12, fontFamily: 'Inter_400Regular', marginTop: 8, paddingHorizontal: 16 }}>
+                            {loadingProgress}
+                        </Text>
+                    ) : null}
+                </View>
+            );
             if (places.length === 0) {
                 return (
                     <View style={styles.emptyState}>

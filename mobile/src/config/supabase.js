@@ -1,6 +1,7 @@
 import 'react-native-url-polyfill/auto';
 import { createClient } from '@supabase/supabase-js';
 import * as SecureStore from 'expo-secure-store';
+import * as Crypto from 'expo-crypto';
 import Constants from 'expo-constants';
 
 // secrets.js gitignore'da olduğu için EAS build'de yok.
@@ -33,6 +34,20 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
         autoRefreshToken: true,
         persistSession: true,
         detectSessionInUrl: false,
+        // PKCE için expo-crypto kullan
         flowType: 'pkce',
+    },
+    global: {
+        // expo-crypto ile SHA-256 hash fonksiyonu sağla
+        fetch: (...args) => fetch(...args),
+        headers: {
+            'X-Client-Info': 'supabase-js-react-native',
+        },
+    },
+    db: {
+        schema: 'public',
+    },
+    realtime: {
+        timeout: 15000, // 15 saniye timeout
     },
 });
