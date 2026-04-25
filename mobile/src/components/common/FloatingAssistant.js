@@ -20,6 +20,7 @@ import { COLORS } from '../../constants/colors';
 import { FONTS, FONT_SIZES } from '../../constants/typography';
 import { BORDER_RADIUS, SPACING } from '../../constants/layout';
 import { useAssistantContext } from '../../contexts/AssistantContext';
+// import CatMascot from './CatMascot'; // Geçici olarak kapalı - development build gerekiyor
 
 const FloatingAssistant = () => {
     const navigation = useNavigation();
@@ -29,6 +30,7 @@ const FloatingAssistant = () => {
     const floatAnim = useRef(new Animated.Value(0)).current;
     const bubbleOpacity = useRef(new Animated.Value(0)).current;
     const bubbleTranslate = useRef(new Animated.Value(10)).current;
+    const jumpScale = useRef(new Animated.Value(1)).current;
     const [showBubble, setShowBubble] = useState(true);
 
     // Sürekli yüzme — yukarı/aşağı
@@ -80,6 +82,11 @@ const FloatingAssistant = () => {
     };
 
     const handlePress = () => {
+        // Zıplama animasyonu
+        Animated.sequence([
+            Animated.timing(jumpScale, { toValue: 1.25, duration: 80, useNativeDriver: true }),
+            Animated.timing(jumpScale, { toValue: 1, duration: 80, useNativeDriver: true }),
+        ]).start();
         navigation.navigate('TravelAssistant', { context });
     };
 
@@ -107,10 +114,12 @@ const FloatingAssistant = () => {
 
             {/* Ana buton */}
             <Animated.View style={{ transform: [{ translateY: floatAnim }] }}>
-                <TouchableOpacity style={styles.button} onPress={handlePress} activeOpacity={0.85}>
-                    <Text style={styles.catEmoji}>🐱</Text>
-                    <View style={styles.onlineBadge} />
-                </TouchableOpacity>
+                <Animated.View style={{ transform: [{ scale: jumpScale }] }}>
+                    <TouchableOpacity style={styles.button} onPress={handlePress} activeOpacity={0.85}>
+                        <Text style={styles.catEmoji}>🐱</Text>
+                        <View style={styles.onlineBadge} />
+                    </TouchableOpacity>
+                </Animated.View>
             </Animated.View>
         </View>
     );
@@ -159,14 +168,14 @@ const styles = StyleSheet.create({
     // Nabız
     pulseRing: {
         position: 'absolute',
-        width: 62, height: 62, borderRadius: 31,
+        width: 76, height: 76, borderRadius: 38,
         backgroundColor: COLORS.primary + '1A',
-        top: -3, right: -3,
+        top: -4, right: -4,
     },
 
     // Buton
     button: {
-        width: 56, height: 56, borderRadius: 28,
+        width: 68, height: 68, borderRadius: 34,
         backgroundColor: '#fff',
         justifyContent: 'center', alignItems: 'center',
         shadowColor: COLORS.primary,

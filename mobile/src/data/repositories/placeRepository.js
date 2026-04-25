@@ -71,3 +71,35 @@ export const getCategories = async (cityId) => {
     const unique = [...new Set(data.map((row) => row.category))];
     return { data: unique, error: null };
 };
+
+/**
+ * Belirli bir şehir ve gün için öğle + akşam yemeği önerileri üretir.
+ * Mevcut getPlacesByCity cache'ini kullanır — ek Supabase çağrısı yapmaz.
+ *
+ * @param {number} cityId
+ * @param {string[]} usedPlaceIds - O günün itinerary_items'ındaki place_id'ler
+ * @param {number} day - Gün numarası (loglama için)
+ * @returns {Promise<{ lunch: object|null, dinner: object|null }>}
+ */
+export const getMealSuggestions = async (cityId, usedPlaceIds = [], day = 1) => {
+    try {
+        const { data: allPlaces } = await getPlacesByCity(cityId);
+        if (!allPlaces || allPlaces.length === 0) return { lunch: null, dinner: null };
+
+        const usedSet = new Set(usedPlaceIds.map(String));
+
+        const candidates = allPlaces
+            .filter(p =>
+                (p.category === 'restoran' || p.category === 'kafe') &&
+                !usedSet.has(String(p.id))
+            )
+            .sort((a, b) => (b.popularity_score ?? 0) - (a.popularity_score ?? 0));
+
+        return {
+            lunch: candidates[0] ?? null,
+            dinner: candidates[1] ?? null,
+        };
+    } catch {
+        return { lunch: null, dinner: null };
+    }
+};

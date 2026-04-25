@@ -67,8 +67,6 @@ export const askTravelAssistant = async (message, context = {}, history = []) =>
 
         const systemText = buildSystemPrompt(context);
 
-        // Sistem promptu ilk user/model çifti olarak ekliyoruz
-        // (systemInstruction bu model versiyonunda desteklenmiyor)
         const systemTurn = [
             { role: 'user', parts: [{ text: systemText }] },
             { role: 'model', parts: [{ text: 'Anladım, Türkçe olarak yardımcı olmaya hazırım! 👋' }] },
@@ -86,7 +84,7 @@ export const askTravelAssistant = async (message, context = {}, history = []) =>
         ];
 
         const response = await fetchWithTimeout(
-            `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${GEMINI_API_KEY}`,
+            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key=${GEMINI_API_KEY}`,
             {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },

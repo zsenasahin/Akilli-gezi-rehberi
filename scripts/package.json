@@ -1,0 +1,14 @@
+{
+  "name": "smarttravelguide-scripts",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Maintenance scripts for Smart Travel Guide",
+  "scripts": {
+    "validate-fees": "node validate-entry-fees.js",
+    "validate-fees:apply": "node validate-entry-fees.js --apply"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.96.0",
+    "node-fetch": "^3.3.2"
+  }
+}

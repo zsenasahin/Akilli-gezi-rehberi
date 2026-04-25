@@ -35,6 +35,9 @@ android/
 .vscode/
 .idea/
 
+# Kiro specs
+.kiro/specs/
+
 # Supabase
 supabase/.temp/
 

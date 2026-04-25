@@ -12,6 +12,7 @@ import { useAuth } from '../contexts/AuthContext';
 
 // Screens
 import HomeScreen from '../screens/home/HomeScreen';
+import AllCitiesScreen from '../screens/home/AllCitiesScreen';
 import CityDetailScreen from '../screens/discover/CityDetailScreen';
 import CreateItineraryScreen from '../screens/itinerary/CreateItineraryScreen';
 import ItineraryResultScreen from '../screens/itinerary/ItineraryResultScreen';
@@ -157,6 +158,11 @@ const HomeStackNavigator = () => (
         <HomeStack.Screen
             name="CityDetail"
             component={CityDetailScreen}
+            options={{ headerShown: false }}
+        />
+        <HomeStack.Screen
+            name="AllCities"
+            component={AllCitiesScreen}
             options={{ headerShown: false }}
         />
         <HomeStack.Screen

@@ -20,8 +20,10 @@ import {
     updateItineraryStatus,
 } from '../../services/itineraryService';
 import { getPlacesByCity } from '../../services/placeService';
+import { getMealSuggestions } from '../../data/repositories/placeRepository';
 import { suggestAlternative, estimateTotalBudget } from '../../logic/itineraryGenerator';
 import { formatDate } from '../../utils/formatters';
+import { shareItinerary } from '../../utils/shareManager';
 import Button from '../../components/common/Button';
 import { ItineraryDetailSkeleton } from '../../components/common/SkeletonLoader';
 import ErrorMessage from '../../components/common/ErrorMessage';
@@ -34,6 +36,7 @@ const ItineraryDetailScreen = ({ route, navigation }) => {
 
     const [itinerary, setItinerary] = useState(null);
     const [allCityPlaces, setAllCityPlaces] = useState([]);
+    const [mealSuggestions, setMealSuggestions] = useState({});
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [error, setError] = useState(null);
@@ -50,6 +53,18 @@ const ItineraryDetailScreen = ({ route, navigation }) => {
         if (data?.city_id) {
             const { data: cityPlaces } = await getPlacesByCity(data.city_id);
             setAllCityPlaces(cityPlaces || []);
+
+            // Her gün için yemek önerisi üret
+            const groups = {};
+            (data.itinerary_items || []).forEach(item => {
+                if (!groups[item.day_number]) groups[item.day_number] = [];
+                groups[item.day_number].push(String(item.place_id));
+            });
+            const meals = {};
+            for (const [day, usedIds] of Object.entries(groups)) {
+                meals[day] = await getMealSuggestions(data.city_id, usedIds, Number(day));
+            }
+            setMealSuggestions(meals);
         }
         setLoading(false);
         setRefreshing(false);
@@ -262,6 +277,17 @@ const ItineraryDetailScreen = ({ route, navigation }) => {
                 <Text style={styles.stickyTitle} numberOfLines={1}>
                     {itinerary.cities?.name || 'Plan Detayı'}
                 </Text>
+                <TouchableOpacity
+                    style={styles.shareBtn}
+                    onPress={() => shareItinerary({
+                        cityName: itinerary.cities?.name || 'Gezi',
+                        days: itinerary.days,
+                        itineraryId: itinerary.id,
+                    })}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                >
+                    <Ionicons name="share-outline" size={22} color={COLORS.primary} />
+                </TouchableOpacity>
             </View>
 
             <ScrollView
@@ -435,6 +461,42 @@ const ItineraryDetailScreen = ({ route, navigation }) => {
                                 <Text style={styles.timelineEmptyText}>Bu gün için planlanan durak yok.</Text>
                             </View>
                         )}
+
+                        {/* ── Yemek Önerileri ── */}
+                        {(() => {
+                            const meal = mealSuggestions[group.day];
+                            if (!meal || (!meal.lunch && !meal.dinner)) return null;
+                            return (
+                                <View style={styles.mealSection}>
+                                    <View style={styles.mealSectionHeader}>
+                                        <Ionicons name="restaurant-outline" size={14} color={COLORS.primary} />
+                                        <Text style={styles.mealSectionTitle}>Yemek Önerileri</Text>
+                                    </View>
+                                    {meal.lunch && (
+                                        <MealCard
+                                            label="🍽️ Öğle"
+                                            place={meal.lunch}
+                                            onAdd={() => {
+                                                addItineraryItem(itinerary.id, meal.lunch.id, group.day, group.items.length);
+                                                fetchData();
+                                            }}
+                                            isCompleted={isCompleted}
+                                        />
+                                    )}
+                                    {meal.dinner && (
+                                        <MealCard
+                                            label="🌙 Akşam"
+                                            place={meal.dinner}
+                                            onAdd={() => {
+                                                addItineraryItem(itinerary.id, meal.dinner.id, group.day, group.items.length + 1);
+                                                fetchData();
+                                            }}
+                                            isCompleted={isCompleted}
+                                        />
+                                    )}
+                                </View>
+                            );
+                        })()}
                     </View>
                 ))}
 
@@ -499,6 +561,7 @@ const styles = StyleSheet.create({
         borderBottomColor: COLORS.border,
     },
     backBtn: { padding: 4 },
+    shareBtn: { padding: 4 },
     stickyTitle: {
         flex: 1,
         fontFamily: FONTS.heading,
@@ -818,6 +881,67 @@ const styles = StyleSheet.create({
         fontFamily: 'Inter_400Regular',
     },
 
+    // ─── Yemek Önerileri ───
+    mealSection: {
+        marginTop: SPACING.sm,
+        paddingTop: SPACING.sm,
+        borderTopWidth: 1,
+        borderTopColor: COLORS.border,
+    },
+    mealSectionHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        marginBottom: SPACING.xs,
+    },
+    mealSectionTitle: {
+        fontFamily: 'Inter_600SemiBold',
+        fontSize: FONT_SIZES.xs,
+        color: COLORS.primary,
+        textTransform: 'uppercase',
+        letterSpacing: 0.5,
+    },
+    mealCard: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: COLORS.background,
+        borderRadius: BORDER_RADIUS.md,
+        padding: SPACING.sm,
+        marginBottom: SPACING.xs,
+        borderWidth: 1,
+        borderColor: COLORS.border,
+        gap: SPACING.sm,
+    },
+    mealLabel: {
+        fontFamily: 'Inter_600SemiBold',
+        fontSize: FONT_SIZES.xs,
+        color: COLORS.textSecondary,
+        width: 52,
+    },
+    mealInfo: { flex: 1 },
+    mealName: {
+        fontFamily: 'Inter_500Medium',
+        fontSize: FONT_SIZES.sm,
+        color: COLORS.textPrimary,
+    },
+    mealMeta: {
+        fontFamily: 'Inter_400Regular',
+        fontSize: 10,
+        color: COLORS.textLight,
+        marginTop: 1,
+    },
+    mealAddBtn: {
+        backgroundColor: COLORS.primaryMuted,
+        borderRadius: BORDER_RADIUS.sm,
+        paddingHorizontal: SPACING.sm,
+        paddingVertical: 4,
+    },
+    mealAddBtnText: {
+        fontFamily: 'Inter_600SemiBold',
+        fontSize: 10,
+        color: COLORS.primary,
+    },
+
     // ─── Alt Butonlar ───
     assistantBtn: {
         flexDirection: 'row',
@@ -888,5 +1012,23 @@ const styles = StyleSheet.create({
     },
 });
 
+
+// ─── MealCard ────────────────────────────────────────────────────────────────
+const MealCard = ({ label, place, onAdd, isCompleted }) => (
+    <View style={styles.mealCard}>
+        <Text style={styles.mealLabel}>{label}</Text>
+        <View style={styles.mealInfo}>
+            <Text style={styles.mealName} numberOfLines={1}>{place.name}</Text>
+            <Text style={styles.mealMeta}>
+                {place.category} · {place.avg_duration ? `${place.avg_duration}s` : ''}{place.entry_fee > 0 ? ` · ₺${place.entry_fee}` : ' · Ücretsiz'}
+            </Text>
+        </View>
+        {!isCompleted && (
+            <TouchableOpacity style={styles.mealAddBtn} onPress={onAdd}>
+                <Text style={styles.mealAddBtnText}>+ Ekle</Text>
+            </TouchableOpacity>
+        )}
+    </View>
+);
 
 export default ItineraryDetailScreen;

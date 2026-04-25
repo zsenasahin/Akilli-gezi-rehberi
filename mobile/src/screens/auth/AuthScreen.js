@@ -16,10 +16,11 @@ import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { useFonts, PlayfairDisplay_700Bold } from '@expo-google-fonts/playfair-display';
 import { Inter_400Regular, Inter_600SemiBold, Inter_700Bold } from '@expo-google-fonts/inter';
-import { COLORS, SPACING } from '../../constants/theme';
-import { signIn, signUp, signInWithGoogle, sendPasswordReset } from '../../data/repositories/authRepository';
+import { SPACING } from '../../constants/theme';
+import { signIn, signUp, signInWithGoogle } from '../../data/repositories/authRepository';
+import GlassmorphismModal from '../../components/common/GlassmorphismModal';
 
-const { width, height } = Dimensions.get('window');
+const { height } = Dimensions.get('window');
 
 export default function AuthScreen({ navigation }) {
   const [fontsLoaded] = useFonts({
@@ -35,6 +36,7 @@ export default function AuthScreen({ navigation }) {
   const [name, setName] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [showForgotPasswordModal, setShowForgotPasswordModal] = useState(false);
 
   if (!fontsLoaded) {
     return null;
@@ -55,20 +57,16 @@ export default function AuthScreen({ navigation }) {
 
     try {
       if (isLogin) {
-        const { data, error } = await signIn(email.trim(), password);
+        const { error } = await signIn(email.trim(), password);
         if (error) {
-          // Invalid credentials hatası - eski kullanıcı olabilir
-          if (error.message?.toLowerCase().includes('invalid') || 
+          if (error.message?.toLowerCase().includes('invalid') ||
               error.message?.toLowerCase().includes('credentials')) {
             Alert.alert(
               'Giriş Yapılamadı',
-              'Email veya şifre hatalı. Eğer eski bir kullanıcıysanız, "Şifremi unuttum" ile şifrenizi sıfırlayın.',
+              'Email veya şifre hatalı. Şifrenizi unuttuysanız "Şifremi unuttum?" kullanın.',
               [
                 { text: 'Tamam', style: 'cancel' },
-                { 
-                  text: 'Şifremi Sıfırla', 
-                  onPress: () => handleForgotPassword() 
-                }
+                { text: 'Şifremi Sıfırla', onPress: () => handleForgotPassword() },
               ]
             );
           } else if (error.message?.toLowerCase().includes('email not confirmed')) {
@@ -82,10 +80,8 @@ export default function AuthScreen({ navigation }) {
         if (error) {
           Alert.alert('Kayıt Hatası', error.message || 'Kayıt oluşturulamadı');
         } else if (data?.session) {
-          // Email confirmation kapalı, direkt giriş yapıldı
           Alert.alert('Başarılı', 'Kayıt tamamlandı, hoş geldiniz!');
         } else {
-          // Email confirmation açık
           Alert.alert(
             'Kayıt Başarılı',
             'E-postanıza gönderilen doğrulama linkine tıklayın.',
@@ -103,7 +99,7 @@ export default function AuthScreen({ navigation }) {
   const handleGoogleSignIn = async () => {
     setLoading(true);
     try {
-      const { data, error } = await signInWithGoogle();
+      const { error } = await signInWithGoogle();
       if (error && error.message !== 'Giriş iptal edildi.') {
         Alert.alert('Google Giriş Hatası', error.message || 'Google ile giriş yapılamadı');
       }
@@ -114,32 +110,16 @@ export default function AuthScreen({ navigation }) {
     }
   };
 
-  const handleForgotPassword = async () => {
-    if (!email) {
-      Alert.alert('E-posta Gerekli', 'Şifre sıfırlamak için e-posta adresinizi girin');
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const { error } = await sendPasswordReset(email.trim());
-      if (error) {
-        Alert.alert('Hata', error.message || 'Şifre sıfırlama linki gönderilemedi');
-      } else {
-        Alert.alert('Başarılı', 'Şifre sıfırlama linki e-postanıza gönderildi');
-      }
-    } catch (err) {
-      Alert.alert('Hata', err.message || 'Bir hata oluştu');
-    } finally {
-      setLoading(false);
-    }
+  const handleForgotPassword = () => {
+    setShowForgotPasswordModal(false);
+    navigation.navigate('PasswordReset', { email: email.trim() });
   };
 
   return (
     <View style={styles.container}>
       <StatusBar style="light" />
-      
-      {/* Top Background Section with Nature Image */}
+
+      {/* Top Background Section */}
       <View style={styles.topSection}>
         <Image
           source={require('../../../assets/doga.jpg')}
@@ -163,18 +143,8 @@ export default function AuthScreen({ navigation }) {
             <Text style={styles.welcomeTitle}>
               {isLogin ? 'Hoş Geldin!' : 'Aramıza Katıl'}
             </Text>
-            <Text style={styles.welcomeSubtitle}>
-              {isLogin ? 'Tekrar görüşmek güzel' : 'Yeni maceralara başla'}
-            </Text>
-
-            {/* Eski Kullanıcı Yardım Banner */}
-            {isLogin && (
-              <View style={styles.helpBanner}>
-                <Ionicons name="information-circle-outline" size={18} color="#0891B2" />
-                <Text style={styles.helpText}>
-                  Eski şifreniz çalışmıyorsa "Şifremi unuttum?" kullanın
-                </Text>
-              </View>
+            {!isLogin && (
+              <Text style={styles.welcomeSubtitle}>Yeni maceralara başla</Text>
             )}
 
             {/* Input Fields */}
@@ -233,9 +203,9 @@ export default function AuthScreen({ navigation }) {
 
             {/* Forgot Password */}
             {isLogin && (
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.forgotPassword}
-                onPress={handleForgotPassword}
+                onPress={() => setShowForgotPasswordModal(true)}
                 disabled={loading}
               >
                 <Text style={styles.forgotPasswordText}>Şifremi unuttum?</Text>
@@ -290,6 +260,22 @@ export default function AuthScreen({ navigation }) {
           </View>
         </View>
       </KeyboardAvoidingView>
+
+      {/* Glassmorphism Modal for Forgot Password */}
+      <GlassmorphismModal
+        visible={showForgotPasswordModal}
+        title="Şifremi Unuttum"
+        message="E-posta adresinize bir doğrulama kodu göndereceğiz. Bu kod ile yeni şifrenizi oluşturabilirsiniz."
+        primaryAction={{
+          label: 'Devam Et',
+          onPress: handleForgotPassword,
+        }}
+        secondaryAction={{
+          label: 'İptal',
+          onPress: () => setShowForgotPasswordModal(false),
+        }}
+        onClose={() => setShowForgotPasswordModal(false)}
+      />
     </View>
   );
 }
@@ -343,8 +329,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#7F8C8D',
     marginBottom: SPACING.md,
-  },
-  helpBanner: {
   },
   inputContainer: {
     marginBottom: SPACING.sm,
@@ -476,23 +460,5 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter_600SemiBold',
     fontSize: 15,
     color: '#2C3E50',
-  },
-  helpBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#E0F2FE',
-    borderRadius: 8,
-    padding: 10,
-    marginTop: SPACING.sm,
-    gap: 8,
-    borderWidth: 1,
-    borderColor: '#BAE6FD',
-  },
-  helpText: {
-    flex: 1,
-    fontFamily: 'Inter_400Regular',
-    fontSize: 12,
-    color: '#0369A1',
-    lineHeight: 16,
   },
 });

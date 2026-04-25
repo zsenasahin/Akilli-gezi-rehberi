@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
     View,
     Text,
@@ -10,7 +10,6 @@ import {
     Animated,
     Easing,
     Platform,
-    TextInput,
 } from 'react-native';
 import SmartImage from '../../components/common/SmartImage';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -33,18 +32,6 @@ const CITY_CARD_WIDTH = (SCREEN_WIDTH - SPACING.lg * 2 - SPACING.sm) / 2;
 
 const HERO_IMAGE = 'https://images.unsplash.com/photo-1524231757912-21f4fe3a7200?w=1200&h=900&fit=crop&q=85';
 
-// Bölge renk haritası — emoji yerine renkli nokta
-const REGION_COLORS = {
-    'Tümü': COLORS.primary,
-    'Marmara': '#6366F1',
-    'Ege': '#0891B2',
-    'Akdeniz': '#F59E0B',
-    'İç Anadolu': '#84CC16',
-    'Karadeniz': '#10B981',
-    'Doğu Anadolu': '#8B5CF6',
-    'Güneydoğu Anadolu': '#EF4444',
-};
-
 const HomeScreen = ({ navigation }) => {
     const { user, isGuest } = useAuth();
     const requireAuth = useRequireAuth(navigation);
@@ -54,10 +41,6 @@ const HomeScreen = ({ navigation }) => {
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [error, setError] = useState(null);
-
-    // Arama & filtre
-    const [searchQuery, setSearchQuery] = useState('');
-    const [activeRegion, setActiveRegion] = useState('Tümü');
 
     // Scroll animasyonu – parallax için
     const scrollY = useRef(new Animated.Value(0)).current;
@@ -120,28 +103,6 @@ const HomeScreen = ({ navigation }) => {
     const handleCityPress = (city) => {
         navigation.navigate('CityDetail', { city });
     };
-
-    // Bölge listesi (oluştur)
-    const regions = useMemo(() => {
-        const uniqueRegions = [...new Set(cities.map(c => c.region))];
-        return ['Tümü', ...uniqueRegions];
-    }, [cities]);
-
-    // Arama + bölge filtresi
-    const filteredCities = useMemo(() => {
-        let result = cities;
-        if (activeRegion !== 'Tümü') {
-            result = result.filter(c => c.region === activeRegion);
-        }
-        if (searchQuery.trim().length > 0) {
-            const q = searchQuery.trim().toLowerCase();
-            result = result.filter(c =>
-                c.name.toLowerCase().includes(q) ||
-                c.region.toLowerCase().includes(q)
-            );
-        }
-        return result;
-    }, [cities, activeRegion, searchQuery]);
 
     if (loading) return <HomeScreenSkeleton />;
 
@@ -290,87 +251,41 @@ const HomeScreen = ({ navigation }) => {
                         </TouchableOpacity>
                     </View>
 
-                    {/* ═══ ŞEHİRLER — Arama + Filtre + Grid ═══ */}
+                    {/* ═══ POPÜLER ŞEHİRLER ═══ */}
                     <Animated.View style={[styles.section, {
                         opacity: cityCardAnim,
                         transform: [{ translateY: cityCardAnim.interpolate({ inputRange: [0, 1], outputRange: [30, 0] }) }]
                     }]}>
                         <View style={styles.sectionHeaderRow}>
-                            <Text style={styles.sectionTitle}>Şehirler</Text>
-                            <Text style={styles.sectionSubtitle}>{filteredCities.length} şehir</Text>
+                            <Text style={styles.sectionTitle}>Popüler Şehirler</Text>
+                            <TouchableOpacity
+                                style={styles.seeAllBtn}
+                                onPress={() => navigation.navigate('AllCities', { cities })}
+                                activeOpacity={0.7}
+                            >
+                                <Text style={styles.seeAllText}>Hepsini Görüntüle</Text>
+                                <Ionicons name="arrow-forward" size={12} color={COLORS.primary} />
+                            </TouchableOpacity>
                         </View>
 
-                        {/* Arama kutusu */}
-                        <View style={styles.searchContainer}>
-                            <Ionicons name="search-outline" size={18} color={COLORS.textSecondary} />
-                            <TextInput
-                                style={styles.searchInput}
-                                placeholder="Şehir veya bölge ara..."
-                                placeholderTextColor={COLORS.textLight}
-                                value={searchQuery}
-                                onChangeText={setSearchQuery}
-                                returnKeyType="search"
-                                clearButtonMode="while-editing"
-                            />
-                            {searchQuery.length > 0 && (
-                                <TouchableOpacity onPress={() => setSearchQuery('')}>
-                                    <Ionicons name="close-circle" size={18} color={COLORS.textLight} />
-                                </TouchableOpacity>
-                            )}
-                        </View>
-
-                        {/* Bölge filtreleri */}
-                        <ScrollView
-                            horizontal
-                            showsHorizontalScrollIndicator={false}
-                            contentContainerStyle={styles.regionFilters}
-                        >
-                            {regions.map((region) => {
-                                const isActive = activeRegion === region;
-                                const dotColor = REGION_COLORS[region] || COLORS.primary;
+                        <View style={styles.cityGrid}>
+                            {cities.slice(0, 4).map((city, index) => {
+                                const images = getCityImages(city.name, city.region);
                                 return (
-                                    <TouchableOpacity
-                                        key={region}
-                                        style={[styles.regionChip, isActive && styles.regionChipActive, isActive && { borderColor: dotColor + '60', backgroundColor: dotColor + '12' }]}
-                                        onPress={() => setActiveRegion(region)}
-                                        activeOpacity={0.7}
-                                    >
-                                        <View style={[styles.regionDot, { backgroundColor: dotColor }]} />
-                                        <Text style={[styles.regionText, isActive && styles.regionTextActive, isActive && { color: dotColor }]}>{region}</Text>
-                                    </TouchableOpacity>
+                                    <CityCard
+                                        key={city.id}
+                                        city={city}
+                                        images={images}
+                                        index={index}
+                                        onPress={() => handleCityPress(city)}
+                                        onPlanPress={() => {
+                                            if (!requireAuth('Gezi planı oluşturmak için giriş yapmalısınız.')) return;
+                                            navigation.navigate('CreateItinerary', { preselectedCity: city });
+                                        }}
+                                    />
                                 );
                             })}
-                        </ScrollView>
-
-                        {/* Şehir grid'i — 2'li sütun */}
-                        {filteredCities.length === 0 ? (
-                            <View style={styles.emptySearch}>
-                                <Ionicons name="search-outline" size={36} color={COLORS.textLight} />
-                                <Text style={styles.emptySearchTitle}>Sonuç bulunamadı</Text>
-                                <Text style={styles.emptySearchText}>
-                                    Farklı bir arama terimi veya bölge deneyin
-                                </Text>
-                            </View>
-                        ) : (
-                            <View style={styles.cityGrid}>
-                                {filteredCities.map((city, index) => {
-                                    const images = getCityImages(city.name, city.region);
-                                    return (
-                                        <CityCard
-                                            key={city.id}
-                                            city={city}
-                                            images={images}
-                                            index={index}
-                                            onPress={() => handleCityPress(city)}
-                                            onPlanPress={() => {
-                                                if (!requireAuth('Gezi planı oluşturmak için giriş yapmalısınız.')) return;
-                                                navigation.navigate('CreateItinerary', { preselectedCity: city });
-                                            }}
-                                        />
-                                    );
-                                })}
-                            </View>
-                        )}
+                        </View>
                     </Animated.View>
 
                     {/* Son Planlar */}
@@ -674,63 +589,6 @@ const styles = StyleSheet.create({
         color: COLORS.primary,
     },
 
-    // ─── ARAMA ───
-    searchContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: COLORS.surface,
-        borderRadius: BORDER_RADIUS.lg,
-        paddingHorizontal: SPACING.md,
-        paddingVertical: Platform.OS === 'ios' ? 12 : 6,
-        marginBottom: SPACING.sm,
-        borderWidth: 1,
-        borderColor: COLORS.border,
-        gap: SPACING.sm,
-    },
-    searchInput: {
-        flex: 1,
-        fontFamily: FONTS.body,
-        fontSize: FONT_SIZES.md,
-        color: COLORS.textPrimary,
-        paddingVertical: 0,
-    },
-
-    // ─── BÖLGE FİLTRELERİ ───
-    regionFilters: {
-        gap: 8,
-        paddingHorizontal: SPACING.md,
-        paddingBottom: SPACING.sm + 4,
-    },
-    regionChip: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 6,
-        paddingHorizontal: 14,
-        paddingVertical: 8,
-        borderRadius: BORDER_RADIUS.full,
-        backgroundColor: COLORS.surface,
-        borderWidth: 1,
-        borderColor: COLORS.border,
-    },
-    regionChipActive: {
-        backgroundColor: COLORS.primary + '12',
-        borderColor: COLORS.primary + '40',
-    },
-    regionDot: {
-        width: 7,
-        height: 7,
-        borderRadius: 4,
-    },
-    regionText: {
-        fontFamily: FONTS.bodyMedium,
-        fontSize: FONT_SIZES.xs,
-        color: COLORS.textSecondary,
-    },
-    regionTextActive: {
-        color: COLORS.primary,
-        fontFamily: FONTS.bodySemiBold,
-    },
-
     // ─── ŞEHİR GRID ───
     cityGrid: {
         flexDirection: 'row',
@@ -787,24 +645,6 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         borderWidth: 1,
         borderColor: 'rgba(255,255,255,0.3)',
-    },
-
-    // ─── BOŞTA ARAMA ───
-    emptySearch: {
-        alignItems: 'center',
-        paddingVertical: SPACING.xxl,
-        gap: SPACING.sm,
-    },
-    emptySearchTitle: {
-        fontFamily: FONTS.bodySemiBold,
-        fontSize: FONT_SIZES.md,
-        color: COLORS.textPrimary,
-    },
-    emptySearchText: {
-        fontFamily: FONTS.body,
-        fontSize: FONT_SIZES.sm,
-        color: COLORS.textSecondary,
-        textAlign: 'center',
     },
 
     // ─── RECENT PLANS ───

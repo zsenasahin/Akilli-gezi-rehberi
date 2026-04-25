@@ -77,7 +77,7 @@ async function queryOverpass(query) {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
                 body: `data=${encodeURIComponent(query)}`,
-                signal: AbortSignal.timeout(15000),
+                signal: AbortSignal.timeout(20000),
             });
             if (res.ok) {
                 const data = await res.json();
@@ -257,7 +257,37 @@ export async function loadCityPlaces(city, onProgress) {
         return cached;
     }
 
-    onProgress?.('Overpass\'tan yerler çekiliyor...', 0, 3);
+    // 2. Supabase'de bu şehre ait kayıt var mı kontrol et
+    try {
+        const { data: dbPlaces } = await supabase
+            .from('places')
+            .select('*')
+            .eq('city_id', city.id)
+            .limit(100);
+
+        if (dbPlaces?.length > 0) {
+            const normalized = dbPlaces.map(p => ({
+                osm_id: p.osm_id || String(p.id),
+                name: p.name,
+                category: p.category,
+                lat: p.lat,
+                lng: p.lng,
+                imageUrl: p.image_url || null,
+                description: p.short_description || null,
+                emoji: getEmojiFromCategory(p.category),
+                address: p.address || '',
+                website: p.website || '',
+                phone: p.phone || '',
+                opening_hours: p.opening_hours || '',
+                wikidata_id: p.wikidata_id || null,
+            }));
+            await cache.set(CACHE_KEY, normalized, TTL.WEEK);
+            onProgress?.('db', 1, 1);
+            return normalized;
+        }
+    } catch { /* DB hatası, Overpass'a geç */ }
+
+    onProgress?.("Overpass'tan yerler çekiliyor...", 0, 3);
 
     // 2. Overpass'tan yerleri çek
     const rawPlaces = await fetchPlacesFromOverpass(city.lat, city.lng);

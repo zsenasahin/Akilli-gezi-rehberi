@@ -23,8 +23,30 @@ const AppNavigator = () => {
         return <LoadingSpinner message="Uygulama yükleniyor..." />;
     }
 
+    const linking = {
+        prefixes: ['smarttravelguide://'],
+        config: {
+            screens: {
+                App: {
+                    screens: {
+                        Home: {
+                            screens: {
+                                ItineraryDetail: 'itinerary/:itineraryId',
+                            },
+                        },
+                        Saved: {
+                            screens: {
+                                ItineraryDetail: 'itinerary/:itineraryId',
+                            },
+                        },
+                    },
+                },
+            },
+        },
+    };
+
     return (
-        <NavigationContainer>
+        <NavigationContainer linking={linking}>
             <RootStack.Navigator screenOptions={{ headerShown: false }}>
                 {session ? (
                     <RootStack.Screen name="App" component={MainNavigator} />
