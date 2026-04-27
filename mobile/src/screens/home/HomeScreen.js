@@ -18,13 +18,15 @@ import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../../constants/colors';
 import { FONTS, FONT_SIZES } from '../../constants/typography';
 import { SPACING, BORDER_RADIUS, SCREEN } from '../../constants/layout';
-import { getCityImages } from '../../constants/cityImages';
+import { getCityImages } from '../../services/cityImageService';
 import { useAuth, useRequireAuth } from '../../contexts/AuthContext';
+import VisitToggle from '../../components/common/VisitToggle';
 import { getCities } from '../../services/cityService';
 import { getProfile } from '../../services/profileService';
-import { getItinerariesByUser } from '../../services/itineraryService';
 import { HomeScreenSkeleton } from '../../components/common/SkeletonLoader';
 import ErrorMessage from '../../components/common/ErrorMessage';
+
+import { getEtkinlikler } from '../../services/etkinlikService';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const HERO_HEIGHT = SCREEN.height * 0.48;
@@ -37,10 +39,11 @@ const HomeScreen = ({ navigation }) => {
     const requireAuth = useRequireAuth(navigation);
     const [profile, setProfile] = useState(null);
     const [cities, setCities] = useState([]);
-    const [recentItineraries, setRecentItineraries] = useState([]);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [error, setError] = useState(null);
+    const [etkinlikler, setEtkinlikler] = useState([]);
+    const [etkinliklerLoading, setEtkinliklerLoading] = useState(true);
 
     // Scroll animasyonu – parallax için
     const scrollY = useRef(new Animated.Value(0)).current;
@@ -57,16 +60,17 @@ const HomeScreen = ({ navigation }) => {
             if (citiesResult.data) setCities(citiesResult.data);
 
             if (!isGuest) {
-                const [profileResult, itinResult] = await Promise.all([
-                    getProfile(user.id),
-                    getItinerariesByUser(user.id),
-                ]);
+                const profileResult = await getProfile(user.id);
                 if (profileResult.data) setProfile(profileResult.data);
-                if (itinResult.data) setRecentItineraries(itinResult.data.slice(0, 3));
             } else {
                 setProfile(null);
-                setRecentItineraries([]);
             }
+
+            // Etkinlikleri çek (misafir dahil herkes görebilir)
+            getEtkinlikler({ sayi: 5 }).then(({ data }) => {
+                if (data?.length) setEtkinlikler(data);
+                setEtkinliklerLoading(false);
+            });
         } catch (err) {
             setError('Veriler yüklenirken hata oluştu.');
         }
@@ -106,7 +110,13 @@ const HomeScreen = ({ navigation }) => {
 
     if (loading) return <HomeScreenSkeleton />;
 
-    const ongoingCount = recentItineraries.filter((i) => i.status === 'ongoing').length;
+    // Türkiye'nin en popüler turistik şehirleri — sıralı
+    const POPULAR_CITY_NAMES = ['İstanbul', 'Antalya', 'İzmir', 'Muğla'];
+    const popularCities = POPULAR_CITY_NAMES
+        .map(name => cities.find(c => c.name === name))
+        .filter(Boolean)
+        .concat(cities.filter(c => !POPULAR_CITY_NAMES.includes(c.name)))
+        .slice(0, 4);
 
     // Parallax: hero resmi biraz daha yavaş kayar
     const heroParallax = scrollY.interpolate({
@@ -170,6 +180,19 @@ const HomeScreen = ({ navigation }) => {
                     <Text style={styles.heroSubtitle}>
                         Akıllı rotalar oluştur, hayalindeki seyahati planla
                     </Text>
+                    {/* ── Hero CTA ── */}
+                    <TouchableOpacity
+                        style={styles.heroCta}
+                        onPress={() => {
+                            if (!requireAuth('Gezi planı oluşturmak için giriş yapmalısınız.')) return;
+                            navigation.navigate('CreateItinerary', {});
+                        }}
+                        activeOpacity={0.85}
+                    >
+                        <Ionicons name="map-outline" size={16} color="#fff" />
+                        <Text style={styles.heroCtaText}>Gezi Planla</Text>
+                        <Ionicons name="arrow-forward" size={14} color="rgba(255,255,255,0.8)" />
+                    </TouchableOpacity>
                 </View>
 
                 {/* İçerik kartı — beyaz yüzey */}
@@ -196,61 +219,6 @@ const HomeScreen = ({ navigation }) => {
                         </TouchableOpacity>
                     )}
 
-                    {/* ═══ HIZLI İŞLEMLER — Minimalist ═══ */}
-                    <View style={styles.quickRow}>
-                        <TouchableOpacity
-                            style={styles.quickItem}
-                            onPress={() => {
-                                if (!requireAuth('Gezi planı oluşturmak için giriş yapmalısınız.')) return;
-                                navigation.navigate('CreateItinerary', {});
-                            }}
-                            activeOpacity={0.7}
-                        >
-                            <View style={[styles.quickIcon, { backgroundColor: COLORS.primary + '12' }]}>
-                                <Ionicons name="add-circle-outline" size={22} color={COLORS.primary} />
-                            </View>
-                            <Text style={styles.quickLabel}>Gezi Planla</Text>
-                        </TouchableOpacity>
-
-                        {ongoingCount > 0 && (
-                            <TouchableOpacity
-                                style={styles.quickItem}
-                                onPress={() => navigation.navigate('Saved')}
-                                activeOpacity={0.7}
-                            >
-                                <View style={[styles.quickIcon, { backgroundColor: COLORS.success + '12' }]}>
-                                    <View style={styles.quickBadge}>
-                                        <Text style={styles.quickBadgeText}>{ongoingCount}</Text>
-                                    </View>
-                                    <Ionicons name="map-outline" size={22} color={COLORS.success} />
-                                </View>
-                                <Text style={styles.quickLabel}>Aktif Plan</Text>
-                            </TouchableOpacity>
-                        )}
-
-                        <TouchableOpacity
-                            style={styles.quickItem}
-                            onPress={() => navigation.navigate('Saved')}
-                            activeOpacity={0.7}
-                        >
-                            <View style={[styles.quickIcon, { backgroundColor: COLORS.accent + '12' }]}>
-                                <Ionicons name="bookmarks-outline" size={20} color={COLORS.accent} />
-                            </View>
-                            <Text style={styles.quickLabel}>Planlarım</Text>
-                        </TouchableOpacity>
-
-                        <TouchableOpacity
-                            style={styles.quickItem}
-                            onPress={() => navigation.navigate('Favorites')}
-                            activeOpacity={0.7}
-                        >
-                            <View style={[styles.quickIcon, { backgroundColor: '#EF444412' }]}>
-                                <Ionicons name="heart-outline" size={20} color="#EF4444" />
-                            </View>
-                            <Text style={styles.quickLabel}>Favoriler</Text>
-                        </TouchableOpacity>
-                    </View>
-
                     {/* ═══ POPÜLER ŞEHİRLER ═══ */}
                     <Animated.View style={[styles.section, {
                         opacity: cityCardAnim,
@@ -269,7 +237,7 @@ const HomeScreen = ({ navigation }) => {
                         </View>
 
                         <View style={styles.cityGrid}>
-                            {cities.slice(0, 4).map((city, index) => {
+                            {popularCities.map((city, index) => {
                                 const images = getCityImages(city.name, city.region);
                                 return (
                                     <CityCard
@@ -278,6 +246,7 @@ const HomeScreen = ({ navigation }) => {
                                         images={images}
                                         index={index}
                                         onPress={() => handleCityPress(city)}
+                                        userId={user?.id}
                                         onPlanPress={() => {
                                             if (!requireAuth('Gezi planı oluşturmak için giriş yapmalısınız.')) return;
                                             navigation.navigate('CreateItinerary', { preselectedCity: city });
@@ -288,76 +257,110 @@ const HomeScreen = ({ navigation }) => {
                         </View>
                     </Animated.View>
 
-                    {/* Son Planlar */}
-                    {recentItineraries.length > 0 && (
-                        <Animated.View style={[styles.section, {
-                            opacity: contentAnim,
-                            transform: [{ translateY: contentAnim.interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }]
-                        }]}>
-                            <View style={styles.sectionHeaderRow}>
-                                <View>
-                                    <Text style={styles.sectionTitle}>Son Planlarım</Text>
-                                    <Text style={styles.sectionSubtitle}>{recentItineraries.length} plan</Text>
+                    {/* ═══ ETKİNLİKLER ═══ */}
+                    <Animated.View style={[styles.section, {
+                        opacity: contentAnim,
+                        transform: [{ translateY: contentAnim.interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }]
+                    }]}>
+                        <View style={styles.sectionHeaderRow}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                <Text style={styles.sectionTitle}>Etkinlikler</Text>
+                                <View style={styles.liveBadge}>
+                                    <Text style={styles.liveBadgeText}>CANLI</Text>
                                 </View>
-                                <TouchableOpacity
-                                    onPress={() => navigation.navigate('Saved')}
-                                    style={styles.seeAllBtn}
-                                >
-                                    <Text style={styles.seeAllText}>Tümü</Text>
-                                    <Ionicons name="arrow-forward" size={12} color={COLORS.primary} />
-                                </TouchableOpacity>
                             </View>
-                            {recentItineraries.map((itin) => {
-                                const imgs = getCityImages(itin.cities?.name, itin.cities?.region);
-                                const isCompleted = itin.status === 'completed';
-                                return (
-                                    <TouchableOpacity
-                                        key={itin.id}
-                                        style={styles.recentCard}
-                                        onPress={() =>
-                                            navigation.navigate('ItineraryDetail', { itineraryId: itin.id })
-                                        }
-                                        activeOpacity={0.88}
-                                    >
-                                        <View style={styles.recentThumb}>
-                                            <SmartImage
-                                                uri={imgs.card}
-                                                fallbackUri="https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?w=400&h=300&fit=crop&q=80"
-                                                style={StyleSheet.absoluteFill}
-                                                contentFit="cover"
-                                                transition={300}
-                                            />
-                                            <LinearGradient
-                                                colors={['transparent', 'rgba(0,0,0,0.5)']}
-                                                style={StyleSheet.absoluteFill}
-                                            />
-                                        </View>
-                                        <View style={styles.recentInfo}>
-                                            <Text style={styles.recentCity}>{itin.cities?.name}</Text>
-                                            <Text style={styles.recentMeta}>
-                                                {itin.days} gün · {itin.itinerary_items?.length || 0} yer
-                                            </Text>
-                                        </View>
-                                        <View style={[styles.recentStatus, isCompleted && styles.recentStatusCompleted]}>
-                                            <Ionicons
-                                                name={isCompleted ? 'checkmark' : 'time-outline'}
-                                                size={14}
-                                                color={isCompleted ? COLORS.success : COLORS.primary}
-                                            />
-                                        </View>
-                                    </TouchableOpacity>
-                                );
-                            })}
-                        </Animated.View>
-                    )}
+                            <TouchableOpacity
+                                style={styles.seeAllBtn}
+                                onPress={() => navigation.navigate('Etkinlikler')}
+                                activeOpacity={0.7}
+                            >
+                                <Text style={styles.seeAllText}>Tümünü Gör</Text>
+                                <Ionicons name="arrow-forward" size={12} color={COLORS.primary} />
+                            </TouchableOpacity>
+                        </View>
+
+                        {etkinliklerLoading ? (
+                            // Skeleton
+                            [0, 1, 2].map(i => (
+                                <View key={i} style={[styles.etkinlikCard, { opacity: 0.5 }]}>
+                                    <View style={[styles.etkinlikDateBox, { backgroundColor: COLORS.border }]} />
+                                    <View style={{ flex: 1, gap: 6 }}>
+                                        <View style={{ height: 14, width: '70%', backgroundColor: COLORS.border, borderRadius: 6 }} />
+                                        <View style={{ height: 11, width: '40%', backgroundColor: COLORS.border, borderRadius: 6 }} />
+                                    </View>
+                                </View>
+                            ))
+                        ) : etkinlikler.length === 0 ? (
+                            <TouchableOpacity
+                                style={styles.etkinlikAllBtn}
+                                onPress={() => navigation.navigate('Etkinlikler')}
+                                activeOpacity={0.8}
+                            >
+                                <Ionicons name="calendar-outline" size={16} color={COLORS.primary} />
+                                <Text style={styles.etkinlikAllText}>Etkinlikleri Keşfet</Text>
+                                <Ionicons name="chevron-forward" size={14} color={COLORS.primary} />
+                            </TouchableOpacity>
+                        ) : (
+                            <>
+                                {etkinlikler.slice(0, 3).map((etkinlik, idx) => (
+                                    <EtkinlikCard
+                                        key={idx}
+                                        etkinlik={etkinlik}
+                                        onPress={() => navigation.navigate('Etkinlikler')}
+                                    />
+                                ))}
+                                <TouchableOpacity
+                                    style={styles.etkinlikAllBtn}
+                                    onPress={() => navigation.navigate('Etkinlikler')}
+                                    activeOpacity={0.8}
+                                >
+                                    <Ionicons name="calendar-outline" size={16} color={COLORS.primary} />
+                                    <Text style={styles.etkinlikAllText}>Tüm Etkinlikleri Gör</Text>
+                                    <Ionicons name="chevron-forward" size={14} color={COLORS.primary} />
+                                </TouchableOpacity>
+                            </>
+                        )}
+                    </Animated.View>
+
                 </View>
             </Animated.ScrollView>
         </View>
     );
 };
 
+// ─── Etkinlik Card ──────────────────────────────────────────────────────────
+const TUR_COLORS = {
+    'Sergi': { bg: '#EDE9FE', text: '#7C3AED' },
+    'Konser': { bg: '#FEF3C7', text: '#D97706' },
+    'Tiyatro': { bg: '#FCE7F3', text: '#DB2777' },
+    'Festival': { bg: '#D1FAE5', text: '#059669' },
+    'Yarışma': { bg: '#DBEAFE', text: '#2563EB' },
+};
+
+const EtkinlikCard = React.memo(({ etkinlik, onPress }) => {
+    const turStyle = TUR_COLORS[etkinlik.tur] || { bg: '#F3F4F6', text: '#374151' };
+    return (
+        <TouchableOpacity style={styles.etkinlikCard} onPress={onPress} activeOpacity={0.85}>
+            <View style={styles.etkinlikDateBox}>
+                <Text style={styles.etkinlikDay}>{etkinlik.gun}</Text>
+                <Text style={styles.etkinlikMonth}>{etkinlik.ay}</Text>
+            </View>
+            <View style={styles.etkinlikInfo}>
+                <Text style={styles.etkinlikTitle} numberOfLines={2}>{etkinlik.baslik}</Text>
+                <View style={styles.etkinlikMeta}>
+                    <Ionicons name="location-outline" size={11} color={COLORS.textSecondary} />
+                    <Text style={styles.etkinlikIl}>{etkinlik.il}</Text>
+                </View>
+            </View>
+            <View style={[styles.etkinlikTurBadge, { backgroundColor: turStyle.bg }]}>
+                <Text style={[styles.etkinlikTurText, { color: turStyle.text }]}>{etkinlik.tur}</Text>
+            </View>
+        </TouchableOpacity>
+    );
+});
+
 // ─── City Card — Grid kartı ─────────────────────────────────────────────────
-const CityCard = React.memo(({ city, images, index, onPress, onPlanPress }) => {
+const CityCard = React.memo(({ city, images, index, onPress, onPlanPress, userId }) => {
     const scaleAnim = useRef(new Animated.Value(1)).current;
 
     const handlePressIn = () => {
@@ -398,6 +401,15 @@ const CityCard = React.memo(({ city, images, index, onPress, onPlanPress }) => {
                 >
                     <Ionicons name="add" size={14} color="#fff" />
                 </TouchableOpacity>
+                {/* Ziyaret toggle — sağ alt köşe */}
+                <View style={styles.cityVisitToggle}>
+                    <VisitToggle
+                        cityId={city.id}
+                        cityName={city.name}
+                        userId={userId}
+                        compact={true}
+                    />
+                </View>
             </TouchableOpacity>
         </Animated.View>
     );
@@ -465,6 +477,28 @@ const styles = StyleSheet.create({
         lineHeight: 24,
         maxWidth: '85%',
     },
+    heroCta: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        alignSelf: 'flex-start',
+        marginTop: SPACING.lg,
+        backgroundColor: COLORS.primary,
+        paddingHorizontal: 20,
+        paddingVertical: 12,
+        borderRadius: BORDER_RADIUS.full,
+        shadowColor: COLORS.primary,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.4,
+        shadowRadius: 12,
+        elevation: 6,
+    },
+    heroCtaText: {
+        fontFamily: FONTS.bodySemiBold,
+        fontSize: FONT_SIZES.sm,
+        color: '#fff',
+        letterSpacing: 0.3,
+    },
 
     // ─── SCROLLVIEW ───
     scrollView: {
@@ -505,50 +539,6 @@ const styles = StyleSheet.create({
     guestBannerSub: {
         fontFamily: FONTS.body, fontSize: FONT_SIZES.xs,
         color: COLORS.textSecondary, marginTop: 1,
-    },
-
-    // ─── HIZLI İŞLEMLER (Minimalist) ───
-    quickRow: {
-        flexDirection: 'row',
-        justifyContent: 'center',
-        gap: SPACING.lg,
-        marginHorizontal: SPACING.md,
-        marginBottom: SPACING.lg,
-        paddingVertical: SPACING.sm,
-    },
-    quickItem: {
-        alignItems: 'center',
-        gap: 6,
-    },
-    quickIcon: {
-        width: 52,
-        height: 52,
-        borderRadius: 16,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    quickLabel: {
-        fontFamily: FONTS.bodyMedium,
-        fontSize: 11,
-        color: COLORS.textSecondary,
-        textAlign: 'center',
-    },
-    quickBadge: {
-        position: 'absolute',
-        top: -4,
-        right: -4,
-        width: 18,
-        height: 18,
-        borderRadius: 9,
-        backgroundColor: COLORS.success,
-        justifyContent: 'center',
-        alignItems: 'center',
-        zIndex: 1,
-    },
-    quickBadgeText: {
-        fontFamily: FONTS.bodySemiBold,
-        fontSize: 10,
-        color: '#fff',
     },
 
     // ─── SECTIONS ───
@@ -646,56 +636,67 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: 'rgba(255,255,255,0.3)',
     },
+    cityVisitToggle: {
+        position: 'absolute',
+        bottom: SPACING.xs + 2,
+        right: SPACING.xs + 2,
+    },
 
-    // ─── RECENT PLANS ───
-    recentCard: {
-        flexDirection: 'row',
-        alignItems: 'center',
+    // ─── ETKİNLİKLER ───
+    liveBadge: {
+        backgroundColor: '#EF4444',
+        paddingHorizontal: 6, paddingVertical: 2,
+        borderRadius: 4,
+    },
+    liveBadgeText: {
+        fontFamily: FONTS.bodySemiBold, fontSize: 9,
+        color: '#fff', letterSpacing: 0.5,
+    },
+    etkinlikCard: {
+        flexDirection: 'row', alignItems: 'center',
         backgroundColor: COLORS.surface,
         borderRadius: BORDER_RADIUS.lg,
+        padding: SPACING.sm + 2,
         marginBottom: SPACING.xs + 2,
-        overflow: 'hidden',
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.06,
-        shadowRadius: 8,
-        elevation: 2,
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.06, shadowRadius: 6, elevation: 2,
     },
-    recentThumb: {
-        width: 64,
-        height: 64,
-        position: 'relative',
-        overflow: 'hidden',
-        flexShrink: 0,
-    },
-    recentInfo: {
-        flex: 1,
-        paddingVertical: SPACING.sm,
-        paddingHorizontal: SPACING.sm,
-    },
-    recentCity: {
-        fontFamily: FONTS.bodySemiBold,
-        fontSize: FONT_SIZES.sm,
-        color: COLORS.textPrimary,
-        letterSpacing: -0.1,
-    },
-    recentMeta: {
-        fontFamily: FONTS.body,
-        fontSize: FONT_SIZES.xs,
-        color: COLORS.textSecondary,
-        marginTop: 2,
-    },
-    recentStatus: {
-        width: 30,
-        height: 30,
-        borderRadius: 15,
+    etkinlikDateBox: {
+        width: 44, height: 44, borderRadius: 12,
         backgroundColor: COLORS.primaryMuted,
-        justifyContent: 'center',
-        alignItems: 'center',
+        justifyContent: 'center', alignItems: 'center',
         marginRight: SPACING.sm,
     },
-    recentStatusCompleted: {
-        backgroundColor: COLORS.success + '20',
+    etkinlikDay: {
+        fontFamily: FONTS.bodySemiBold, fontSize: 16,
+        color: COLORS.primary, lineHeight: 20,
+    },
+    etkinlikMonth: {
+        fontFamily: FONTS.body, fontSize: 10,
+        color: COLORS.primary, textTransform: 'uppercase',
+    },
+    etkinlikInfo: { flex: 1, marginRight: SPACING.xs },
+    etkinlikTitle: {
+        fontFamily: FONTS.bodySemiBold, fontSize: FONT_SIZES.sm,
+        color: COLORS.textPrimary, letterSpacing: -0.1,
+    },
+    etkinlikMeta: { flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 3 },
+    etkinlikIl: { fontFamily: FONTS.body, fontSize: FONT_SIZES.xs, color: COLORS.textSecondary },
+    etkinlikTurBadge: {
+        paddingHorizontal: 8, paddingVertical: 3,
+        borderRadius: BORDER_RADIUS.full,
+    },
+    etkinlikTurText: { fontFamily: FONTS.bodySemiBold, fontSize: 10 },
+    etkinlikAllBtn: {
+        flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+        gap: 6, marginTop: SPACING.xs,
+        backgroundColor: COLORS.primaryMuted,
+        paddingVertical: 10, borderRadius: BORDER_RADIUS.lg,
+    },
+    etkinlikAllText: {
+        fontFamily: FONTS.bodySemiBold, fontSize: FONT_SIZES.sm,
+        color: COLORS.primary,
     },
 });
 

@@ -16,7 +16,7 @@ import SmartImage from '../../components/common/SmartImage';
 import { COLORS } from '../../constants/colors';
 import { FONTS, FONT_SIZES } from '../../constants/typography';
 import { SPACING, BORDER_RADIUS } from '../../constants/layout';
-import { getCityImages } from '../../constants/cityImages';
+import { getCityImages } from '../../services/cityImageService';
 import { useRequireAuth } from '../../contexts/AuthContext';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;

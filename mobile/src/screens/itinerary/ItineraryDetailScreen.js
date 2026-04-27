@@ -11,7 +11,7 @@ import { Image } from 'expo-image';
 import { COLORS } from '../../constants/colors';
 import { FONT_SIZES, FONTS } from '../../constants/typography';
 import { SPACING, BORDER_RADIUS } from '../../constants/layout';
-import { getCityImages } from '../../constants/cityImages';
+import { getCityImages } from '../../services/cityImageService';
 import {
     getItineraryById,
     toggleItemCompletion,

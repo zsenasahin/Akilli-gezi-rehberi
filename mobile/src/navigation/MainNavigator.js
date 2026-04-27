@@ -21,13 +21,16 @@ import ItineraryDetailScreen from '../screens/itinerary/ItineraryDetailScreen';
 import FavoritesScreen from '../screens/favorites/FavoritesScreen';
 import ProfileScreen from '../screens/profile/ProfileScreen';
 import MapScreen from '../screens/map/MapScreen';
+import TurkeyMapScreen from '../screens/map/TurkeyMapScreen';
 import TravelAssistantScreen from '../screens/assistant/TravelAssistantScreen';
+import EtkinliklerScreen from '../screens/discover/EtkinliklerScreen';
 
 const Tab = createBottomTabNavigator();
 const HomeStack = createNativeStackNavigator();
 const SavedStack = createNativeStackNavigator();
 const FavoritesStack = createNativeStackNavigator();
 const ProfileStack = createNativeStackNavigator();
+const MapStack = createNativeStackNavigator();
 
 // ─── Misafir Engeli — korumalı tab'larda gösterilir ────────────────────────
 const GuestGate = ({ icon, title, description }) => {
@@ -166,6 +169,11 @@ const HomeStackNavigator = () => (
             options={{ headerShown: false }}
         />
         <HomeStack.Screen
+            name="Etkinlikler"
+            component={EtkinliklerScreen}
+            options={{ headerShown: false }}
+        />
+        <HomeStack.Screen
             name="TravelAssistant"
             component={TravelAssistantScreen}
             options={{ headerShown: false }}
@@ -221,6 +229,21 @@ const FavoritesStackNavigator = () => {
         </FavoritesStack.Navigator>
     );
 };
+
+const MapStackNavigator = () => (
+    <MapStack.Navigator screenOptions={stackScreenOptions}>
+        <MapStack.Screen
+            name="TurkeyMap"
+            component={TurkeyMapScreen}
+            options={{ headerShown: false }}
+        />
+        <MapStack.Screen
+            name="CityDetail"
+            component={CityDetailScreen}
+            options={{ headerShown: false }}
+        />
+    </MapStack.Navigator>
+);
 
 const ProfileStackNavigator = () => {
     const { isGuest } = useAuth();
@@ -342,6 +365,7 @@ const TabsWithFloating = () => {
                         let iconName;
                         if (route.name === 'Home') iconName = focused ? 'home-sharp' : 'home-outline';
                         else if (route.name === 'Saved') iconName = focused ? 'bookmarks' : 'bookmarks-outline';
+                        else if (route.name === 'Map') iconName = focused ? 'map' : 'map-outline';
                         else if (route.name === 'Favorites') iconName = focused ? 'heart-circle' : 'heart-outline';
                         else if (route.name === 'Profile') iconName = focused ? 'person-circle' : 'person-outline';
                         return <AnimatedTabIcon name={iconName} focused={focused} color={color} size={22} />;
@@ -350,6 +374,7 @@ const TabsWithFloating = () => {
             >
                 <Tab.Screen name="Home" component={HomeStackNavigator} options={{ tabBarLabel: 'Ana Sayfa' }} />
                 <Tab.Screen name="Saved" component={SavedStackNavigator} options={{ tabBarLabel: 'Planlar' }} />
+                <Tab.Screen name="Map" component={MapStackNavigator} options={{ tabBarLabel: 'Harita' }} />
                 <Tab.Screen name="Favorites" component={FavoritesStackNavigator} options={{ tabBarLabel: 'Favoriler' }} />
                 <Tab.Screen name="Profile" component={ProfileStackNavigator} options={{ tabBarLabel: 'Profil' }} />
             </Tab.Navigator>

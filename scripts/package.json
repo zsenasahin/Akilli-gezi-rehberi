@@ -5,7 +5,13 @@
   "description": "Maintenance scripts for Smart Travel Guide",
   "scripts": {
     "validate-fees": "node validate-entry-fees.js",
-    "validate-fees:apply": "node validate-entry-fees.js --apply"
+    "validate-fees:apply": "node validate-entry-fees.js --apply",
+    "seed-cities": "node seed-all-cities.js",
+    "seed-cities:dry": "node seed-all-cities.js --dry-run",
+    "scrape": "node kulturportali_scraper.js",
+    "scrape:detail": "node kulturportali_detail_scraper.js",
+    "scrape:detail:resume": "node kulturportali_detail_scraper.js --resume",
+    "copy-data": "cp turkiye_gezilecek_yerler.json ../mobile/src/data/ && cp turkiye_gezilecek_yerler_detay.json ../mobile/src/data/ 2>/dev/null || true"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.96.0",

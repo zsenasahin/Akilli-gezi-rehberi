@@ -14,9 +14,10 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
-import { useFonts, PlayfairDisplay_700Bold } from '@expo-google-fonts/playfair-display';
-import { Inter_400Regular, Inter_600SemiBold, Inter_700Bold } from '@expo-google-fonts/inter';
-import { SPACING } from '../../constants/theme';
+import { useFonts, Inter_400Regular, Inter_600SemiBold, Inter_700Bold } from '@expo-google-fonts/inter';
+import { COLORS } from '../../constants/colors';
+import { FONTS, FONT_SIZES } from '../../constants/typography';
+import { SPACING } from '../../constants/layout';
 import { signIn, signUp, signInWithGoogle } from '../../data/repositories/authRepository';
 import GlassmorphismModal from '../../components/common/GlassmorphismModal';
 
@@ -24,7 +25,6 @@ const { height } = Dimensions.get('window');
 
 export default function AuthScreen({ navigation }) {
   const [fontsLoaded] = useFonts({
-    PlayfairDisplay_700Bold,
     Inter_400Regular,
     Inter_600SemiBold,
     Inter_700Bold,
@@ -283,7 +283,7 @@ export default function AuthScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#E8F5E9',
+    backgroundColor: COLORS.background,
   },
   topSection: {
     height: height * 0.35,
@@ -304,7 +304,7 @@ const styles = StyleSheet.create({
   },
   card: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: COLORS.surface,
     borderTopLeftRadius: 30,
     borderTopRightRadius: 30,
     shadowColor: '#000',
@@ -319,36 +319,36 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   welcomeTitle: {
-    fontFamily: 'PlayfairDisplay_700Bold',
-    fontSize: 24,
-    color: '#2C3E50',
+    fontFamily: FONTS.bodyBold,
+    fontSize: FONT_SIZES.xxl,
+    color: COLORS.textPrimary,
     marginBottom: 4,
   },
   welcomeSubtitle: {
-    fontFamily: 'Inter_400Regular',
-    fontSize: 13,
-    color: '#7F8C8D',
+    fontFamily: FONTS.body,
+    fontSize: FONT_SIZES.sm,
+    color: COLORS.textSecondary,
     marginBottom: SPACING.md,
   },
   inputContainer: {
     marginBottom: SPACING.sm,
   },
   inputLabel: {
-    fontFamily: 'Inter_600SemiBold',
-    fontSize: 13,
-    color: '#5D6D7E',
+    fontFamily: FONTS.bodySemiBold,
+    fontSize: FONT_SIZES.sm,
+    color: COLORS.textSecondary,
     marginBottom: SPACING.xs,
   },
   input: {
-    fontFamily: 'Inter_400Regular',
-    fontSize: 15,
-    color: '#2C3E50',
-    backgroundColor: '#E8F5E9',
+    fontFamily: FONTS.body,
+    fontSize: FONT_SIZES.md,
+    color: COLORS.textPrimary,
+    backgroundColor: COLORS.surfaceAlt,
     borderRadius: 12,
     paddingHorizontal: SPACING.md,
     paddingVertical: 14,
     borderWidth: 1,
-    borderColor: '#C8E6C9',
+    borderColor: COLORS.border,
   },
   passwordContainer: {
     position: 'relative',
@@ -368,25 +368,25 @@ const styles = StyleSheet.create({
     marginTop: -SPACING.xs,
   },
   forgotPasswordText: {
-    fontFamily: 'Inter_400Regular',
-    fontSize: 13,
-    color: '#7F8C8D',
+    fontFamily: FONTS.body,
+    fontSize: FONT_SIZES.sm,
+    color: COLORS.textSecondary,
   },
   primaryButton: {
-    backgroundColor: '#2C3E50',
+    backgroundColor: COLORS.primary,
     borderRadius: 12,
     paddingVertical: 16,
     alignItems: 'center',
     marginBottom: SPACING.md,
-    shadowColor: '#2C3E50',
+    shadowColor: COLORS.primary,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 6,
   },
   primaryButtonText: {
-    fontFamily: 'Inter_700Bold',
-    fontSize: 16,
+    fontFamily: FONTS.bodyBold,
+    fontSize: FONT_SIZES.md,
     color: '#FFFFFF',
   },
   buttonDisabled: {
@@ -400,14 +400,14 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   switchText: {
-    fontFamily: 'Inter_400Regular',
-    fontSize: 14,
-    color: '#7F8C8D',
+    fontFamily: FONTS.body,
+    fontSize: FONT_SIZES.sm,
+    color: COLORS.textSecondary,
   },
   switchLink: {
-    fontFamily: 'Inter_600SemiBold',
-    fontSize: 14,
-    color: '#2C3E50',
+    fontFamily: FONTS.bodySemiBold,
+    fontSize: FONT_SIZES.sm,
+    color: COLORS.primary,
   },
   dividerContainer: {
     flexDirection: 'row',
@@ -420,9 +420,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#E0E0E0',
   },
   dividerText: {
-    fontFamily: 'Inter_400Regular',
-    fontSize: 13,
-    color: '#95A5A6',
+    fontFamily: FONTS.body,
+    fontSize: FONT_SIZES.sm,
+    color: COLORS.textLight,
     marginHorizontal: SPACING.md,
   },
   googleButton: {
@@ -457,8 +457,8 @@ const styles = StyleSheet.create({
     color: '#4285F4',
   },
   googleButtonText: {
-    fontFamily: 'Inter_600SemiBold',
-    fontSize: 15,
-    color: '#2C3E50',
+    fontFamily: FONTS.bodySemiBold,
+    fontSize: FONT_SIZES.md,
+    color: COLORS.textPrimary,
   },
 });

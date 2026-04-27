@@ -1,164 +1,126 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useEffect } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   Dimensions,
-  Image,
+  TouchableOpacity,
   Animated,
+  Platform,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
-import { useFonts, PlayfairDisplay_700Bold } from '@expo-google-fonts/playfair-display';
-import { Inter_400Regular, Inter_600SemiBold, Inter_700Bold } from '@expo-google-fonts/inter';
-import SwipeToUnlock from '../../components/common/SwipeToUnlock';
-import GlassmorphismCard from '../../components/common/GlassmorphismCard';
-import { COLORS, SPACING } from '../../constants/theme';
+import { LinearGradient } from 'expo-linear-gradient';
+import { BlurView } from 'expo-blur';
+import { Ionicons } from '@expo/vector-icons';
+import { useFonts, Inter_400Regular, Inter_600SemiBold, Inter_700Bold } from '@expo-google-fonts/inter';
+import LottieView from 'lottie-react-native';
+import { FONTS, FONT_SIZES } from '../../constants/typography';
 
 const { width, height } = Dimensions.get('window');
 
-const ONBOARDING_DATA = [
-  {
-    tag: 'KEŞİF ZAMANI',
-    title: 'Doğanın İçine Gir',
-    subtitle: 'Keşfedilmemiş rotaları bul, doğayla bütünleş',
-  },
-  {
-    tag: 'HAZIR MISIN?',
-    title: 'Maceraya Başla',
-    subtitle: 'Harita, rota ve rehberlik hep yanında',
-    showIcons: true,
-  },
-  {
-    tag: 'HEMEN BAŞLA',
-    title: 'Rotanı Oluştur, Yola Çık.',
-    subtitle: 'Kişiselleştirilmiş seyahat deneyimi',
-    showSwipe: true,
-  },
-];
-
 export default function OnboardingScreen({ navigation }) {
   const [fontsLoaded] = useFonts({
-    PlayfairDisplay_700Bold,
     Inter_400Regular,
     Inter_600SemiBold,
     Inter_700Bold,
   });
 
-  const scrollX = useRef(new Animated.Value(0)).current;
-  const flatListRef = useRef(null);
+  const fadeTop     = useRef(new Animated.Value(0)).current;
+  const slideTop    = useRef(new Animated.Value(-20)).current;
+  const fadeBottom  = useRef(new Animated.Value(0)).current;
+  const slideBottom = useRef(new Animated.Value(20)).current;
 
-  if (!fontsLoaded) {
-    return null;
-  }
+  useEffect(() => {
+    Animated.sequence([
+      Animated.delay(350),
+      Animated.parallel([
+        Animated.timing(fadeTop,  { toValue: 1, duration: 650, useNativeDriver: true }),
+        Animated.spring(slideTop, { toValue: 0, tension: 65, friction: 12, useNativeDriver: true }),
+      ]),
+    ]).start();
 
-  const handleSwipeComplete = () => {
-    navigation.replace('Auth');
-  };
+    Animated.sequence([
+      Animated.delay(600),
+      Animated.parallel([
+        Animated.timing(fadeBottom,  { toValue: 1, duration: 650, useNativeDriver: true }),
+        Animated.spring(slideBottom, { toValue: 0, tension: 65, friction: 12, useNativeDriver: true }),
+      ]),
+    ]).start();
+  }, []);
 
-  const renderItem = ({ item }) => (
-    <View style={styles.slide}>
-      <View style={styles.content}>
-        <Text style={styles.tag}>{item.tag}</Text>
-        <Text style={styles.title}>{item.title}</Text>
-        <Text style={styles.subtitle}>{item.subtitle}</Text>
-
-        {item.showIcons && (
-          <View style={styles.iconRow}>
-            {['🗺️', '🧭', '🌲'].map((icon, i) => (
-              <GlassmorphismCard key={i} style={styles.iconCard}>
-                <Text style={styles.iconText}>{icon}</Text>
-              </GlassmorphismCard>
-            ))}
-          </View>
-        )}
-
-        {item.showSwipe && (
-          <SwipeToUnlock onComplete={handleSwipeComplete} />
-        )}
-      </View>
-    </View>
-  );
-
-  const renderDots = () => (
-    <View style={styles.dotsContainer}>
-      {ONBOARDING_DATA.map((_, index) => {
-        const inputRange = [
-          (index - 1) * width,
-          index * width,
-          (index + 1) * width,
-        ];
-
-        const dotWidth = scrollX.interpolate({
-          inputRange,
-          outputRange: [8, 24, 8],
-          extrapolate: 'clamp',
-        });
-
-        const opacity = scrollX.interpolate({
-          inputRange,
-          outputRange: [0.3, 1, 0.3],
-          extrapolate: 'clamp',
-        });
-
-        return (
-          <Animated.View
-            key={index}
-            style={[
-              styles.dot,
-              {
-                width: dotWidth,
-                opacity,
-              },
-            ]}
-          />
-        );
-      })}
-    </View>
-  );
+  if (!fontsLoaded) return null;
 
   return (
     <View style={styles.container}>
       <StatusBar style="light" />
-      
-      {/* Background Image */}
-      <Image
-        source={require('../../../assets/doga.jpg')}
-        style={styles.backgroundImage}
+
+      {/* Tren animasyonu — tam ekran */}
+      <LottieView
+        source={require('../../../assets/animations/Background Full Screen-Train.json')}
+        autoPlay
+        loop
+        style={styles.bgLottie}
         resizeMode="cover"
       />
 
-      {/* Gradient Overlay */}
+      {/* Üst ve alt kısımları hafifçe karartır, ortayı açık bırakır */}
       <LinearGradient
-        colors={['transparent', 'rgba(0, 0, 0, 0.7)']}
-        style={styles.gradient}
+        colors={[
+          'rgba(8,12,28,0.72)',
+          'rgba(8,12,28,0.0)',
+          'rgba(8,12,28,0.0)',
+          'rgba(8,12,28,0.55)',
+        ]}
+        locations={[0, 0.28, 0.65, 1]}
+        style={StyleSheet.absoluteFillObject}
       />
 
-      {/* Tree Silhouettes */}
-      <View style={styles.treeSilhouettes}>
-        <View style={[styles.tree, styles.tree1]} />
-        <View style={[styles.tree, styles.tree2]} />
-        <View style={[styles.tree, styles.tree3]} />
-      </View>
+      {/* ── ÜST: Badge + Başlık + Alt yazı ── */}
+      <Animated.View
+        style={[
+          styles.topContent,
+          { opacity: fadeTop, transform: [{ translateY: slideTop }] },
+        ]}
+      >
+        {/* Badge */}
+        <View style={styles.badge}>
+          <Ionicons name="airplane" size={11} color="rgba(255,255,255,0.75)" />
+          <Text style={styles.badgeText}>AKILLI GEZİ REHBERİ</Text>
+        </View>
 
-      {/* Content */}
-      <Animated.FlatList
-        ref={flatListRef}
-        data={ONBOARDING_DATA}
-        renderItem={renderItem}
-        horizontal
-        pagingEnabled
-        showsHorizontalScrollIndicator={false}
-        keyExtractor={(_, index) => index.toString()}
-        onScroll={Animated.event(
-          [{ nativeEvent: { contentOffset: { x: scrollX } } }],
-          { useNativeDriver: false }
-        )}
-        scrollEventThrottle={16}
-      />
+        {/* Başlık */}
+        <Text style={styles.title}>Türkiye'yi{'\n'}Keşfet</Text>
 
-      {/* Dots Indicator */}
-      {renderDots()}
+        {/* Alt yazı */}
+        <Text style={styles.subtitle}>
+          81 il, binlerce yer, sonsuz macera.{'\n'}Rotanı oluştur, yola çık.
+        </Text>
+      </Animated.View>
+
+      {/* ── ALT: Buton ── */}
+      <Animated.View
+        style={[
+          styles.bottomContent,
+          { opacity: fadeBottom, transform: [{ translateY: slideBottom }] },
+        ]}
+      >
+        <TouchableOpacity
+          style={styles.startBtn}
+          onPress={() => navigation.replace('Auth')}
+          activeOpacity={0.82}
+        >
+          <BlurView intensity={55} tint="light" style={styles.blurWrap}>
+            <View style={styles.btnInner}>
+              <Text style={styles.startBtnText}>Başla</Text>
+              <View style={styles.arrowWrap}>
+                <Ionicons name="arrow-forward" size={18} color="rgba(8,12,28,0.85)" />
+              </View>
+            </View>
+          </BlurView>
+        </TouchableOpacity>
+
+        <Text style={styles.note}>Ücretsiz · Kayıt gerekmez</Text>
+      </Animated.View>
     </View>
   );
 }
@@ -166,103 +128,118 @@ export default function OnboardingScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.backgroundDarkStart,
+    backgroundColor: '#0C1020',
   },
-  backgroundImage: {
+
+  bgLottie: {
     position: 'absolute',
-    width: '100%',
-    height: '100%',
+    width,
+    height,
+    top: 0,
+    left: 0,
   },
-  gradient: {
+
+  // ── ÜST İÇERİK ──
+  topContent: {
     position: 'absolute',
-    width: '100%',
-    height: '100%',
+    top: 0,
+    left: 0,
+    right: 0,
+    paddingHorizontal: 28,
+    paddingTop: Platform.OS === 'ios' ? 66 : 48,
   },
-  treeSilhouettes: {
+
+  badge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    alignSelf: 'flex-start',
+    backgroundColor: 'rgba(255,255,255,0.13)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    marginBottom: 22,
+  },
+  badgeText: {
+    fontFamily: FONTS.bodySemiBold,
+    fontSize: FONT_SIZES.xs,
+    color: 'rgba(255,255,255,0.8)',
+    letterSpacing: 1.3,
+  },
+
+  title: {
+    fontFamily: FONTS.bodyBold,
+    fontSize: 52,
+    color: '#FFFFFF',
+    lineHeight: 60,
+    marginBottom: 14,
+    letterSpacing: -1.5,
+    textShadowColor: 'rgba(0,0,0,0.35)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 8,
+  },
+
+  subtitle: {
+    fontFamily: FONTS.body,
+    fontSize: FONT_SIZES.md,
+    color: 'rgba(255,255,255,0.62)',
+    lineHeight: 24,
+  },
+
+  // ── ALT İÇERİK ──
+  bottomContent: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
-    height: 200,
+    paddingHorizontal: 24,
+    paddingBottom: Platform.OS === 'ios' ? 50 : 34,
+    alignItems: 'center',
+  },
+
+  // Glassmorphism buton — gölgesiz, temiz
+  startBtn: {
+    width: '100%',
+    borderRadius: 18,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.35)',
+  },
+  blurWrap: {
+    width: '100%',
+    overflow: 'hidden',
+    borderRadius: 18,
+  },
+  btnInner: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
-    alignItems: 'flex-end',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 19,
+    paddingHorizontal: 26,
+    backgroundColor: 'rgba(255,255,255,0.18)',
   },
-  tree: {
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
-    borderTopLeftRadius: 100,
-    borderTopRightRadius: 100,
+  startBtnText: {
+    fontFamily: FONTS.bodyBold,
+    fontSize: FONT_SIZES.lg,
+    color: '#FFFFFF',
+    letterSpacing: 0.4,
   },
-  tree1: {
-    width: 60,
-    height: 150,
-  },
-  tree2: {
-    width: 80,
-    height: 180,
-  },
-  tree3: {
-    width: 70,
-    height: 160,
-  },
-  slide: {
-    width,
-    height,
+  arrowWrap: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: 'rgba(255,255,255,0.88)',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  content: {
-    paddingHorizontal: SPACING.xl,
-    alignItems: 'center',
-    marginBottom: 100,
-  },
-  tag: {
-    fontFamily: 'Inter_700Bold',
-    fontSize: 12,
-    color: COLORS.primaryAccent,
-    letterSpacing: 2,
-    marginBottom: SPACING.md,
-  },
-  title: {
-    fontFamily: 'PlayfairDisplay_700Bold',
-    fontSize: 36,
-    color: COLORS.textPrimary,
-    textAlign: 'center',
-    marginBottom: SPACING.md,
-    lineHeight: 44,
-  },
-  subtitle: {
-    fontFamily: 'Inter_400Regular',
-    fontSize: 16,
-    color: COLORS.textMuted,
-    textAlign: 'center',
-    lineHeight: 24,
-  },
-  iconRow: {
-    flexDirection: 'row',
-    marginTop: SPACING.xl,
-    gap: SPACING.md,
-  },
-  iconCard: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  iconText: {
-    fontSize: 32,
-  },
-  dotsContainer: {
-    position: 'absolute',
-    bottom: 80,
-    flexDirection: 'row',
-    alignSelf: 'center',
-    gap: 8,
-  },
-  dot: {
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: COLORS.primaryAccent,
+
+  note: {
+    fontFamily: FONTS.body,
+    fontSize: FONT_SIZES.xs,
+    color: 'rgba(255,255,255,0.3)',
+    marginTop: 14,
+    letterSpacing: 0.3,
   },
 });

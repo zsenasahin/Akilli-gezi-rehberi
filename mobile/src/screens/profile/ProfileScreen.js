@@ -29,6 +29,7 @@ import { signOut } from '../../services/authService';
 import useFavorites from '../../hooks/useFavorites';
 import { formatDate } from '../../utils/formatters';
 import { ProfileSkeleton } from '../../components/common/SkeletonLoader';
+import { getCityVisitStats, getCityVisits } from '../../services/cityVisitService';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
@@ -94,6 +95,10 @@ const ProfileScreen = ({ navigation }) => {
     const [travelStyle, setTravelStyle] = useState('');
     const [avatarUri, setAvatarUri] = useState(null);
     const [bio, setBio] = useState('');
+    // Şehir ziyaret istatistikleri
+    const [visitedCount, setVisitedCount] = useState(0);
+    const [wishlistCount, setWishlistCount] = useState(0);
+    const [visitedCities, setVisitedCities] = useState([]);
 
     const headerAnim = useFadeUp(50);
     const statsAnim = useFadeUp(180);
@@ -102,9 +107,11 @@ const ProfileScreen = ({ navigation }) => {
 
     const fetchData = useCallback(async () => {
         if (!user) return;
-        const [profileResult, itineraryResult] = await Promise.all([
+        const [profileResult, itineraryResult, visitStatsResult, visitsResult] = await Promise.all([
             getProfile(user.id),
             getItinerariesByUser(user.id),
+            getCityVisitStats(user.id),
+            getCityVisits(user.id),
         ]);
         if (profileResult.data) {
             setProfile(profileResult.data);
@@ -114,6 +121,12 @@ const ProfileScreen = ({ navigation }) => {
             if (profileResult.data.avatar_url) setAvatarUri(profileResult.data.avatar_url);
         }
         if (itineraryResult.data) setItineraries(itineraryResult.data);
+        // Ziyaret istatistikleri
+        setVisitedCount(visitStatsResult.visitedCount || 0);
+        setWishlistCount(visitStatsResult.wishlistCount || 0);
+        // Gezilen şehirler listesi (status='visited')
+        const visited = (visitsResult.data || []).filter(v => v.status === 'visited');
+        setVisitedCities(visited);
         setLoading(false);
         setRefreshing(false);
     }, [user]);
@@ -339,14 +352,57 @@ const ProfileScreen = ({ navigation }) => {
                 </View>
                 <View style={styles.statDivider} />
                 <View style={styles.statItem}>
-                    <Text style={styles.statValue}>{favorites.length}</Text>
-                    <Text style={styles.statLabel}>Favori</Text>
+                    <Text style={styles.statValue}>{visitedCount}</Text>
+                    <Text style={styles.statLabel}>Gezilen Şehir</Text>
                 </View>
                 <View style={styles.statDivider} />
                 <View style={styles.statItem}>
-                    <Text style={styles.statValue}>{itineraries.length}</Text>
-                    <Text style={styles.statLabel}>Toplam Rota</Text>
+                    <Text style={styles.statValue}>{wishlistCount}</Text>
+                    <Text style={styles.statLabel}>Bucket List</Text>
                 </View>
+                <View style={styles.statDivider} />
+                <View style={styles.statItem}>
+                    <Text style={styles.statValue}>{favorites.length}</Text>
+                    <Text style={styles.statLabel}>Favori</Text>
+                </View>
+            </Animated.View>
+
+            {/* Türkiye ilerleme mesajı */}
+            {visitedCount > 0 && (
+                <Animated.View style={[styles.progressBar, statsAnim]}>
+                    <Text style={styles.progressText}>
+                        🇹🇷 Türkiye'nin <Text style={styles.progressHighlight}>%{Math.round(visitedCount / 81 * 100)}'ini</Text> gezdim! ({visitedCount}/81 il)
+                    </Text>
+                </Animated.View>
+            )}
+
+            {/* ═══ ŞEHİR HARİTAM ═══ */}
+            <Animated.View style={[styles.section, itinAnim]}>
+                <View style={styles.sectionHeader}>
+                    <Text style={styles.sectionTitle}>🗺️ Şehir Haritam</Text>
+                </View>
+                {visitedCities.length === 0 ? (
+                    <View style={styles.emptyVisit}>
+                        <Text style={styles.emptyVisitText}>Henüz şehir gezmediniz.</Text>
+                        <Text style={styles.emptyVisitSub}>Şehir kartlarındaki ✓ butonuyla işaretleyin!</Text>
+                    </View>
+                ) : (
+                    <View style={styles.visitedChips}>
+                        {visitedCities.map((v) => (
+                            <TouchableOpacity
+                                key={v.city_id}
+                                style={styles.visitedChip}
+                                onPress={() => {
+                                    // city_id'den şehir adını bul — navigation için basit obje
+                                    navigation.navigate('CityDetail', { city: { id: v.city_id, name: v.city_name || String(v.city_id) } });
+                                }}
+                                activeOpacity={0.75}
+                            >
+                                <Text style={styles.visitedChipText}>✓ {v.city_name || `Şehir ${v.city_id}`}</Text>
+                            </TouchableOpacity>
+                        ))}
+                    </View>
+                )}
             </Animated.View>
 
             {/* ═══ GEZİ ROTALARI ═══ */}
@@ -820,6 +876,63 @@ const styles = StyleSheet.create({
     },
 
     // ─── Logout ───
+    // ─── Progress ───
+    progressBar: {
+        marginHorizontal: SPACING.lg,
+        marginBottom: SPACING.md,
+        backgroundColor: COLORS.surface,
+        borderRadius: BORDER_RADIUS.md,
+        paddingVertical: 10,
+        paddingHorizontal: SPACING.md,
+        borderWidth: 1,
+        borderColor: COLORS.border,
+    },
+    progressText: {
+        fontFamily: FONTS.body,
+        fontSize: FONT_SIZES.sm,
+        color: COLORS.textSecondary,
+        textAlign: 'center',
+    },
+    progressHighlight: {
+        fontFamily: FONTS.bodySemiBold,
+        color: COLORS.primary,
+    },
+
+    // ─── Şehir Haritam ───
+    emptyVisit: {
+        alignItems: 'center',
+        paddingVertical: SPACING.md,
+    },
+    emptyVisitText: {
+        fontFamily: FONTS.bodySemiBold,
+        fontSize: FONT_SIZES.sm,
+        color: COLORS.textSecondary,
+    },
+    emptyVisitSub: {
+        fontFamily: FONTS.body,
+        fontSize: FONT_SIZES.xs,
+        color: COLORS.textLight,
+        marginTop: 4,
+    },
+    visitedChips: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: SPACING.xs,
+    },
+    visitedChip: {
+        backgroundColor: COLORS.success + '18',
+        borderWidth: 1,
+        borderColor: COLORS.success + '40',
+        paddingHorizontal: 10,
+        paddingVertical: 5,
+        borderRadius: BORDER_RADIUS.full,
+    },
+    visitedChipText: {
+        fontFamily: FONTS.bodySemiBold,
+        fontSize: FONT_SIZES.xs,
+        color: COLORS.success,
+    },
+
     logoutBtn: {
         alignItems: 'center',
         marginHorizontal: SPACING.lg,

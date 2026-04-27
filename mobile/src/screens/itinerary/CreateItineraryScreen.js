@@ -13,9 +13,9 @@ import { SPACING, BORDER_RADIUS } from '../../constants/layout';
 import { getCityCenter } from '../../constants/cities';
 import { useAuth } from '../../contexts/AuthContext';
 import { getCities } from '../../data/repositories/cityRepository';
-import { getPlacesByCity } from '../../data/repositories/placeRepository';
 import { createItinerary } from '../../data/repositories/itineraryRepository';
 import { generateItinerary } from '../../domain/itineraryGenerator';
+import { loadCityPlaces } from '../../services/placeDataManager';
 import { getMockHotels } from '../../services/hotelService';
 import PlaceSelectionCard from '../../components/itinerary/PlaceSelectionCard';
 import ErrorMessage from '../../components/common/ErrorMessage';
@@ -115,10 +115,14 @@ export default function CreateItineraryScreen({ navigation, route }) {
 
     const loadPlaces = async (cityId) => {
         setLoading(true);
-        const { data, error: err } = await getPlacesByCity(cityId);
+        try {
+            const cityObj = { id: cityId, name: selectedCity?.name };
+            const data = await loadCityPlaces(cityObj);
+            setPlaces(data || []);
+        } catch (err) {
+            setError('Yerler yüklenirken hata oluştu.');
+        }
         setLoading(false);
-        if (err) { setError(err.message); return; }
-        setPlaces(data || []);
         setSelectedPlaces([]);
     };
 

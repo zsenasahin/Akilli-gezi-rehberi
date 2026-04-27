@@ -1,6 +1,6 @@
 import { getCities } from '../data/repositories/cityRepository';
-import { getPlacesByCity } from '../data/repositories/placeRepository';
 import { getPlaceSummary } from './wikipediaService';
+import { loadCityPlaces } from './placeDataManager';
 import { cache } from './cacheService';
 
 /**
@@ -49,12 +49,8 @@ export const initPrefetch = async () => {
  */
 const preloadCityData = async (city) => {
     if (!city || !city.id || !city.name) return;
-    
     try {
-        // Yerleri çek
-        await getPlacesByCity(city.id);
-        
-        // Wikipedia açıklamasını çek
+        await loadCityPlaces({ id: city.id, name: city.name });
         await getPlaceSummary(city.name);
     } catch (err) {
         // Sessizce geç

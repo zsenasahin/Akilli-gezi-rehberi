@@ -30,9 +30,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS } from '../../constants/colors';
 import { FONTS, FONT_SIZES } from '../../constants/typography';
 import { SPACING, BORDER_RADIUS } from '../../constants/layout';
-import { getCityImages } from '../../constants/cityImages';
+import { getCityImages } from '../../services/cityImageService';
 import { getPlaceImage } from '../../constants/placeImages';
-import { getPlacesByCity } from '../../services/placeService';
 import { getCityPOIs } from '../../services/poiService';
 import { getPlaceSummary } from '../../services/wikipediaService';
 import { getBatchPlacePhotos } from '../../services/placePhotoService';
@@ -44,14 +43,19 @@ import { cache, TTL } from '../../services/cacheService';
 import { useAuth } from '../../contexts/AuthContext';
 import { getCityCenter } from '../../constants/cities';
 import { CityDetailSkeleton, SkeletonLoader } from '../../components/common/SkeletonLoader';
-// WeatherWidget kaldırıldı — Google Weather linki kullanılıyor
 import { useAssistantContext } from '../../contexts/AssistantContext';
+import VisitToggle from '../../components/common/VisitToggle';
+
+import mutfakData from '../../data/turkiye_mutfak.json';
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 
+const BASE_KP_URL = 'https://www.kulturportali.gov.tr';
+
 const CATEGORIES = [
     { key: 'places', label: 'Gezilecek', icon: 'compass', emoji: '🏛️' },
-    { key: 'restaurant', label: 'Restoranlar', icon: 'restaurant', emoji: '🍽️' },
+    { key: 'neyenir', label: 'Ne Yenir?', icon: 'restaurant', emoji: '🍽️' },
+    { key: 'restaurant', label: 'Restoranlar', icon: 'storefront', emoji: '🏪' },
     { key: 'cafe', label: 'Kafeler', icon: 'cafe', emoji: '☕' },
     { key: 'hotel', label: 'Oteller', icon: 'bed', emoji: '🏨' },
     { key: 'bar', label: 'Barlar', icon: 'beer', emoji: '🍺' },
@@ -82,6 +86,10 @@ const CityDetailScreen = ({ route, navigation }) => {
     const [wikiLoading, setWikiLoading] = useState(false);
     const [placeSearch, setPlaceSearch] = useState('');
     const [placePhotos, setPlacePhotos] = useState({});
+
+    // Yöresel yemekler
+    const [yemekler, setYemekler] = useState([]);
+    const [selectedYemek, setSelectedYemek] = useState(null);
 
     // Animation
     const scrollY = useRef(new Animated.Value(0)).current;
@@ -131,37 +139,13 @@ const CityDetailScreen = ({ route, navigation }) => {
             });
 
             if (osmPlaces.length > 0) {
-                // OSM verisi varsa kullan
-                const normalized = osmPlaces.map((p, idx) => ({
-                    id: p.osm_id || `osm-${idx}`,
-                    name: p.name,
-                    category: p.category,
-                    avg_duration: 1,
-                    entry_fee: 0,
-                    popularity_score: 50,
-                    image_url: p.imageUrl || null,
-                    short_description: p.description || null,
-                    lat: p.lat,
-                    lng: p.lng,
-                    source: 'osm',
-                    emoji: p.emoji,
-                    address: p.address,
-                    website: p.website,
-                    phone: p.phone,
-                    openingHours: p.opening_hours,
-                    wikidata_id: p.wikidata_id,
-                }));
-                setPlaces(normalized);
-            } else {
-                // OSM boş dönerse DB'ye bak
-                const { data: dbPlaces } = await getPlacesByCity(city.id);
-                if (dbPlaces?.length) {
-                    setPlaces(dbPlaces);
-                    getBatchPlacePhotos(dbPlaces).then(photos => setPlacePhotos(photos)).catch(() => {});
-                }
+                setPlaces(osmPlaces);
             }
 
             if (user) checkFavorites();
+
+            // Yöresel yemekleri yükle (statik JSON'dan)
+            loadYemekler();
         } catch (err) {
             console.warn('loadCityData error:', err);
         }
@@ -169,6 +153,22 @@ const CityDetailScreen = ({ route, navigation }) => {
         setLoadingProgress('');
     };
 
+
+    // ─── Yöresel yemekleri yükle ───
+    const loadYemekler = useCallback(() => {
+        const ilData = mutfakData[cityName];
+        if (ilData?.yemekler?.length) {
+            setYemekler(ilData.yemekler);
+            return;
+        }
+        // Normalize ile eşleştir
+        const norm = (s) => (s||'').toLowerCase()
+            .replace(/İ/g,'i').replace(/ı/g,'i').replace(/Ğ/g,'g').replace(/ğ/g,'g')
+            .replace(/Ü/g,'u').replace(/ü/g,'u').replace(/Ş/g,'s').replace(/ş/g,'s')
+            .replace(/Ö/g,'o').replace(/ö/g,'o').replace(/Ç/g,'c').replace(/ç/g,'c');
+        const key = Object.keys(mutfakData).find(k => norm(k) === norm(cityName));
+        if (key) setYemekler(mutfakData[key].yemekler || []);
+    }, [cityName]);
 
     // ─── Kategori değişince POI yükle ───
     useEffect(() => {
@@ -563,6 +563,42 @@ const CityDetailScreen = ({ route, navigation }) => {
                             </View>
                         )}
 
+                        {/* Kültür Portalı açıklaması */}
+                        {item.source === 'kulturportali' && item.description ? (
+                            <View style={styles.wikiSection}>
+                                <View style={styles.wikiHeader}>
+                                    <Ionicons name="book-outline" size={16} color={COLORS.primary} />
+                                    <Text style={styles.wikiTitle}>Hakkında</Text>
+                                    <View style={[styles.wikiBadge, { backgroundColor: '#e8f4f8' }]}>
+                                        <Text style={[styles.wikiBadgeText, { color: '#0077aa' }]}>Kültür Portalı</Text>
+                                    </View>
+                                </View>
+                                <Text style={styles.wikiText}>{item.description}</Text>
+                            </View>
+                        ) : null}
+
+                        {/* Fotoğraf galerisi (Kültür Portalı) */}
+                        {item.source === 'kulturportali' && item.gallery?.length > 1 ? (
+                            <View style={styles.gallerySection}>
+                                <Text style={styles.gallerySectionTitle}>📸 Fotoğraflar</Text>
+                                <ScrollView
+                                    horizontal
+                                    showsHorizontalScrollIndicator={false}
+                                    contentContainerStyle={styles.galleryScroll}
+                                >
+                                    {item.gallery.map((imgUrl, idx) => (
+                                        <Image
+                                            key={idx}
+                                            source={{ uri: imgUrl }}
+                                            style={styles.galleryThumb}
+                                            contentFit="cover"
+                                            transition={300}
+                                        />
+                                    ))}
+                                </ScrollView>
+                            </View>
+                        ) : null}
+
                         {/* Wikipedia açıklama */}
                         {wikiLoading ? (
                             <View style={styles.wikiLoadingContainer}>
@@ -594,27 +630,50 @@ const CityDetailScreen = ({ route, navigation }) => {
                                 </TouchableOpacity>
                             ) : null}
 
-                            {item.website ? (
+                            {/* Web buton mantığı: her ikisi varsa sadece "Webde Gör", sadece biri varsa o gösterilir */}
+                            {(() => {
+                                const hasWebsite = !!item.website;
+                                const hasKP = !!item.kulturportali_url;
+                                if (hasKP) {
+                                    return (
+                                        <TouchableOpacity
+                                            style={[styles.actionBtn, { backgroundColor: '#e8f4f8' }]}
+                                            onPress={() => Linking.openURL(item.kulturportali_url)}
+                                        >
+                                            <Ionicons name="open-outline" size={18} color="#0077aa" />
+                                            <Text style={[styles.actionBtnText, { color: '#0077aa' }]}>Webde Gör</Text>
+                                        </TouchableOpacity>
+                                    );
+                                }
+                                if (hasWebsite) {
+                                    return (
+                                        <TouchableOpacity
+                                            style={[styles.actionBtn, { backgroundColor: COLORS.info + '15' }]}
+                                            onPress={() => handleWebsite(item.website)}
+                                        >
+                                            <Ionicons name="globe-outline" size={18} color={COLORS.info} />
+                                            <Text style={[styles.actionBtnText, { color: COLORS.info }]}>Web</Text>
+                                        </TouchableOpacity>
+                                    );
+                                }
+                                return null;
+                            })()}
+
+                            {/* Haritada Gör → direkt Google Maps */}
+                            {item.lat && item.lng ? (
                                 <TouchableOpacity
-                                    style={[styles.actionBtn, { backgroundColor: COLORS.info + '15' }]}
-                                    onPress={() => handleWebsite(item.website)}
+                                    style={[styles.actionBtn, { backgroundColor: COLORS.primary + '15' }]}
+                                    onPress={() => {
+                                        const url = `https://www.google.com/maps/search/?api=1&query=${item.lat},${item.lng}`;
+                                        Linking.openURL(url).catch(() => {
+                                            Linking.openURL(`https://maps.google.com/?q=${item.lat},${item.lng}`);
+                                        });
+                                    }}
                                 >
-                                    <Ionicons name="globe-outline" size={18} color={COLORS.info} />
-                                    <Text style={[styles.actionBtnText, { color: COLORS.info }]}>Web</Text>
+                                    <Ionicons name="navigate" size={18} color={COLORS.primary} />
+                                    <Text style={[styles.actionBtnText, { color: COLORS.primary }]}>Haritada Gör</Text>
                                 </TouchableOpacity>
                             ) : null}
-
-                            <TouchableOpacity
-                                style={[styles.actionBtn, { backgroundColor: COLORS.primary + '15' }]}
-                                onPress={() => {
-                                    setSelectedItem(null);
-                                    setWikiInfo(null);
-                                    navigation.navigate('MapScreen', { city, focusLat: item.lat, focusLng: item.lng });
-                                }}
-                            >
-                                <Ionicons name="navigate" size={18} color={COLORS.primary} />
-                                <Text style={[styles.actionBtnText, { color: COLORS.primary }]}>Haritada Gör</Text>
-                            </TouchableOpacity>
                         </View>
                     </ScrollView>
                 </View>
@@ -682,6 +741,51 @@ const CityDetailScreen = ({ route, navigation }) => {
                             {filteredPlaces.map(renderPlaceCard)}
                         </View>
                     )}
+                </View>
+            );
+        }
+
+        // Ne Yenir? — Yöresel yemekler
+        if (activeCategory === 'neyenir') {
+            if (yemekler.length === 0) {
+                return (
+                    <View style={styles.emptyState}>
+                        <Text style={styles.emptyEmoji}>🍽️</Text>
+                        <Text style={styles.emptyText}>Bu şehir için yöresel yemek verisi bulunamadı</Text>
+                    </View>
+                );
+            }
+            return (
+                <View style={styles.yemekGrid}>
+                    {yemekler.map((yemek, idx) => {
+                        const imgUrl = yemek.Resim
+                            ? `${BASE_KP_URL}${yemek.Resim}`
+                            : null;
+                        return (
+                            <TouchableOpacity
+                                key={idx}
+                                style={styles.yemekCard}
+                                activeOpacity={0.85}
+                                onPress={() => setSelectedYemek(yemek)}
+                            >
+                                <Image
+                                    source={{ uri: imgUrl }}
+                                    style={styles.yemekCardImage}
+                                    contentFit="cover"
+                                    transition={300}
+                                />
+                                <LinearGradient
+                                    colors={['transparent', 'rgba(0,0,0,0.65)']}
+                                    style={StyleSheet.absoluteFillObject}
+                                />
+                                <View style={styles.yemekCardContent}>
+                                    <Text style={styles.yemekCardName} numberOfLines={2}>
+                                        {toTitleCase(yemek.Baslik || '')}
+                                    </Text>
+                                </View>
+                            </TouchableOpacity>
+                        );
+                    })}
                 </View>
             );
         }
@@ -788,6 +892,16 @@ const CityDetailScreen = ({ route, navigation }) => {
                         <Ionicons name="map" size={18} color="#fff" />
                         <Text style={styles.heroMapText}>Harita</Text>
                     </TouchableOpacity>
+
+                    {/* Ziyaret toggle */}
+                    <View style={[styles.heroVisitToggle, { top: insets.top + 6 }]}>
+                        <VisitToggle
+                            cityId={city.id}
+                            cityName={cityName}
+                            userId={user?.id}
+                            compact={false}
+                        />
+                    </View>
 
                     <View style={styles.heroContent}>
                         <Text style={styles.heroCity}>{cityName}</Text>
@@ -897,6 +1011,56 @@ const CityDetailScreen = ({ route, navigation }) => {
 
             {/* Detay modal */}
             {selectedItem && renderDetailModal()}
+
+            {/* Yemek detay modal */}
+            {selectedYemek && (
+                <View style={styles.detailOverlay}>
+                    <TouchableOpacity
+                        style={styles.detailBackdrop}
+                        onPress={() => setSelectedYemek(null)}
+                    />
+                    <View style={styles.detailSheet}>
+                        <View style={styles.detailHero}>
+                            <Image
+                                source={{ uri: selectedYemek.Resim ? `${BASE_KP_URL}${selectedYemek.Resim}` : null }}
+                                style={styles.detailHeroImage}
+                                contentFit="cover"
+                                transition={400}
+                            />
+                            <LinearGradient
+                                colors={['transparent', 'rgba(0,0,0,0.6)']}
+                                style={StyleSheet.absoluteFillObject}
+                            />
+                            <TouchableOpacity
+                                style={styles.detailClose}
+                                onPress={() => setSelectedYemek(null)}
+                            >
+                                <Ionicons name="close" size={20} color="#fff" />
+                            </TouchableOpacity>
+                        </View>
+                        <ScrollView showsVerticalScrollIndicator={false} bounces={false}>
+                            <View style={styles.detailHeader}>
+                                <Text style={styles.detailEmoji}>🍽️</Text>
+                                <View style={{ flex: 1 }}>
+                                    <Text style={styles.detailName}>{toTitleCase(selectedYemek.Baslik || '')}</Text>
+                                    <Text style={styles.detailCategory}>{cityName} Mutfağı</Text>
+                                </View>
+                            </View>
+                            <View style={styles.detailActions}>
+                                {selectedYemek.Url ? (
+                                    <TouchableOpacity
+                                        style={[styles.actionBtn, { backgroundColor: '#e8f4f8' }]}
+                                        onPress={() => Linking.openURL(`${BASE_KP_URL}${selectedYemek.Url}`)}
+                                    >
+                                        <Ionicons name="open-outline" size={18} color="#0077aa" />
+                                        <Text style={[styles.actionBtnText, { color: '#0077aa' }]}>Webde Gör</Text>
+                                    </TouchableOpacity>
+                                ) : null}
+                            </View>
+                        </ScrollView>
+                    </View>
+                </View>
+            )}
         </View>
     );
 };
@@ -904,6 +1068,13 @@ const CityDetailScreen = ({ route, navigation }) => {
 // ═══════════════════════════════════════
 // STYLES
 // ═══════════════════════════════════════
+// ─── Yardımcı ────────────────────────────────────────────────────────────────
+function toTitleCase(str) {
+    return str.toLowerCase()
+        .replace(/(?:^|\s|[-])\S/g, c => c.toUpperCase())
+        .replace(/\bVe\b/g, 've').replace(/\bİle\b/g, 'ile');
+}
+
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: COLORS.background },
 
@@ -948,6 +1119,11 @@ const styles = StyleSheet.create({
     },
     heroMapText: {
         fontFamily: 'Inter_600SemiBold', fontSize: 12, color: '#fff',
+    },
+    heroVisitToggle: {
+        position: 'absolute',
+        bottom: SPACING.lg,
+        right: SPACING.md,
     },
     heroContent: {
         position: 'absolute', bottom: SPACING.lg, left: SPACING.lg,
@@ -1335,6 +1511,65 @@ const styles = StyleSheet.create({
     wikiText: {
         fontFamily: 'Inter_400Regular', fontSize: FONT_SIZES.sm,
         color: COLORS.textSecondary, lineHeight: 22,
+    },
+
+    // Galeri
+    gallerySection: {
+        marginHorizontal: SPACING.lg, marginTop: SPACING.sm,
+    },
+    gallerySectionTitle: {
+        fontFamily: 'Inter_600SemiBold', fontSize: FONT_SIZES.sm,
+        color: COLORS.textPrimary, marginBottom: SPACING.xs,
+    },
+    galleryScroll: {
+        gap: SPACING.xs,
+        paddingRight: SPACING.lg,
+    },
+    galleryThumb: {
+        width: 120,
+        height: 90,
+        borderRadius: BORDER_RADIUS.md,
+        backgroundColor: COLORS.surfaceAlt,
+    },
+
+    // Yemek grid
+    yemekGrid: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: SPACING.sm,
+        paddingHorizontal: SPACING.md,
+        paddingTop: SPACING.sm,
+    },
+    yemekCard: {
+        width: (SCREEN_W - SPACING.md * 2 - SPACING.sm) / 2,
+        height: 140,
+        borderRadius: BORDER_RADIUS.xl,
+        overflow: 'hidden',
+        backgroundColor: COLORS.surfaceAlt,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 6,
+        elevation: 3,
+    },
+    yemekCardImage: {
+        ...StyleSheet.absoluteFillObject,
+    },
+    yemekCardContent: {
+        position: 'absolute',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        padding: SPACING.sm,
+    },
+    yemekCardName: {
+        fontFamily: FONTS.bodySemiBold,
+        fontSize: FONT_SIZES.sm,
+        color: '#fff',
+        letterSpacing: -0.2,
+        textShadowColor: 'rgba(0,0,0,0.4)',
+        textShadowOffset: { width: 0, height: 1 },
+        textShadowRadius: 4,
     },
 
     // Actions

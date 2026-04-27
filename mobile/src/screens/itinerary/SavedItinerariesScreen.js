@@ -16,7 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../../constants/colors';
 import { FONTS, FONT_SIZES } from '../../constants/typography';
 import { SPACING, BORDER_RADIUS } from '../../constants/layout';
-import { getCityImages } from '../../constants/cityImages';
+import { getCityImages } from '../../services/cityImageService';
 import { useAuth } from '../../contexts/AuthContext';
 import {
     getItinerariesByUser,

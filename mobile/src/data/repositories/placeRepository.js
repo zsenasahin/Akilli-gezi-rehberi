@@ -1,57 +1,23 @@
 import { supabase } from '../../config/supabase';
 import { cache, TTL } from '../../services/cacheService';
+import { loadCityPlaces } from '../../services/placeDataManager';
+import { getCityCenter } from '../../constants/cities';
 
 /**
- * PlaceRepository – `places` tablosu okuma işlemleri.
- * UI bileşenleri Supabase'e doğrudan erişmez; bu repository'yi kullanır.
+ * PlaceRepository – gezilecek yer işlemleri.
+ *
+ * Yerler artık Supabase'de tutulmuyor; Overpass (OSM) + Wikidata/Wikipedia'dan
+ * çekilip AsyncStorage'da cache'leniyor (placeDataManager).
+ *
+ * Bu dosyada sadece:
+ *  - itinerary_items içindeki place_id'ye göre tek yer okuma (Supabase join için)
+ *  - Yemek önerileri (Overpass cache'inden)
  */
 
 /**
- * @param {object} filters
- * @param {number}  [filters.cityId]
- * @param {string}  [filters.category]
- * @param {'popularity'|'name'|'fee_asc'|'fee_desc'} [filters.sortBy]
- * @param {number}  [filters.limit]
- * @param {number}  [filters.offset]
+ * Tek bir yeri Supabase'den çeker (itinerary detay ekranı için).
+ * places tablosu artık sadece itinerary'ye bağlı yerler için kullanılıyor.
  */
-export const getPlaces = async ({
-    cityId,
-    category,
-    sortBy = 'popularity',
-    limit = 50,
-    offset = 0,
-} = {}) => {
-    let query = supabase
-        .from('places')
-        .select('*, cities(name)')
-        .range(offset, offset + limit - 1);
-
-    if (cityId) query = query.eq('city_id', cityId);
-    if (category && category !== 'all') query = query.eq('category', category);
-
-    switch (sortBy) {
-        case 'name': query = query.order('name', { ascending: true }); break;
-        case 'fee_asc': query = query.order('entry_fee', { ascending: true }); break;
-        case 'fee_desc': query = query.order('entry_fee', { ascending: false }); break;
-        default: query = query.order('popularity_score', { ascending: false }); break;
-    }
-
-    const { data, error } = await query;
-    return { data, error };
-};
-
-export const getPlacesByCity = async (cityId) => {
-    const CACHE_KEY = `places_city_${cityId}`;
-    const cached = await cache.get(CACHE_KEY);
-    if (cached) return { data: cached, error: null, fromCache: true };
-    const result = await getPlaces({ cityId, sortBy: 'popularity', limit: 200 });
-    if (result.data) await cache.set(CACHE_KEY, result.data, TTL.LONG);
-    return { ...result, fromCache: false };
-};
-
-export const getPlacesByCityAndCategory = (cityId, category) =>
-    getPlaces({ cityId, category, sortBy: 'popularity' });
-
 export const getPlaceById = async (placeId) => {
     const { data, error } = await supabase
         .from('places')
@@ -61,37 +27,36 @@ export const getPlaceById = async (placeId) => {
     return { data, error };
 };
 
-export const getCategories = async (cityId) => {
-    let query = supabase.from('places').select('category');
-    if (cityId) query = query.eq('city_id', cityId);
-
-    const { data, error } = await query;
-    if (error) return { data: null, error };
-
-    const unique = [...new Set(data.map((row) => row.category))];
-    return { data: unique, error: null };
+/**
+ * Şehrin tüm gezilecek yerlerini Overpass'tan çeker (cache'li).
+ * Eski Supabase tabanlı getPlacesByCity'nin yerini alır.
+ */
+export const getPlacesByCity = async (cityId, cityName = '') => {
+    const center = getCityCenter(cityName);
+    const data = await loadCityPlaces({ id: cityId, name: cityName, lat: center.lat, lng: center.lng });
+    return { data: data || [], error: null };
 };
 
 /**
  * Belirli bir şehir ve gün için öğle + akşam yemeği önerileri üretir.
- * Mevcut getPlacesByCity cache'ini kullanır — ek Supabase çağrısı yapmaz.
+ * loadCityPlaces cache'ini kullanır — Supabase çağrısı yapmaz.
  *
  * @param {number} cityId
+ * @param {string} cityName - Şehir adı (Overpass için gerekli)
  * @param {string[]} usedPlaceIds - O günün itinerary_items'ındaki place_id'ler
- * @param {number} day - Gün numarası (loglama için)
  * @returns {Promise<{ lunch: object|null, dinner: object|null }>}
  */
-export const getMealSuggestions = async (cityId, usedPlaceIds = [], day = 1) => {
+export const getMealSuggestions = async (cityId, cityName = '', usedPlaceIds = []) => {
     try {
-        const { data: allPlaces } = await getPlacesByCity(cityId);
+        const center = getCityCenter(cityName);
+        const allPlaces = await loadCityPlaces({ id: cityId, name: cityName, lat: center.lat, lng: center.lng });
         if (!allPlaces || allPlaces.length === 0) return { lunch: null, dinner: null };
 
         const usedSet = new Set(usedPlaceIds.map(String));
-
         const candidates = allPlaces
             .filter(p =>
                 (p.category === 'restoran' || p.category === 'kafe') &&
-                !usedSet.has(String(p.id))
+                !usedSet.has(String(p.osm_id))
             )
             .sort((a, b) => (b.popularity_score ?? 0) - (a.popularity_score ?? 0));
 
