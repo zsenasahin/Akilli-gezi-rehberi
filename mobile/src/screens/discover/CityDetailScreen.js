@@ -22,6 +22,7 @@ import {
     Alert,
     Platform,
     TextInput,
+    Modal,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -33,7 +34,6 @@ import { SPACING, BORDER_RADIUS } from '../../constants/layout';
 import { getCityImages } from '../../services/cityImageService';
 import { getPlaceImage } from '../../constants/placeImages';
 import { getCityPOIs } from '../../services/poiService';
-import { getPlaceSummary } from '../../services/wikipediaService';
 import { getBatchPlacePhotos } from '../../services/placePhotoService';
 import { toggleFavorite, getFavoriteIds } from '../../services/favoriteService';
 import { useFocusEffect } from '@react-navigation/native';
@@ -44,7 +44,6 @@ import { useAuth } from '../../contexts/AuthContext';
 import { getCityCenter } from '../../constants/cities';
 import { CityDetailSkeleton, SkeletonLoader } from '../../components/common/SkeletonLoader';
 import { useAssistantContext } from '../../contexts/AssistantContext';
-import VisitToggle from '../../components/common/VisitToggle';
 
 import mutfakData from '../../data/turkiye_mutfak.json';
 
@@ -82,10 +81,9 @@ const CityDetailScreen = ({ route, navigation }) => {
     const [descLoading, setDescLoading] = useState(true);
     const [favorites, setFavorites] = useState({});
     const [selectedItem, setSelectedItem] = useState(null);
-    const [wikiInfo, setWikiInfo] = useState(null);
-    const [wikiLoading, setWikiLoading] = useState(false);
     const [placeSearch, setPlaceSearch] = useState('');
     const [placePhotos, setPlacePhotos] = useState({});
+    const [lightboxUri, setLightboxUri] = useState(null);
 
     // Yöresel yemekler
     const [yemekler, setYemekler] = useState([]);
@@ -98,6 +96,14 @@ const CityDetailScreen = ({ route, navigation }) => {
         outputRange: [0, 1],
         extrapolate: 'clamp',
     });
+    // Sticky header pointer events: sadece görünür olduğunda tıklanabilir
+    const [stickyVisible, setStickyVisible] = useState(false);
+    useEffect(() => {
+        const id = scrollY.addListener(({ value }) => {
+            setStickyVisible(value > 150);
+        });
+        return () => scrollY.removeListener(id);
+    }, [scrollY]);
 
     // ─── Asistan bağlamını güncelle ───
     useFocusEffect(
@@ -120,12 +126,7 @@ const CityDetailScreen = ({ route, navigation }) => {
         setLoading(true);
         setLoadingProgress('');
         try {
-            // Wikipedia şehir açıklaması (paralel)
-            getPlaceSummary(cityName).then(wikiResult => {
-                if (wikiResult?.description) setCityDescription(wikiResult.description);
-                setDescLoading(false);
-            });
-
+            setDescLoading(false); // Şehir açıklaması artık gösterilmiyor
             // placeDataManager: Supabase cache → Overpass → Wikidata → Wikipedia → Commons
             const cityWithCoords = {
                 id: city.id,
@@ -239,14 +240,6 @@ const CityDetailScreen = ({ route, navigation }) => {
         Linking.openURL(fullUrl);
     };
 
-    // ─── Wikipedia bilgisi yükle ───
-    const loadWikiForItem = async (itemName) => {
-        setWikiLoading(true);
-        const info = await getPlaceSummary(itemName);
-        setWikiInfo(info);
-        setWikiLoading(false);
-    };
-
     // ─── Açılış saatlerini formatla ───
     const formatOpeningHours = (hours) => {
         if (!hours) return null;
@@ -276,7 +269,6 @@ const CityDetailScreen = ({ route, navigation }) => {
                 activeOpacity={0.85}
                 onPress={() => {
                     setSelectedItem({ ...place, source: place.source || 'db' });
-                    loadWikiForItem(place.name);
                 }}
             >
                 <Image
@@ -395,21 +387,16 @@ const CityDetailScreen = ({ route, navigation }) => {
         const item = selectedItem;
         const isDB = item.source === 'db';
 
-        // Fotoğraf: Wikipedia > wikiInfo.fullImageUrl > placePhotos > fallback
         const photoResult = placePhotos[item.name];
         const heroImageUrl =
-            wikiInfo?.fullImageUrl ||
-            wikiInfo?.imageUrl ||
             photoResult?.imageUrl ||
             getPlaceImage(item.name, item.image_url, item.category);
-        const photoSource = wikiInfo?.fullImageUrl ? 'wikipedia'
-            : photoResult?.source || 'fallback';
 
         return (
             <View style={styles.detailOverlay}>
                 <TouchableOpacity
                     style={styles.detailBackdrop}
-                    onPress={() => { setSelectedItem(null); setWikiInfo(null); }}
+                    onPress={() => { setSelectedItem(null); }}
                 />
                 <View style={styles.detailSheet}>
                     {/* Fotoğraf Hero */}
@@ -425,20 +412,9 @@ const CityDetailScreen = ({ route, navigation }) => {
                             style={StyleSheet.absoluteFillObject}
                         />
                         {/* Kaynak badge */}
-                        {photoSource === 'wikipedia' && (
-                            <View style={styles.photoSourceBadge}>
-                                <Text style={styles.photoSourceText}>📷 Wikipedia</Text>
-                            </View>
-                        )}
-                        {photoSource === 'commons' && (
-                            <View style={styles.photoSourceBadge}>
-                                <Text style={styles.photoSourceText}>📷 Wikimedia</Text>
-                            </View>
-                        )}
-                        {/* Kapatma */}
                         <TouchableOpacity
                             style={styles.detailClose}
-                            onPress={() => { setSelectedItem(null); setWikiInfo(null); }}
+                            onPress={() => { setSelectedItem(null); }}
                         >
                             <Ionicons name="close" size={20} color="#fff" />
                         </TouchableOpacity>
@@ -587,34 +563,16 @@ const CityDetailScreen = ({ route, navigation }) => {
                                     contentContainerStyle={styles.galleryScroll}
                                 >
                                     {item.gallery.map((imgUrl, idx) => (
-                                        <Image
-                                            key={idx}
-                                            source={{ uri: imgUrl }}
-                                            style={styles.galleryThumb}
-                                            contentFit="cover"
-                                            transition={300}
-                                        />
+                                        <TouchableOpacity key={idx} onPress={() => setLightboxUri(imgUrl)} activeOpacity={0.85}>
+                                            <Image
+                                                source={{ uri: imgUrl }}
+                                                style={styles.galleryThumb}
+                                                contentFit="cover"
+                                                transition={300}
+                                            />
+                                        </TouchableOpacity>
                                     ))}
                                 </ScrollView>
-                            </View>
-                        ) : null}
-
-                        {/* Wikipedia açıklama */}
-                        {wikiLoading ? (
-                            <View style={styles.wikiLoadingContainer}>
-                                <ActivityIndicator size="small" color={COLORS.primary} />
-                                <Text style={styles.wikiLoadingText}>Bilgi yükleniyor...</Text>
-                            </View>
-                        ) : wikiInfo?.description ? (
-                            <View style={styles.wikiSection}>
-                                <View style={styles.wikiHeader}>
-                                    <Ionicons name="book-outline" size={16} color={COLORS.primary} />
-                                    <Text style={styles.wikiTitle}>Hakkında</Text>
-                                    <View style={styles.wikiBadge}>
-                                        <Text style={styles.wikiBadgeText}>Wikipedia</Text>
-                                    </View>
-                                </View>
-                                <Text style={styles.wikiText}>{wikiInfo.description}</Text>
                             </View>
                         ) : null}
 
@@ -750,42 +708,109 @@ const CityDetailScreen = ({ route, navigation }) => {
             if (yemekler.length === 0) {
                 return (
                     <View style={styles.emptyState}>
-                        <Text style={styles.emptyEmoji}>🍽️</Text>
-                        <Text style={styles.emptyText}>Bu şehir için yöresel yemek verisi bulunamadı</Text>
+                        <View style={styles.emptyIconWrap}>
+                            <Text style={{ fontSize: 48 }}>🍽️</Text>
+                        </View>
+                        <Text style={styles.emptyText}>Yöresel yemek verisi bulunamadı</Text>
+                        <Text style={styles.emptySubtext}>Bu şehir için henüz içerik eklenmemiş</Text>
                     </View>
                 );
             }
+
+            // Öne çıkan ilk yemek (hero card)
+            const heroYemek = yemekler[0];
+            const heroImgUrl = heroYemek.Resim ? `${BASE_KP_URL}${heroYemek.Resim}` : null;
+
             return (
-                <View style={styles.yemekGrid}>
-                    {yemekler.map((yemek, idx) => {
-                        const imgUrl = yemek.Resim
-                            ? `${BASE_KP_URL}${yemek.Resim}`
-                            : null;
-                        return (
-                            <TouchableOpacity
-                                key={idx}
-                                style={styles.yemekCard}
-                                activeOpacity={0.85}
-                                onPress={() => setSelectedYemek(yemek)}
-                            >
-                                <Image
-                                    source={{ uri: imgUrl }}
-                                    style={styles.yemekCardImage}
-                                    contentFit="cover"
-                                    transition={300}
-                                />
-                                <LinearGradient
-                                    colors={['transparent', 'rgba(0,0,0,0.65)']}
-                                    style={StyleSheet.absoluteFillObject}
-                                />
-                                <View style={styles.yemekCardContent}>
-                                    <Text style={styles.yemekCardName} numberOfLines={2}>
-                                        {toTitleCase(yemek.Baslik || '')}
-                                    </Text>
+                <View>
+                    {/* Başlık */}
+                    <View style={styles.neyenirHeader}>
+                        <View style={styles.neyenirHeaderLeft}>
+                            <Text style={styles.neyenirTitle}>{cityName} Mutfağı</Text>
+                            <Text style={styles.neyenirSubtitle}>{yemekler.length} yöresel lezzet</Text>
+                        </View>
+                        <View style={styles.neyenirBadge}>
+                            <Text style={styles.neyenirBadgeText}>🏆 Yöresel</Text>
+                        </View>
+                    </View>
+
+                    {/* Hero kart — öne çıkan yemek */}
+                    <TouchableOpacity
+                        style={styles.yemekHeroCard}
+                        activeOpacity={0.88}
+                        onPress={() => setSelectedYemek(heroYemek)}
+                    >
+                        <Image
+                            source={{ uri: heroImgUrl }}
+                            style={styles.yemekHeroImage}
+                            contentFit="cover"
+                            transition={400}
+                        />
+                        <LinearGradient
+                            colors={['transparent', 'rgba(0,0,0,0.25)', 'rgba(0,0,0,0.82)']}
+                            style={StyleSheet.absoluteFillObject}
+                        />
+                        <View style={styles.yemekHeroBadge}>
+                            <Ionicons name="star" size={11} color="#FFB800" />
+                            <Text style={styles.yemekHeroBadgeText}>Öne Çıkan</Text>
+                        </View>
+                        <View style={styles.yemekHeroContent}>
+                            <Text style={styles.yemekHeroName} numberOfLines={2}>
+                                {toTitleCase(heroYemek.Baslik || '')}
+                            </Text>
+                            <View style={styles.yemekHeroMeta}>
+                                <Ionicons name="restaurant-outline" size={13} color="rgba(255,255,255,0.8)" />
+                                <Text style={styles.yemekHeroMetaText}>{cityName} Mutfağı</Text>
+                                <View style={styles.yemekHeroArrow}>
+                                    <Ionicons name="arrow-forward" size={14} color="#fff" />
                                 </View>
-                            </TouchableOpacity>
-                        );
-                    })}
+                            </View>
+                        </View>
+                    </TouchableOpacity>
+
+                    {/* Diğer yemekler — 2'li grid */}
+                    <Text style={styles.neyenirGridTitle}>Tüm Lezzetler</Text>
+                    <View style={styles.yemekGrid}>
+                        {yemekler.slice(1).map((yemek, idx) => {
+                            const imgUrl = yemek.Resim
+                                ? `${BASE_KP_URL}${yemek.Resim}`
+                                : null;
+                            return (
+                                <TouchableOpacity
+                                    key={idx}
+                                    style={styles.yemekCard}
+                                    activeOpacity={0.85}
+                                    onPress={() => setSelectedYemek(yemek)}
+                                >
+                                    <Image
+                                        source={{ uri: imgUrl }}
+                                        style={styles.yemekCardImage}
+                                        contentFit="cover"
+                                        transition={300}
+                                    />
+                                    <LinearGradient
+                                        colors={['transparent', 'rgba(0,0,0,0.18)', 'rgba(0,0,0,0.72)']}
+                                        style={StyleSheet.absoluteFillObject}
+                                    />
+                                    <View style={styles.yemekCardContent}>
+                                        <Text style={styles.yemekCardName} numberOfLines={2}>
+                                            {toTitleCase(yemek.Baslik || '')}
+                                        </Text>
+                                        <View style={styles.yemekCardFooter}>
+                                            <Ionicons name="restaurant-outline" size={10} color="rgba(255,255,255,0.7)" />
+                                            <Text style={styles.yemekCardCity}>{cityName}</Text>
+                                        </View>
+                                    </View>
+                                </TouchableOpacity>
+                            );
+                        })}
+                    </View>
+
+                    {/* Kültür Portalı atıfı */}
+                    <View style={styles.neyenirFooter}>
+                        <Ionicons name="information-circle-outline" size={13} color={COLORS.textLight} />
+                        <Text style={styles.neyenirFooterText}>Veriler Kültür Portalı'ndan alınmaktadır</Text>
+                    </View>
                 </View>
             );
         }
@@ -842,7 +867,10 @@ const CityDetailScreen = ({ route, navigation }) => {
     return (
         <View style={styles.container}>
             {/* Sabit üst bar (scroll olunca görünür) */}
-            <Animated.View style={[styles.stickyHeader, { opacity: headerOpacity, paddingTop: insets.top + 6 }]}>
+            <Animated.View
+                pointerEvents={stickyVisible ? 'auto' : 'none'}
+                style={[styles.stickyHeader, { opacity: headerOpacity, paddingTop: insets.top + 6 }]}
+            >
                 <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
                     <Ionicons name="arrow-back" size={22} color="#fff" />
                 </TouchableOpacity>
@@ -883,25 +911,6 @@ const CityDetailScreen = ({ route, navigation }) => {
                     >
                         <Ionicons name="arrow-back" size={22} color="#fff" />
                     </TouchableOpacity>
-
-                    {/* Harita butonu */}
-                    <TouchableOpacity
-                        style={[styles.heroMapBtn, { top: insets.top + 6 }]}
-                        onPress={() => navigation.navigate('MapScreen', { city })}
-                    >
-                        <Ionicons name="map" size={18} color="#fff" />
-                        <Text style={styles.heroMapText}>Harita</Text>
-                    </TouchableOpacity>
-
-                    {/* Ziyaret toggle */}
-                    <View style={[styles.heroVisitToggle, { top: insets.top + 6 }]}>
-                        <VisitToggle
-                            cityId={city.id}
-                            cityName={cityName}
-                            userId={user?.id}
-                            compact={false}
-                        />
-                    </View>
 
                     <View style={styles.heroContent}>
                         <Text style={styles.heroCity}>{cityName}</Text>
@@ -1012,6 +1021,16 @@ const CityDetailScreen = ({ route, navigation }) => {
             {/* Detay modal */}
             {selectedItem && renderDetailModal()}
 
+            {/* Lightbox — fotoğraf büyütme */}
+            <Modal visible={!!lightboxUri} transparent animationType="fade" onRequestClose={() => setLightboxUri(null)}>
+                <TouchableOpacity style={styles.lightboxOverlay} activeOpacity={1} onPress={() => setLightboxUri(null)}>
+                    <Image source={{ uri: lightboxUri }} style={styles.lightboxImage} contentFit="contain" />
+                    <TouchableOpacity style={styles.lightboxClose} onPress={() => setLightboxUri(null)}>
+                        <Ionicons name="close" size={24} color="#fff" />
+                    </TouchableOpacity>
+                </TouchableOpacity>
+            </Modal>
+
             {/* Yemek detay modal */}
             {selectedYemek && (
                 <View style={styles.detailOverlay}>
@@ -1020,6 +1039,7 @@ const CityDetailScreen = ({ route, navigation }) => {
                         onPress={() => setSelectedYemek(null)}
                     />
                     <View style={styles.detailSheet}>
+                        {/* Hero fotoğraf */}
                         <View style={styles.detailHero}>
                             <Image
                                 source={{ uri: selectedYemek.Resim ? `${BASE_KP_URL}${selectedYemek.Resim}` : null }}
@@ -1028,7 +1048,7 @@ const CityDetailScreen = ({ route, navigation }) => {
                                 transition={400}
                             />
                             <LinearGradient
-                                colors={['transparent', 'rgba(0,0,0,0.6)']}
+                                colors={['rgba(0,0,0,0.15)', 'transparent', 'rgba(0,0,0,0.55)']}
                                 style={StyleSheet.absoluteFillObject}
                             />
                             <TouchableOpacity
@@ -1037,23 +1057,76 @@ const CityDetailScreen = ({ route, navigation }) => {
                             >
                                 <Ionicons name="close" size={20} color="#fff" />
                             </TouchableOpacity>
+                            <View style={styles.yemekModalBadge}>
+                                <Text style={styles.yemekModalBadgeText}>🍽️ Yöresel Lezzet</Text>
+                            </View>
                         </View>
+
                         <ScrollView showsVerticalScrollIndicator={false} bounces={false}>
-                            <View style={styles.detailHeader}>
-                                <Text style={styles.detailEmoji}>🍽️</Text>
-                                <View style={{ flex: 1 }}>
-                                    <Text style={styles.detailName}>{toTitleCase(selectedYemek.Baslik || '')}</Text>
-                                    <Text style={styles.detailCategory}>{cityName} Mutfağı</Text>
+                            {/* Başlık */}
+                            <View style={styles.yemekModalHeader}>
+                                <Text style={styles.yemekModalName}>
+                                    {toTitleCase(selectedYemek.Baslik || '')}
+                                </Text>
+                                <View style={styles.yemekModalCityRow}>
+                                    <View style={styles.yemekModalCityBadge}>
+                                        <Ionicons name="location" size={12} color={COLORS.primary} />
+                                        <Text style={styles.yemekModalCityText}>{cityName}</Text>
+                                    </View>
+                                    <View style={styles.yemekModalCategoryBadge}>
+                                        <Text style={styles.yemekModalCategoryText}>Türk Mutfağı</Text>
+                                    </View>
                                 </View>
                             </View>
+
+                            {/* Bilgi kartları */}
+                            <View style={styles.yemekInfoCards}>
+                                <View style={styles.yemekInfoCard}>
+                                    <View style={[styles.yemekInfoIconWrap, { backgroundColor: COLORS.primaryMuted }]}>
+                                        <Ionicons name="restaurant" size={18} color={COLORS.primary} />
+                                    </View>
+                                    <Text style={styles.yemekInfoLabel}>Kategori</Text>
+                                    <Text style={styles.yemekInfoValue}>Yöresel</Text>
+                                </View>
+                                <View style={styles.yemekInfoCard}>
+                                    <View style={[styles.yemekInfoIconWrap, { backgroundColor: '#FEF3C7' }]}>
+                                        <Ionicons name="location" size={18} color="#D97706" />
+                                    </View>
+                                    <Text style={styles.yemekInfoLabel}>Şehir</Text>
+                                    <Text style={styles.yemekInfoValue}>{cityName}</Text>
+                                </View>
+                                <View style={styles.yemekInfoCard}>
+                                    <View style={[styles.yemekInfoIconWrap, { backgroundColor: '#D1FAE5' }]}>
+                                        <Ionicons name="leaf" size={18} color="#059669" />
+                                    </View>
+                                    <Text style={styles.yemekInfoLabel}>Mutfak</Text>
+                                    <Text style={styles.yemekInfoValue}>Türk</Text>
+                                </View>
+                            </View>
+
+                            {/* Açıklama */}
+                            <View style={styles.yemekDescSection}>
+                                <View style={styles.yemekDescHeader}>
+                                    <Ionicons name="book-outline" size={16} color={COLORS.primary} />
+                                    <Text style={styles.yemekDescTitle}>Hakkında</Text>
+                                    <View style={styles.yemekKpBadge}>
+                                        <Text style={styles.yemekKpBadgeText}>Kültür Portalı</Text>
+                                    </View>
+                                </View>
+                                <Text style={styles.yemekDescText}>
+                                    {toTitleCase(selectedYemek.Baslik || '')}, {cityName} mutfağının vazgeçilmez lezzetlerinden biridir. Yöreye özgü malzemeler ve geleneksel tariflerle hazırlanan bu yemek, bölgenin kültürel mirasını yansıtmaktadır.
+                                </Text>
+                            </View>
+
+                            {/* Aksiyon */}
                             <View style={styles.detailActions}>
                                 {selectedYemek.Url ? (
                                     <TouchableOpacity
-                                        style={[styles.actionBtn, { backgroundColor: '#e8f4f8' }]}
+                                        style={[styles.actionBtn, { backgroundColor: COLORS.primary }]}
                                         onPress={() => Linking.openURL(`${BASE_KP_URL}${selectedYemek.Url}`)}
                                     >
-                                        <Ionicons name="open-outline" size={18} color="#0077aa" />
-                                        <Text style={[styles.actionBtnText, { color: '#0077aa' }]}>Webde Gör</Text>
+                                        <Ionicons name="open-outline" size={18} color="#fff" />
+                                        <Text style={[styles.actionBtnText, { color: '#fff' }]}>Kültür Portalı'nda Gör</Text>
                                     </TouchableOpacity>
                                 ) : null}
                             </View>
@@ -1352,8 +1425,7 @@ const styles = StyleSheet.create({
     emptyState: {
         alignItems: 'center', paddingTop: SPACING.xxl * 2,
     },
-    emptyEmoji: { fontSize: 48, marginBottom: SPACING.md },
-    emptyText: {
+    emptyEmoji: { fontSize: 48, marginBottom: SPACING.md },    emptyText: {
         fontFamily: 'Inter_500Medium', fontSize: FONT_SIZES.lg,
         color: COLORS.textPrimary,
     },
@@ -1477,6 +1549,21 @@ const styles = StyleSheet.create({
         color: COLORS.textPrimary, flex: 1,
     },
 
+    // Lightbox
+    lightboxOverlay: {
+        flex: 1, backgroundColor: 'rgba(0,0,0,0.92)',
+        justifyContent: 'center', alignItems: 'center',
+    },
+    lightboxImage: {
+        width: '100%', height: '80%',
+    },
+    lightboxClose: {
+        position: 'absolute', top: 50, right: 20,
+        width: 40, height: 40, borderRadius: 20,
+        backgroundColor: 'rgba(255,255,255,0.15)',
+        justifyContent: 'center', alignItems: 'center',
+    },
+
     // Wiki
     wikiLoadingContainer: {
         flexDirection: 'row', alignItems: 'center', gap: 8,
@@ -1537,20 +1624,19 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         flexWrap: 'wrap',
         gap: SPACING.sm,
-        paddingHorizontal: SPACING.md,
-        paddingTop: SPACING.sm,
+        paddingTop: SPACING.xs,
     },
     yemekCard: {
-        width: (SCREEN_W - SPACING.md * 2 - SPACING.sm) / 2,
-        height: 140,
+        width: (SCREEN_W - SPACING.lg * 2 - SPACING.sm) / 2,
+        height: 150,
         borderRadius: BORDER_RADIUS.xl,
         overflow: 'hidden',
         backgroundColor: COLORS.surfaceAlt,
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 6,
-        elevation: 3,
+        shadowOffset: { width: 0, height: 3 },
+        shadowOpacity: 0.12,
+        shadowRadius: 8,
+        elevation: 4,
     },
     yemekCardImage: {
         ...StyleSheet.absoluteFillObject,
@@ -1567,9 +1653,293 @@ const styles = StyleSheet.create({
         fontSize: FONT_SIZES.sm,
         color: '#fff',
         letterSpacing: -0.2,
-        textShadowColor: 'rgba(0,0,0,0.4)',
+        textShadowColor: 'rgba(0,0,0,0.5)',
         textShadowOffset: { width: 0, height: 1 },
         textShadowRadius: 4,
+    },
+    yemekCardFooter: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 3,
+        marginTop: 3,
+    },
+    yemekCardCity: {
+        fontFamily: FONTS.body,
+        fontSize: 10,
+        color: 'rgba(255,255,255,0.75)',
+    },
+
+    // Ne Yenir header
+    neyenirHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginBottom: SPACING.md,
+    },
+    neyenirHeaderLeft: {
+        flex: 1,
+    },
+    neyenirTitle: {
+        fontFamily: FONTS.bodyBold,
+        fontSize: FONT_SIZES.xl,
+        color: COLORS.textPrimary,
+        letterSpacing: -0.5,
+    },
+    neyenirSubtitle: {
+        fontFamily: FONTS.body,
+        fontSize: FONT_SIZES.xs,
+        color: COLORS.textSecondary,
+        marginTop: 2,
+    },
+    neyenirBadge: {
+        backgroundColor: COLORS.primaryMuted,
+        paddingHorizontal: 10,
+        paddingVertical: 5,
+        borderRadius: BORDER_RADIUS.full,
+        borderWidth: 1,
+        borderColor: COLORS.primary + '30',
+    },
+    neyenirBadgeText: {
+        fontFamily: FONTS.bodySemiBold,
+        fontSize: FONT_SIZES.xs,
+        color: COLORS.primary,
+    },
+
+    // Hero yemek kartı
+    yemekHeroCard: {
+        height: 200,
+        borderRadius: BORDER_RADIUS.xl,
+        overflow: 'hidden',
+        backgroundColor: COLORS.surfaceAlt,
+        marginBottom: SPACING.md,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.18,
+        shadowRadius: 16,
+        elevation: 8,
+    },
+    yemekHeroImage: {
+        ...StyleSheet.absoluteFillObject,
+    },
+    yemekHeroBadge: {
+        position: 'absolute',
+        top: SPACING.sm,
+        left: SPACING.sm,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        backgroundColor: 'rgba(0,0,0,0.45)',
+        paddingHorizontal: 10,
+        paddingVertical: 5,
+        borderRadius: BORDER_RADIUS.full,
+    },
+    yemekHeroBadgeText: {
+        fontFamily: FONTS.bodySemiBold,
+        fontSize: 11,
+        color: '#fff',
+    },
+    yemekHeroContent: {
+        position: 'absolute',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        padding: SPACING.md,
+    },
+    yemekHeroName: {
+        fontFamily: FONTS.bodyBold,
+        fontSize: FONT_SIZES.xl,
+        color: '#fff',
+        letterSpacing: -0.5,
+        marginBottom: SPACING.xs,
+        textShadowColor: 'rgba(0,0,0,0.4)',
+        textShadowOffset: { width: 0, height: 1 },
+        textShadowRadius: 6,
+    },
+    yemekHeroMeta: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 5,
+    },
+    yemekHeroMetaText: {
+        fontFamily: FONTS.body,
+        fontSize: FONT_SIZES.sm,
+        color: 'rgba(255,255,255,0.85)',
+        flex: 1,
+    },
+    yemekHeroArrow: {
+        width: 28,
+        height: 28,
+        borderRadius: 14,
+        backgroundColor: 'rgba(255,255,255,0.2)',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+
+    // Grid başlığı
+    neyenirGridTitle: {
+        fontFamily: FONTS.bodySemiBold,
+        fontSize: FONT_SIZES.md,
+        color: COLORS.textPrimary,
+        marginBottom: SPACING.sm,
+        letterSpacing: -0.3,
+    },
+
+    // Footer
+    neyenirFooter: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 5,
+        justifyContent: 'center',
+        paddingVertical: SPACING.md,
+        marginTop: SPACING.sm,
+    },
+    neyenirFooterText: {
+        fontFamily: FONTS.body,
+        fontSize: FONT_SIZES.xs,
+        color: COLORS.textLight,
+    },
+
+    // Yemek modal
+    yemekModalBadge: {
+        position: 'absolute',
+        bottom: SPACING.sm,
+        left: SPACING.sm,
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        paddingHorizontal: 10,
+        paddingVertical: 5,
+        borderRadius: BORDER_RADIUS.full,
+    },
+    yemekModalBadgeText: {
+        fontFamily: FONTS.bodySemiBold,
+        fontSize: 11,
+        color: '#fff',
+    },
+    yemekModalHeader: {
+        paddingHorizontal: SPACING.lg,
+        paddingTop: SPACING.md,
+        paddingBottom: SPACING.sm,
+    },
+    yemekModalName: {
+        fontFamily: FONTS.heading,
+        fontSize: FONT_SIZES.xxl,
+        color: COLORS.textPrimary,
+        letterSpacing: -0.5,
+        marginBottom: SPACING.sm,
+    },
+    yemekModalCityRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: SPACING.xs,
+    },
+    yemekModalCityBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        backgroundColor: COLORS.primaryMuted,
+        paddingHorizontal: 10,
+        paddingVertical: 4,
+        borderRadius: BORDER_RADIUS.full,
+    },
+    yemekModalCityText: {
+        fontFamily: FONTS.bodySemiBold,
+        fontSize: FONT_SIZES.xs,
+        color: COLORS.primary,
+    },
+    yemekModalCategoryBadge: {
+        backgroundColor: COLORS.surfaceAlt,
+        paddingHorizontal: 10,
+        paddingVertical: 4,
+        borderRadius: BORDER_RADIUS.full,
+        borderWidth: 1,
+        borderColor: COLORS.border,
+    },
+    yemekModalCategoryText: {
+        fontFamily: FONTS.bodySemiBold,
+        fontSize: FONT_SIZES.xs,
+        color: COLORS.textSecondary,
+    },
+
+    // Yemek bilgi kartları
+    yemekInfoCards: {
+        flexDirection: 'row',
+        marginHorizontal: SPACING.lg,
+        marginBottom: SPACING.md,
+        gap: SPACING.sm,
+    },
+    yemekInfoCard: {
+        flex: 1,
+        backgroundColor: COLORS.surfaceAlt,
+        borderRadius: BORDER_RADIUS.lg,
+        padding: SPACING.sm,
+        alignItems: 'center',
+        gap: 4,
+    },
+    yemekInfoIconWrap: {
+        width: 40,
+        height: 40,
+        borderRadius: 12,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginBottom: 2,
+    },
+    yemekInfoLabel: {
+        fontFamily: FONTS.body,
+        fontSize: 10,
+        color: COLORS.textSecondary,
+    },
+    yemekInfoValue: {
+        fontFamily: FONTS.bodySemiBold,
+        fontSize: FONT_SIZES.xs,
+        color: COLORS.textPrimary,
+    },
+
+    // Yemek açıklama
+    yemekDescSection: {
+        marginHorizontal: SPACING.lg,
+        marginBottom: SPACING.md,
+        backgroundColor: COLORS.surfaceAlt,
+        borderRadius: BORDER_RADIUS.lg,
+        padding: SPACING.md,
+    },
+    yemekDescHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        marginBottom: SPACING.sm,
+    },
+    yemekDescTitle: {
+        fontFamily: FONTS.bodySemiBold,
+        fontSize: FONT_SIZES.sm,
+        color: COLORS.textPrimary,
+        flex: 1,
+    },
+    yemekKpBadge: {
+        backgroundColor: COLORS.primaryMuted,
+        paddingHorizontal: 8,
+        paddingVertical: 3,
+        borderRadius: BORDER_RADIUS.sm,
+    },
+    yemekKpBadgeText: {
+        fontFamily: FONTS.bodyMedium,
+        fontSize: 10,
+        color: COLORS.primary,
+    },
+    yemekDescText: {
+        fontFamily: FONTS.body,
+        fontSize: FONT_SIZES.sm,
+        color: COLORS.textSecondary,
+        lineHeight: 22,
+    },
+
+    // Empty icon wrap
+    emptyIconWrap: {
+        width: 88,
+        height: 88,
+        borderRadius: 44,
+        backgroundColor: COLORS.surfaceAlt,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginBottom: SPACING.md,
     },
 
     // Actions

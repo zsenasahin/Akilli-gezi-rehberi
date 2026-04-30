@@ -20,7 +20,6 @@ import { FONTS, FONT_SIZES } from '../../constants/typography';
 import { SPACING, BORDER_RADIUS, SCREEN } from '../../constants/layout';
 import { getCityImages } from '../../services/cityImageService';
 import { useAuth, useRequireAuth } from '../../contexts/AuthContext';
-import VisitToggle from '../../components/common/VisitToggle';
 import { getCities } from '../../services/cityService';
 import { getProfile } from '../../services/profileService';
 import { HomeScreenSkeleton } from '../../components/common/SkeletonLoader';
@@ -246,7 +245,6 @@ const HomeScreen = ({ navigation }) => {
                                         images={images}
                                         index={index}
                                         onPress={() => handleCityPress(city)}
-                                        userId={user?.id}
                                         onPlanPress={() => {
                                             if (!requireAuth('Gezi planı oluşturmak için giriş yapmalısınız.')) return;
                                             navigation.navigate('CreateItinerary', { preselectedCity: city });
@@ -360,7 +358,7 @@ const EtkinlikCard = React.memo(({ etkinlik, onPress }) => {
 });
 
 // ─── City Card — Grid kartı ─────────────────────────────────────────────────
-const CityCard = React.memo(({ city, images, index, onPress, onPlanPress, userId }) => {
+const CityCard = React.memo(({ city, images, index, onPress, onPlanPress }) => {
     const scaleAnim = useRef(new Animated.Value(1)).current;
 
     const handlePressIn = () => {
@@ -401,15 +399,6 @@ const CityCard = React.memo(({ city, images, index, onPress, onPlanPress, userId
                 >
                     <Ionicons name="add" size={14} color="#fff" />
                 </TouchableOpacity>
-                {/* Ziyaret toggle — sağ alt köşe */}
-                <View style={styles.cityVisitToggle}>
-                    <VisitToggle
-                        cityId={city.id}
-                        cityName={city.name}
-                        userId={userId}
-                        compact={true}
-                    />
-                </View>
             </TouchableOpacity>
         </Animated.View>
     );
@@ -635,11 +624,6 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         borderWidth: 1,
         borderColor: 'rgba(255,255,255,0.3)',
-    },
-    cityVisitToggle: {
-        position: 'absolute',
-        bottom: SPACING.xs + 2,
-        right: SPACING.xs + 2,
     },
 
     // ─── ETKİNLİKLER ───

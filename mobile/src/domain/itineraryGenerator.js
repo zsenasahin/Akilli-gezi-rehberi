@@ -139,8 +139,14 @@ export const generateItinerary = (places, days, options = {}) => {
         balanceCategories = true,
     } = options;
 
-    // Koordinatsız yerleri filtrele
-    const validPlaces = places.filter(p => p.lat != null && p.lng != null);
+    // Koordinatsız yerleri filtrele — koordinat yoksa şehir merkezini fallback olarak kullan
+    const validPlaces = places.map(p => {
+        if (p.lat != null && p.lng != null) return p;
+        // Koordinat yoksa options'dan cityCenter al, yoksa İstanbul
+        const fallbackLat = options.cityLat ?? 41.0082;
+        const fallbackLng = options.cityLng ?? 28.9784;
+        return { ...p, lat: fallbackLat + (Math.random() - 0.5) * 0.05, lng: fallbackLng + (Math.random() - 0.5) * 0.05 };
+    });
     console.log('✅ Geçerli yerler:', validPlaces.length);
 
     if (validPlaces.length === 0 || days <= 0) {
@@ -269,13 +275,15 @@ export const generateItinerary = (places, days, options = {}) => {
         plan.push({ day: plan.length + 1, places: [], totalHours: 0, totalDistance: 0, budget: 0 });
     }
 
-    // items (DB formatı)
+    // items (DB formatı) — sadece numeric ID'li (Supabase) yerleri kaydet
     const items = plan.flatMap(dayPlan =>
-        dayPlan.places.map((p, idx) => ({
-            place_id: p.id,
-            day_number: dayPlan.day,
-            order_index: idx,
-        }))
+        dayPlan.places
+            .filter(p => p.id != null && !isNaN(Number(p.id)))
+            .map((p, idx) => ({
+                place_id: Number(p.id),
+                day_number: dayPlan.day,
+                order_index: idx,
+            }))
     );
 
     const totalHours = plan.reduce((s, d) => s + d.totalHours, 0);

@@ -1,23 +1,11 @@
 import { supabase } from '../../config/supabase';
-import { cache, TTL } from '../../services/cacheService';
-import { loadCityPlaces } from '../../services/placeDataManager';
 import { getCityCenter } from '../../constants/cities';
+import { getCityPOIs } from '../api/overpassApi';
 
 /**
  * PlaceRepository – gezilecek yer işlemleri.
- *
- * Yerler artık Supabase'de tutulmuyor; Overpass (OSM) + Wikidata/Wikipedia'dan
- * çekilip AsyncStorage'da cache'leniyor (placeDataManager).
- *
- * Bu dosyada sadece:
- *  - itinerary_items içindeki place_id'ye göre tek yer okuma (Supabase join için)
- *  - Yemek önerileri (Overpass cache'inden)
  */
 
-/**
- * Tek bir yeri Supabase'den çeker (itinerary detay ekranı için).
- * places tablosu artık sadece itinerary'ye bağlı yerler için kullanılıyor.
- */
 export const getPlaceById = async (placeId) => {
     const { data, error } = await supabase
         .from('places')
@@ -27,44 +15,109 @@ export const getPlaceById = async (placeId) => {
     return { data, error };
 };
 
-/**
- * Şehrin tüm gezilecek yerlerini Overpass'tan çeker (cache'li).
- * Eski Supabase tabanlı getPlacesByCity'nin yerini alır.
- */
 export const getPlacesByCity = async (cityId, cityName = '') => {
+    // Artık Supabase yerine Overpass'tan çekiyoruz
     const center = getCityCenter(cityName);
-    const data = await loadCityPlaces({ id: cityId, name: cityName, lat: center.lat, lng: center.lng });
+    const { data } = await getCityPOIs(center.lat, center.lng, 'restaurant', 3000);
     return { data: data || [], error: null };
 };
 
+// ─── Haversine mesafesi ───────────────────────────────────────────────────────
+function haversine(lat1, lng1, lat2, lng2) {
+    const R = 6371;
+    const dLat = ((lat2 - lat1) * Math.PI) / 180;
+    const dLng = ((lng2 - lng1) * Math.PI) / 180;
+    const a =
+        Math.sin(dLat / 2) ** 2 +
+        Math.cos((lat1 * Math.PI) / 180) *
+        Math.cos((lat2 * Math.PI) / 180) *
+        Math.sin(dLng / 2) ** 2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
 /**
- * Belirli bir şehir ve gün için öğle + akşam yemeği önerileri üretir.
- * loadCityPlaces cache'ini kullanır — Supabase çağrısı yapmaz.
+ * Belirli bir şehir ve gün için öğle + akşam yemeği yeri önerileri üretir.
+ * Overpass API'den gerçek restoran/kafe çeker.
+ *
+ * - Öğle: günün ortasındaki iki yer arasına en yakın restoran
+ * - Akşam: son yerden sonra en yakın restoran
  *
  * @param {number} cityId
- * @param {string} cityName - Şehir adı (Overpass için gerekli)
- * @param {string[]} usedPlaceIds - O günün itinerary_items'ındaki place_id'ler
- * @returns {Promise<{ lunch: object|null, dinner: object|null }>}
+ * @param {string} cityName
+ * @param {string[]} usedPlaceIds
+ * @param {Array} [orderedPlaces] - Günün sıralı yerleri
+ * @returns {Promise<{ lunch, dinner, lunchAfterIndex, dinnerAfterIndex }>}
  */
-export const getMealSuggestions = async (cityId, cityName = '', usedPlaceIds = []) => {
+export const getMealSuggestions = async (cityId, cityName = '', usedPlaceIds = [], orderedPlaces = []) => {
+    const lunchAfterIndex = orderedPlaces.length > 1
+        ? Math.floor(orderedPlaces.length / 2) - 1
+        : 0;
+    const dinnerAfterIndex = Math.max(0, orderedPlaces.length - 1);
+
+    const empty = { lunch: null, dinner: null, lunchAfterIndex, dinnerAfterIndex };
+
     try {
         const center = getCityCenter(cityName);
-        const allPlaces = await loadCityPlaces({ id: cityId, name: cityName, lat: center.lat, lng: center.lng });
-        if (!allPlaces || allPlaces.length === 0) return { lunch: null, dinner: null };
 
-        const usedSet = new Set(usedPlaceIds.map(String));
-        const candidates = allPlaces
-            .filter(p =>
-                (p.category === 'restoran' || p.category === 'kafe') &&
-                !usedSet.has(String(p.osm_id))
-            )
-            .sort((a, b) => (b.popularity_score ?? 0) - (a.popularity_score ?? 0));
+        // Hem restoran hem kafe çek
+        const [restResult, cafeResult] = await Promise.all([
+            getCityPOIs(center.lat, center.lng, 'restaurant', 3000),
+            getCityPOIs(center.lat, center.lng, 'cafe', 2000),
+        ]);
 
-        return {
-            lunch: candidates[0] ?? null,
-            dinner: candidates[1] ?? null,
-        };
-    } catch {
-        return { lunch: null, dinner: null };
+        const allEateries = [
+            ...(restResult.data || []),
+            ...(cafeResult.data || []),
+        ].filter(p => p.name && p.lat && p.lng);
+
+        if (allEateries.length === 0) return empty;
+
+        // Öğle: günün ortasındaki iki yer arasına en yakın
+        let lunchPivotLat = center.lat;
+        let lunchPivotLng = center.lng;
+        if (orderedPlaces.length > 1) {
+            const a = orderedPlaces[lunchAfterIndex];
+            const b = orderedPlaces[lunchAfterIndex + 1];
+            if (a?.lat && b?.lat) {
+                lunchPivotLat = (a.lat + b.lat) / 2;
+                lunchPivotLng = (a.lng + b.lng) / 2;
+            }
+        }
+
+        const sortedForLunch = [...allEateries].sort((a, b) =>
+            haversine(lunchPivotLat, lunchPivotLng, a.lat, a.lng) -
+            haversine(lunchPivotLat, lunchPivotLng, b.lat, b.lng)
+        );
+        const lunch = sortedForLunch[0] ? {
+            ...sortedForLunch[0],
+            id: String(sortedForLunch[0].id),
+            type: 'restaurant',
+        } : null;
+
+        // Akşam: son yere en yakın, öğleden farklı
+        let dinnerPivotLat = center.lat;
+        let dinnerPivotLng = center.lng;
+        const lastPlace = orderedPlaces[orderedPlaces.length - 1];
+        if (lastPlace?.lat) {
+            dinnerPivotLat = lastPlace.lat;
+            dinnerPivotLng = lastPlace.lng;
+        }
+
+        const sortedForDinner = [...allEateries]
+            .filter(p => p.id !== sortedForLunch[0]?.id)
+            .sort((a, b) =>
+                haversine(dinnerPivotLat, dinnerPivotLng, a.lat, a.lng) -
+                haversine(dinnerPivotLat, dinnerPivotLng, b.lat, b.lng)
+            );
+        const dinner = sortedForDinner[0] ? {
+            ...sortedForDinner[0],
+            id: String(sortedForDinner[0].id),
+            type: 'restaurant',
+        } : null;
+
+        return { lunch, dinner, lunchAfterIndex, dinnerAfterIndex };
+    } catch (err) {
+        console.warn('getMealSuggestions error:', err.message);
+        return empty;
     }
 };

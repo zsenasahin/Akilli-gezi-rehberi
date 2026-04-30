@@ -21,18 +21,15 @@ import ItineraryDetailScreen from '../screens/itinerary/ItineraryDetailScreen';
 import FavoritesScreen from '../screens/favorites/FavoritesScreen';
 import ProfileScreen from '../screens/profile/ProfileScreen';
 import MapScreen from '../screens/map/MapScreen';
-import TurkeyMapScreen from '../screens/map/TurkeyMapScreen';
 import TravelAssistantScreen from '../screens/assistant/TravelAssistantScreen';
 import EtkinliklerScreen from '../screens/discover/EtkinliklerScreen';
 
 const Tab = createBottomTabNavigator();
 const HomeStack = createNativeStackNavigator();
 const SavedStack = createNativeStackNavigator();
-const FavoritesStack = createNativeStackNavigator();
 const ProfileStack = createNativeStackNavigator();
-const MapStack = createNativeStackNavigator();
 
-// ─── Misafir Engeli — korumalı tab'larda gösterilir ────────────────────────
+// ─── Misafir Engeli ─────────────────────────────────────────────────────────
 const GuestGate = ({ icon, title, description }) => {
     const navigation = useNavigation();
     return (
@@ -50,232 +47,91 @@ const GuestGate = ({ icon, title, description }) => {
                 <Ionicons name="log-in-outline" size={18} color="#fff" />
                 <Text style={guestStyles.loginBtnText}>Giriş Yap</Text>
             </TouchableOpacity>
-            <TouchableOpacity
-                style={guestStyles.registerBtn}
-                onPress={() => navigation.navigate('AuthModal', { screen: 'Register' })}
-                activeOpacity={0.85}
-            >
-                <Text style={guestStyles.registerBtnText}>Hesabın yok mu? Kaydol</Text>
-            </TouchableOpacity>
         </View>
     );
 };
 
 const GuestSaved = () => (
-    <GuestGate
-        icon="map-outline"
-        title="Gezi Planların"
-        description="Kişisel gezi planlarını görmek ve oluşturmak için giriş yapman gerekiyor."
-    />
-);
-const GuestFavorites = () => (
-    <GuestGate
-        icon="heart-outline"
-        title="Favorilerin"
-        description="Beğendiğin yerleri favorilere eklemek için giriş yapman gerekiyor."
-    />
+    <GuestGate icon="map-outline" title="Gezi Planların"
+        description="Kişisel gezi planlarını görmek için giriş yapman gerekiyor." />
 );
 const GuestProfile = () => (
-    <GuestGate
-        icon="person-outline"
-        title="Profilin"
-        description="Profilini görüntülemek ve kişiselleştirmek için giriş yapman gerekiyor."
-    />
+    <GuestGate icon="person-outline" title="Profilin"
+        description="Profilini görüntülemek için giriş yapman gerekiyor." />
 );
 
 const guestStyles = StyleSheet.create({
     container: {
         flex: 1, backgroundColor: COLORS.background,
-        justifyContent: 'center', alignItems: 'center',
-        padding: SPACING.xl,
+        justifyContent: 'center', alignItems: 'center', padding: SPACING.xl,
     },
     iconWrap: {
         width: 100, height: 100, borderRadius: 50,
         backgroundColor: COLORS.primaryMuted,
-        justifyContent: 'center', alignItems: 'center',
-        marginBottom: SPACING.lg,
+        justifyContent: 'center', alignItems: 'center', marginBottom: SPACING.lg,
     },
-    title: {
-        fontFamily: FONTS.heading,
-        fontSize: 24, color: COLORS.textPrimary,
-        marginBottom: SPACING.sm, textAlign: 'center',
-    },
-    desc: {
-        fontFamily: FONTS.body, fontSize: FONT_SIZES.md,
-        color: COLORS.textSecondary, textAlign: 'center',
-        lineHeight: 22, marginBottom: SPACING.xl,
-    },
+    title: { fontFamily: FONTS.heading, fontSize: 24, color: COLORS.textPrimary, marginBottom: SPACING.sm, textAlign: 'center' },
+    desc: { fontFamily: FONTS.body, fontSize: FONT_SIZES.md, color: COLORS.textSecondary, textAlign: 'center', lineHeight: 22, marginBottom: SPACING.xl },
     loginBtn: {
         flexDirection: 'row', alignItems: 'center', gap: 8,
-        backgroundColor: COLORS.primary,
-        paddingVertical: 14, paddingHorizontal: 36,
-        borderRadius: BORDER_RADIUS.lg,
-        marginBottom: SPACING.sm,
-        shadowColor: COLORS.primary, shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3, shadowRadius: 12, elevation: 6,
+        backgroundColor: COLORS.primary, paddingVertical: 14, paddingHorizontal: 36,
+        borderRadius: BORDER_RADIUS.lg, shadowColor: COLORS.primary,
+        shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 12, elevation: 6,
     },
-    loginBtnText: {
-        fontFamily: FONTS.bodySemiBold, fontSize: FONT_SIZES.md, color: '#fff',
-    },
-    registerBtn: { paddingVertical: 10 },
-    registerBtnText: {
-        fontFamily: FONTS.body, fontSize: FONT_SIZES.sm,
-        color: COLORS.primary, textDecorationLine: 'underline',
-    },
+    loginBtnText: { fontFamily: FONTS.bodySemiBold, fontSize: FONT_SIZES.md, color: '#fff' },
 });
 
 const stackScreenOptions = {
-    headerStyle: {
-        backgroundColor: COLORS.surface,
-    },
+    headerStyle: { backgroundColor: COLORS.surface },
     headerTintColor: COLORS.textPrimary,
-    headerTitleStyle: {
-        fontFamily: FONTS.heading,
-        fontSize: 18,
-    },
+    headerTitleStyle: { fontFamily: FONTS.heading, fontSize: 18 },
     headerShadowVisible: false,
 };
 
 const HomeStackNavigator = () => (
     <HomeStack.Navigator screenOptions={stackScreenOptions}>
-        <HomeStack.Screen
-            name="HomeMain"
-            component={HomeScreen}
-            options={{ headerShown: false }}
-        />
-        <HomeStack.Screen
-            name="CreateItinerary"
-            component={CreateItineraryScreen}
-            options={{ title: 'Gezi Planla' }}
-        />
-        <HomeStack.Screen
-            name="ItineraryResult"
-            component={ItineraryResultScreen}
-            options={{ title: 'Gezi Planı' }}
-        />
-        <HomeStack.Screen
-            name="MapScreen"
-            component={MapScreen}
-            options={{ headerShown: false }}
-        />
-        <HomeStack.Screen
-            name="CityDetail"
-            component={CityDetailScreen}
-            options={{ headerShown: false }}
-        />
-        <HomeStack.Screen
-            name="AllCities"
-            component={AllCitiesScreen}
-            options={{ headerShown: false }}
-        />
-        <HomeStack.Screen
-            name="Etkinlikler"
-            component={EtkinliklerScreen}
-            options={{ headerShown: false }}
-        />
-        <HomeStack.Screen
-            name="TravelAssistant"
-            component={TravelAssistantScreen}
-            options={{ headerShown: false }}
-        />
-        <HomeStack.Screen
-            name="ItineraryDetail"
-            component={ItineraryDetailScreen}
-            options={{ headerShown: false }}
-        />
-        <HomeStack.Screen
-            name="Saved"
-            component={SavedItinerariesScreen}
-            options={{ title: 'Planlarım' }}
-        />
+        <HomeStack.Screen name="HomeMain" component={HomeScreen} options={{ headerShown: false }} />
+        <HomeStack.Screen name="CreateItinerary" component={CreateItineraryScreen} options={{ title: 'Gezi Planla' }} />
+        <HomeStack.Screen name="ItineraryResult" component={ItineraryResultScreen} options={{ title: 'Gezi Planı' }} />
+        <HomeStack.Screen name="MapScreen" component={MapScreen} options={{ headerShown: false }} />
+        <HomeStack.Screen name="CityDetail" component={CityDetailScreen} options={{ headerShown: false }} />
+        <HomeStack.Screen name="AllCities" component={AllCitiesScreen} options={{ headerShown: false }} />
+        <HomeStack.Screen name="Etkinlikler" component={EtkinliklerScreen} options={{ headerShown: false }} />
+        <HomeStack.Screen name="TravelAssistant" component={TravelAssistantScreen} options={{ headerShown: false }} />
+        <HomeStack.Screen name="ItineraryDetail" component={ItineraryDetailScreen} options={{ headerShown: false }} />
+        <HomeStack.Screen name="Saved" component={SavedItinerariesScreen} options={{ title: 'Planlarım' }} />
     </HomeStack.Navigator>
 );
-
 
 const SavedStackNavigator = () => {
     const { isGuest } = useAuth();
     if (isGuest) return <GuestSaved />;
     return (
         <SavedStack.Navigator screenOptions={stackScreenOptions}>
-            <SavedStack.Screen
-                name="SavedList"
-                component={SavedItinerariesScreen}
-                options={{ title: 'Planlarım' }}
-            />
-            <SavedStack.Screen
-                name="ItineraryDetail"
-                component={ItineraryDetailScreen}
-                options={{ headerShown: false }}
-            />
-            <SavedStack.Screen
-                name="TravelAssistant"
-                component={TravelAssistantScreen}
-                options={{ headerShown: false }}
-            />
+            <SavedStack.Screen name="SavedList" component={SavedItinerariesScreen} options={{ title: 'Planlarım' }} />
+            <SavedStack.Screen name="ItineraryDetail" component={ItineraryDetailScreen} options={{ headerShown: false }} />
+            <SavedStack.Screen name="TravelAssistant" component={TravelAssistantScreen} options={{ headerShown: false }} />
         </SavedStack.Navigator>
     );
 };
-
-const FavoritesStackNavigator = () => {
-    const { isGuest } = useAuth();
-    if (isGuest) return <GuestFavorites />;
-    return (
-        <FavoritesStack.Navigator screenOptions={stackScreenOptions}>
-            <FavoritesStack.Screen
-                name="FavoritesList"
-                component={FavoritesScreen}
-                options={{ headerShown: false }}
-            />
-        </FavoritesStack.Navigator>
-    );
-};
-
-const MapStackNavigator = () => (
-    <MapStack.Navigator screenOptions={stackScreenOptions}>
-        <MapStack.Screen
-            name="TurkeyMap"
-            component={TurkeyMapScreen}
-            options={{ headerShown: false }}
-        />
-        <MapStack.Screen
-            name="CityDetail"
-            component={CityDetailScreen}
-            options={{ headerShown: false }}
-        />
-    </MapStack.Navigator>
-);
 
 const ProfileStackNavigator = () => {
     const { isGuest } = useAuth();
     if (isGuest) return <GuestProfile />;
     return (
         <ProfileStack.Navigator screenOptions={stackScreenOptions}>
-            <ProfileStack.Screen
-                name="ProfileMain"
-                component={ProfileScreen}
-                options={{ headerShown: false }}
-            />
-            <ProfileStack.Screen
-                name="TravelAssistant"
-                component={TravelAssistantScreen}
-                options={{ headerShown: false }}
-            />
-            <ProfileStack.Screen
-                name="ItineraryDetail"
-                component={ItineraryDetailScreen}
-                options={{ headerShown: false }}
-            />
-            <ProfileStack.Screen
-                name="Saved"
-                component={SavedItinerariesScreen}
-                options={{ title: 'Planlarım' }}
-            />
+            <ProfileStack.Screen name="ProfileMain" component={ProfileScreen} options={{ headerShown: false }} />
+            <ProfileStack.Screen name="TravelAssistant" component={TravelAssistantScreen} options={{ headerShown: false }} />
+            <ProfileStack.Screen name="ItineraryDetail" component={ItineraryDetailScreen} options={{ headerShown: false }} />
+            <ProfileStack.Screen name="Saved" component={SavedItinerariesScreen} options={{ title: 'Planlarım' }} />
+            <ProfileStack.Screen name="Favorites" component={FavoritesScreen} options={{ headerShown: false }} />
+            <ProfileStack.Screen name="CityDetail" component={CityDetailScreen} options={{ headerShown: false }} />
         </ProfileStack.Navigator>
     );
 };
 
-// ─── Animasyonlu Tab ikon bileşeni ──────────────────────────────────────────
-const AnimatedTabIcon = ({ name, focused, color, size = 22 }) => {
+// ─── Animasyonlu Tab ikon ───────────────────────────────────────────────────
+const AnimatedTabIcon = ({ name, focused, color }) => {
     const scaleAnim = useRef(new Animated.Value(1)).current;
     const translateYAnim = useRef(new Animated.Value(0)).current;
 
@@ -283,23 +139,10 @@ const AnimatedTabIcon = ({ name, focused, color, size = 22 }) => {
         if (focused) {
             Animated.sequence([
                 Animated.parallel([
-                    Animated.spring(scaleAnim, {
-                        toValue: 1.22,
-                        useNativeDriver: true,
-                        speed: 40,
-                        bounciness: 14,
-                    }),
-                    Animated.timing(translateYAnim, {
-                        toValue: -3,
-                        duration: 150,
-                        useNativeDriver: true,
-                    }),
+                    Animated.spring(scaleAnim, { toValue: 1.22, useNativeDriver: true, speed: 40, bounciness: 14 }),
+                    Animated.timing(translateYAnim, { toValue: -3, duration: 150, useNativeDriver: true }),
                 ]),
-                Animated.spring(scaleAnim, {
-                    toValue: 1.08,
-                    useNativeDriver: true,
-                    speed: 25,
-                }),
+                Animated.spring(scaleAnim, { toValue: 1.08, useNativeDriver: true, speed: 25 }),
             ]).start();
         } else {
             Animated.parallel([
@@ -316,7 +159,7 @@ const AnimatedTabIcon = ({ name, focused, color, size = 22 }) => {
                 focused && tabIconStyles.iconWrapActive,
                 { transform: [{ scale: scaleAnim }, { translateY: translateYAnim }] },
             ]}>
-                <Ionicons name={name} size={size} color={color} />
+                <Ionicons name={name} size={22} color={color} />
             </Animated.View>
             {focused && <View style={tabIconStyles.dot} />}
         </View>
@@ -330,7 +173,6 @@ const tabIconStyles = StyleSheet.create({
     dot: { width: 4, height: 4, borderRadius: 2, backgroundColor: COLORS.primary, marginTop: 1 },
 });
 
-// ─── Tab Navigatör + Floating Assistant Wrapper ────────────────────────────
 const TabsWithFloating = () => {
     const insets = useSafeAreaInsets();
     const bottomPadding = Math.max(insets.bottom, Platform.OS === 'android' ? 16 : 8);
@@ -356,36 +198,24 @@ const TabsWithFloating = () => {
                         shadowRadius: 8,
                         elevation: 8,
                     },
-                    tabBarLabelStyle: {
-                        fontFamily: FONTS.bodyMedium,
-                        fontSize: 10,
-                        marginTop: 2,
-                    },
-                    tabBarIcon: ({ focused, color, size }) => {
+                    tabBarLabelStyle: { fontFamily: FONTS.bodyMedium, fontSize: 10, marginTop: 2 },
+                    tabBarIcon: ({ focused, color }) => {
                         let iconName;
                         if (route.name === 'Home') iconName = focused ? 'home-sharp' : 'home-outline';
                         else if (route.name === 'Saved') iconName = focused ? 'bookmarks' : 'bookmarks-outline';
-                        else if (route.name === 'Map') iconName = focused ? 'map' : 'map-outline';
-                        else if (route.name === 'Favorites') iconName = focused ? 'heart-circle' : 'heart-outline';
                         else if (route.name === 'Profile') iconName = focused ? 'person-circle' : 'person-outline';
-                        return <AnimatedTabIcon name={iconName} focused={focused} color={color} size={22} />;
+                        return <AnimatedTabIcon name={iconName} focused={focused} color={color} />;
                     },
                 })}
             >
                 <Tab.Screen name="Home" component={HomeStackNavigator} options={{ tabBarLabel: 'Ana Sayfa' }} />
                 <Tab.Screen name="Saved" component={SavedStackNavigator} options={{ tabBarLabel: 'Planlar' }} />
-                <Tab.Screen name="Map" component={MapStackNavigator} options={{ tabBarLabel: 'Harita' }} />
-                <Tab.Screen name="Favorites" component={FavoritesStackNavigator} options={{ tabBarLabel: 'Favoriler' }} />
                 <Tab.Screen name="Profile" component={ProfileStackNavigator} options={{ tabBarLabel: 'Profil' }} />
             </Tab.Navigator>
         </View>
     );
 };
 
-/**
- * Root navigatör — useNavigation'ın kullanılabilmesi için
- * TabsWithFloating'i bir Stack içinde sarıyoruz.
- */
 const RootStack = createNativeStackNavigator();
 
 const MainNavigator = () => (
@@ -395,8 +225,6 @@ const MainNavigator = () => (
     </RootStack.Navigator>
 );
 
-const styles = StyleSheet.create({
-    root: { flex: 1 },
-});
+const styles = StyleSheet.create({ root: { flex: 1 } });
 
 export default MainNavigator;

@@ -1,91 +1,116 @@
-import { supabase } from '../config/supabase';
+import { getCityCenter } from '../constants/cities';
+import { getCityPOIs } from '../data/api/overpassApi';
 
 /**
- * Overpass API'den otelleri çeker
+ * hotelService.js
+ *
+ * Overpass API'den gerçek otel verisi çeker.
+ * API başarısız olursa Google Maps araması için link üretir.
  */
-export const fetchHotelsNearCity = async (cityName, lat, lng, radius = 5000) => {
-    try {
-        // Overpass API query - oteller ve pansiyonlar
-        const query = `
-            [out:json][timeout:25];
-            (
-                node["tourism"="hotel"](around:${radius},${lat},${lng});
-                node["tourism"="guest_house"](around:${radius},${lat},${lng});
-                way["tourism"="hotel"](around:${radius},${lat},${lng});
-                way["tourism"="guest_house"](around:${radius},${lat},${lng});
-            );
-            out body;
-            >;
-            out skel qt;
-        `;
 
-        const response = await fetch('https://overpass-api.de/api/interpreter', {
-            method: 'POST',
-            body: query,
-        });
+/**
+ * Şehir için gerçek otel önerileri çeker (Overpass API).
+ * places parametresi verilirse gezilen yerlerin ağırlık merkezine
+ * en yakın oteller öne çıkar.
+ *
+ * @param {string} cityName
+ * @param {Array} [places] - Gezilecek yerler (lat/lng içeren)
+ * @returns {Promise<{ data: Array, error: null|string }>}
+ */
+export const getHotelSuggestions = async (cityName, places = []) => {
+    const center = getCityCenter(cityName);
 
-        if (!response.ok) {
-            throw new Error('Overpass API hatası');
-        }
+    // Gezilen yerlerin ağırlık merkezi
+    const validPlaces = (places || []).filter(p => p.lat && p.lng);
+    let pivotLat = center.lat;
+    let pivotLng = center.lng;
 
-        const data = await response.json();
-        
-        // Otelleri formatla
-        const hotels = data.elements
-            .filter(el => el.tags && el.tags.name)
-            .map(el => ({
-                id: el.id.toString(),
-                name: el.tags.name,
-                type: el.tags.tourism === 'hotel' ? 'Otel' : 'Pansiyon',
-                address: el.tags['addr:street'] || el.tags['addr:city'] || '',
-                stars: el.tags.stars ? parseInt(el.tags.stars) : null,
-                phone: el.tags.phone || null,
-                website: el.tags.website || null,
-                lat: el.lat || (el.center ? el.center.lat : null),
-                lng: el.lon || (el.center ? el.center.lon : null),
-            }))
-            .filter(hotel => hotel.lat && hotel.lng)
-            .slice(0, 20); // İlk 20 otel
-
-        return { data: hotels, error: null };
-    } catch (error) {
-        console.error('Hotel fetch error:', error);
-        return { data: [], error: error.message };
+    if (validPlaces.length > 0) {
+        pivotLat = validPlaces.reduce((s, p) => s + p.lat, 0) / validPlaces.length;
+        pivotLng = validPlaces.reduce((s, p) => s + p.lng, 0) / validPlaces.length;
     }
+
+    try {
+        const { data: pois, error } = await getCityPOIs(center.lat, center.lng, 'hotel', 5000);
+
+        if (!error && pois && pois.length > 0) {
+            // Mesafe hesapla ve sırala
+            const withDist = pois.map(h => ({
+                ...h,
+                id: String(h.id),
+                type: h.categoryLabel || 'Otel',
+                stars: h.stars || 0,
+                priceRange: h.priceRange || '',
+                description: [h.cuisine, h.address].filter(Boolean).join(' · ') || `${cityName} merkezi`,
+                amenities: [
+                    h.internetAccess && 'WiFi',
+                    h.phone && 'Telefon',
+                    h.website && 'Web',
+                ].filter(Boolean),
+                distanceKm: Math.round(
+                    haversine(pivotLat, pivotLng, h.lat, h.lng) * 10
+                ) / 10,
+            }));
+
+            withDist.sort((a, b) => a.distanceKm - b.distanceKm);
+            return { data: withDist.slice(0, 10), error: null };
+        }
+    } catch (err) {
+        console.warn('getHotelSuggestions Overpass error:', err.message);
+    }
+
+    // Fallback: Google Maps araması için tek bir "kart" döndür
+    const mapsUrl = `https://www.google.com/maps/search/oteller/@${center.lat},${center.lng},14z`;
+    return {
+        data: [{
+            id: 'maps-search',
+            name: `${cityName} Otelleri`,
+            type: 'Google Maps',
+            stars: 0,
+            priceRange: '',
+            description: 'Google Maps\'te yakın otelleri görüntüle',
+            amenities: [],
+            lat: center.lat,
+            lng: center.lng,
+            distanceKm: 0,
+            address: cityName,
+            mapsUrl,
+            isMapsLink: true,
+        }],
+        error: null,
+    };
 };
 
+function haversine(lat1, lng1, lat2, lng2) {
+    const R = 6371;
+    const dLat = ((lat2 - lat1) * Math.PI) / 180;
+    const dLng = ((lng2 - lng1) * Math.PI) / 180;
+    const a =
+        Math.sin(dLat / 2) ** 2 +
+        Math.cos((lat1 * Math.PI) / 180) *
+        Math.cos((lat2 * Math.PI) / 180) *
+        Math.sin(dLng / 2) ** 2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
 /**
- * Mock otel verisi (API başarısız olursa)
+ * Geriye dönük uyumluluk
  */
-export const getMockHotels = (cityName) => {
-    const mockHotels = [
-        {
-            id: 'mock-1',
-            name: `${cityName} Grand Hotel`,
-            type: 'Otel',
-            address: 'Merkez',
-            stars: 5,
-            lat: null,
-            lng: null,
-        },
-        {
-            id: 'mock-2',
-            name: `${cityName} Boutique Hotel`,
-            type: 'Otel',
-            address: 'Tarihi Merkez',
-            stars: 4,
-            lat: null,
-            lng: null,
-        },
-        {
-            id: 'mock-3',
-            name: `${cityName} Pansiyon`,
-            type: 'Pansiyon',
-            address: 'Şehir Merkezi',
-            stars: 3,
-            lat: null,
-            lng: null,
-        },
-    ];
-    return { data: mockHotels, error: null };
-};
+export const getMockHotels = (cityName) => ({
+    data: [{
+        id: 'maps-search',
+        name: `${cityName} Otelleri`,
+        type: 'Google Maps',
+        stars: 0,
+        priceRange: '',
+        description: 'Google Maps\'te yakın otelleri görüntüle',
+        amenities: [],
+        lat: getCityCenter(cityName).lat,
+        lng: getCityCenter(cityName).lng,
+        distanceKm: 0,
+        address: cityName,
+        mapsUrl: `https://www.google.com/maps/search/oteller/@${getCityCenter(cityName).lat},${getCityCenter(cityName).lng},14z`,
+        isMapsLink: true,
+    }],
+    error: null,
+});

@@ -16,7 +16,7 @@ import { getCities } from '../../data/repositories/cityRepository';
 import { createItinerary } from '../../data/repositories/itineraryRepository';
 import { generateItinerary } from '../../domain/itineraryGenerator';
 import { loadCityPlaces } from '../../services/placeDataManager';
-import { getMockHotels } from '../../services/hotelService';
+import { getMockHotels, getHotelSuggestions } from '../../services/hotelService';
 import PlaceSelectionCard from '../../components/itinerary/PlaceSelectionCard';
 import ErrorMessage from '../../components/common/ErrorMessage';
 
@@ -92,16 +92,24 @@ export default function CreateItineraryScreen({ navigation, route }) {
     useEffect(() => {
         if (selectedCity) {
             loadPlaces(selectedCity.id);
-            loadHotels();
         }
     }, [selectedCity]);
+
+    // Yerler yüklenince otelleri de güncelle (yakınlık hesabı için)
+    useEffect(() => {
+        if (selectedCity && places.length > 0) {
+            getHotelSuggestions(selectedCity.name, places).then(result => {
+                setHotels(result.data);
+            });
+        }
+    }, [places]);
 
     const loadHotels = async () => {
         if (!selectedCity) return;
         setLoadingHotels(true);
-        // Şimdilik direkt mock data kullan (Overpass API yavaş/hatalı olabiliyor)
-        const mock = getMockHotels(selectedCity.name);
-        setHotels(mock.data);
+        // Gezilen yerlerin konumuna göre Overpass'tan gerçek otelleri çek
+        const result = await getHotelSuggestions(selectedCity.name, places);
+        setHotels(result.data);
         setLoadingHotels(false);
     };
 
@@ -215,16 +223,15 @@ export default function CreateItineraryScreen({ navigation, route }) {
             setError('Lütfen tarih aralığı seçin.');
             return;
         }
-        // Tek gün seçildiyse endDate = startDate
-        if (step === 2 && startDate && !endDate) {
-            setEndDate(startDate);
+        if (step < 3) {
+            // Tek gün seçildiyse endDate = startDate (step 2'den çıkarken)
+            if (step === 2 && startDate && !endDate) {
+                setEndDate(startDate);
+            }
+            setStep(s => s + 1);
+        } else {
+            handleCreatePlan();
         }
-        if (step === 3 && hasAccommodation && accommodationType === 'hotel' && !selectedHotel) {
-            setError('Lütfen bir otel seçin veya kendi konaklamanızı işaretleyin.');
-            return;
-        }
-        if (step < 3) setStep(s => s + 1);
-        else handleCreatePlan();
     };
 
     const handleBack = () => {
@@ -242,16 +249,25 @@ export default function CreateItineraryScreen({ navigation, route }) {
             setError('Lütfen başlangıç tarihi seçin.');
             return;
         }
+        // endDate null ise startDate kullan (tek günlük gezi)
+        const effectiveEndDate = endDate || startDate;
+        const effectiveDays = days > 0 ? days : 1;
+
         setLoading(true);
-        const result = generateItinerary(placesToUse, days, {});
+        const cityCenter = getCityCenter(selectedCity.name);
+        const result = generateItinerary(placesToUse, effectiveDays, {
+            cityLat: cityCenter.lat,
+            cityLng: cityCenter.lng,
+        });
         const { data: saved, error: saveError } = await createItinerary({
             userId: user.id,
             cityId: selectedCity.id,
-            days,
+            days: effectiveDays,
             startDate: startDate,
             hasAccommodation,
             hasTransport: false,
             items: result.items,
+            plan: result.plan,
         });
         setLoading(false);
         if (saveError) { setError(saveError.message); return; }
@@ -718,50 +734,94 @@ function StepAccommodation({
                                 <ActivityIndicator size="large" color={COLORS.primary} style={{ marginVertical: SPACING.xl }} />
                             ) : (
                                 <>
-                                    <Text style={styles.hotelListTitle}>Önerilen Oteller</Text>
-                                    {hotels.map(hotel => (
-                                        <TouchableOpacity
-                                            key={hotel.id}
-                                            style={[
-                                                styles.hotelCard,
-                                                selectedHotel?.id === hotel.id && styles.hotelCardSelected
-                                            ]}
-                                            onPress={() => onSelectHotel(hotel)}
-                                            activeOpacity={0.7}
-                                        >
-                                            <View style={styles.hotelCardLeft}>
-                                                <View style={[
-                                                    styles.hotelIcon,
-                                                    selectedHotel?.id === hotel.id && styles.hotelIconSelected
-                                                ]}>
-                                                    <Ionicons 
-                                                        name={hotel.type === 'Otel' ? 'business' : 'home'} 
-                                                        size={20} 
-                                                        color={selectedHotel?.id === hotel.id ? '#fff' : COLORS.primary} 
-                                                    />
+                                    <View style={styles.hotelListHeader}>
+                                        <Text style={styles.hotelListTitle}>Önerilen Oteller</Text>
+                                        <Text style={styles.hotelListSubtitle}>Gezilecek yerlere yakınlığa göre sıralandı</Text>
+                                    </View>
+                                    {hotels.map(hotel => {
+                                        const isSelected = selectedHotel?.id === hotel.id;
+                                        const iconName = hotel.isMapsLink ? 'search' : hotel.type === 'Butik Otel' ? 'diamond' : hotel.type === 'Apart Otel' ? 'home' : hotel.type === 'Pansiyon' ? 'bed' : 'business';
+                                        return (
+                                            <TouchableOpacity
+                                                key={hotel.id}
+                                                style={[styles.hotelCard, isSelected && styles.hotelCardSelected]}
+                                                onPress={() => {
+                                                    if (hotel.isMapsLink) {
+                                                        Linking.openURL(hotel.mapsUrl);
+                                                    } else {
+                                                        onSelectHotel(hotel);
+                                                    }
+                                                }}
+                                                activeOpacity={0.7}
+                                            >
+                                                {/* Sol: ikon */}
+                                                <View style={[styles.hotelIcon, isSelected && styles.hotelIconSelected]}>
+                                                    <Ionicons name={iconName} size={20} color={isSelected ? '#fff' : COLORS.primary} />
                                                 </View>
+
+                                                {/* Orta: bilgi */}
                                                 <View style={styles.hotelInfo}>
-                                                    <Text style={styles.hotelName}>{hotel.name}</Text>
+                                                    <View style={styles.hotelNameRow}>
+                                                        <Text style={styles.hotelName} numberOfLines={1}>{hotel.name}</Text>
+                                                        {isSelected && (
+                                                            <Ionicons name="checkmark-circle" size={18} color={COLORS.primary} />
+                                                        )}
+                                                    </View>
+
                                                     <View style={styles.hotelMeta}>
-                                                        <Text style={styles.hotelType}>{hotel.type}</Text>
-                                                        {hotel.stars && (
+                                                        <View style={styles.hotelTypeBadge}>
+                                                            <Text style={styles.hotelType}>{hotel.type}</Text>
+                                                        </View>
+                                                        {hotel.stars > 0 && (
                                                             <View style={styles.hotelStars}>
-                                                                {[...Array(hotel.stars)].map((_, i) => (
-                                                                    <Ionicons key={i} name="star" size={12} color="#FFB800" />
+                                                                {[...Array(Math.min(hotel.stars, 5))].map((_, i) => (
+                                                                    <Ionicons key={i} name="star" size={11} color="#FFB800" />
                                                                 ))}
                                                             </View>
                                                         )}
+                                                        <Text style={styles.hotelPrice}>{hotel.priceRange}</Text>
                                                     </View>
-                                                    {hotel.address && (
-                                                        <Text style={styles.hotelAddress}>{hotel.address}</Text>
+
+                                                    <Text style={styles.hotelDescription} numberOfLines={1}>
+                                                        {hotel.description}
+                                                    </Text>
+
+                                                    {/* Amenities */}
+                                                    {hotel.amenities?.length > 0 && (
+                                                        <View style={styles.hotelAmenities}>
+                                                            {hotel.amenities.slice(0, 3).map((a, i) => (
+                                                                <View key={i} style={styles.hotelAmenityChip}>
+                                                                    <Text style={styles.hotelAmenityText}>{a}</Text>
+                                                                </View>
+                                                            ))}
+                                                        </View>
                                                     )}
                                                 </View>
-                                            </View>
-                                            {selectedHotel?.id === hotel.id && (
-                                                <Ionicons name="checkmark-circle" size={24} color={COLORS.primary} />
-                                            )}
-                                        </TouchableOpacity>
-                                    ))}
+
+                                                {/* Sağ: mesafe + harita */}
+                                                <View style={styles.hotelRight}>
+                                                    {hotel.distanceKm != null && (
+                                                        <View style={styles.hotelDistanceBadge}>
+                                                            <Ionicons name="walk-outline" size={11} color={COLORS.primary} />
+                                                            <Text style={styles.hotelDistanceText}>{hotel.distanceKm} km</Text>
+                                                        </View>
+                                                    )}
+                                                    {hotel.lat && hotel.lng && (
+                                                        <TouchableOpacity
+                                                            style={styles.hotelMapBtn}
+                                                            onPress={() => {
+                                                                const url = `https://www.google.com/maps/search/?api=1&query=${hotel.lat},${hotel.lng}`;
+                                                                Linking.openURL(url);
+                                                            }}
+                                                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                                                        >
+                                                            <Ionicons name="map-outline" size={16} color={COLORS.primary} />
+                                                        </TouchableOpacity>
+                                                    )}
+                                                </View>
+                                            </TouchableOpacity>
+                                        );
+                                    })}
                                 </>
                             )}
                         </View>
@@ -1482,27 +1542,35 @@ const styles = StyleSheet.create({
     hotelList: {
         marginTop: SPACING.sm,
     },
+    hotelListHeader: {
+        marginBottom: SPACING.sm,
+    },
     hotelListTitle: {
         fontFamily: FONTS.bodyBold,
         fontSize: FONT_SIZES.md,
         color: COLORS.textPrimary,
-        marginBottom: SPACING.sm,
+        marginBottom: 2,
+    },
+    hotelListSubtitle: {
+        fontFamily: FONTS.body,
+        fontSize: FONT_SIZES.xs,
+        color: COLORS.textSecondary,
     },
     hotelCard: {
         flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
+        alignItems: 'flex-start',
         backgroundColor: COLORS.surface,
         borderRadius: BORDER_RADIUS.lg,
         padding: SPACING.md,
         marginBottom: SPACING.sm,
-        borderWidth: 2,
+        borderWidth: 1.5,
         borderColor: COLORS.border,
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.05,
-        shadowRadius: 4,
+        shadowRadius: 6,
         elevation: 2,
+        gap: SPACING.sm,
     },
     hotelCardSelected: {
         borderColor: COLORS.primary,
@@ -1512,46 +1580,110 @@ const styles = StyleSheet.create({
         shadowRadius: 8,
         elevation: 4,
     },
-    hotelCardLeft: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: SPACING.md,
-        flex: 1,
-    },
     hotelIcon: {
         width: 44,
         height: 44,
-        borderRadius: 22,
+        borderRadius: 14,
         backgroundColor: COLORS.primaryMuted,
         alignItems: 'center',
         justifyContent: 'center',
+        flexShrink: 0,
     },
     hotelIconSelected: {
         backgroundColor: COLORS.primary,
     },
     hotelInfo: {
         flex: 1,
+        gap: 3,
+    },
+    hotelNameRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: 4,
     },
     hotelName: {
         fontFamily: FONTS.bodyBold,
-        fontSize: FONT_SIZES.md,
+        fontSize: FONT_SIZES.sm,
         color: COLORS.textPrimary,
-        marginBottom: 4,
+        flex: 1,
     },
     hotelMeta: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: SPACING.sm,
-        marginBottom: 2,
+        gap: SPACING.xs,
+        flexWrap: 'wrap',
+    },
+    hotelTypeBadge: {
+        backgroundColor: COLORS.surfaceAlt,
+        paddingHorizontal: 7,
+        paddingVertical: 2,
+        borderRadius: BORDER_RADIUS.sm,
+        borderWidth: 1,
+        borderColor: COLORS.border,
     },
     hotelType: {
         fontFamily: FONTS.bodyMedium,
-        fontSize: FONT_SIZES.sm,
+        fontSize: 10,
         color: COLORS.textSecondary,
     },
     hotelStars: {
         flexDirection: 'row',
-        gap: 2,
+        gap: 1,
+    },
+    hotelPrice: {
+        fontFamily: FONTS.bodySemiBold,
+        fontSize: FONT_SIZES.xs,
+        color: COLORS.success,
+    },
+    hotelDescription: {
+        fontFamily: FONTS.body,
+        fontSize: FONT_SIZES.xs,
+        color: COLORS.textSecondary,
+    },
+    hotelAmenities: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 4,
+        marginTop: 2,
+    },
+    hotelAmenityChip: {
+        backgroundColor: COLORS.primaryMuted,
+        paddingHorizontal: 6,
+        paddingVertical: 2,
+        borderRadius: 4,
+    },
+    hotelAmenityText: {
+        fontFamily: FONTS.body,
+        fontSize: 10,
+        color: COLORS.primary,
+    },
+    hotelRight: {
+        alignItems: 'flex-end',
+        gap: SPACING.xs,
+        flexShrink: 0,
+    },
+    hotelDistanceBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 3,
+        backgroundColor: COLORS.primaryMuted,
+        paddingHorizontal: 7,
+        paddingVertical: 3,
+        borderRadius: BORDER_RADIUS.full,
+    },
+    hotelDistanceText: {
+        fontFamily: FONTS.bodySemiBold,
+        fontSize: 10,
+        color: COLORS.primary,
+    },
+    hotelMapBtn: {
+        width: 32,
+        height: 32,
+        borderRadius: 10,
+        backgroundColor: COLORS.primaryMuted,
+        alignItems: 'center',
+        justifyContent: 'center',
     },
     hotelAddress: {
         fontFamily: FONTS.body,

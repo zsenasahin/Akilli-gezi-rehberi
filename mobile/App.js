@@ -37,7 +37,7 @@ export default function App() {
       <SafeAreaProvider>
         <AuthProvider>
           <AssistantProvider>
-            <StatusBar style="light" />
+            <StatusBar style="auto" translucent={false} />
             <AppNavigator />
           </AssistantProvider>
         </AuthProvider>

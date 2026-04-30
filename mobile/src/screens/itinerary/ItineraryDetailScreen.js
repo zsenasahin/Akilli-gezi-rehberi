@@ -55,14 +55,33 @@ const ItineraryDetailScreen = ({ route, navigation }) => {
             setAllCityPlaces(cityPlaces || []);
 
             // Her gün için yemek önerisi üret
+            // plan JSONB veya itinerary_items'tan günlük yerleri al
+            const cityName = data.cities?.name || '';
+            const allItems = data.itinerary_items?.length > 0
+                ? data.itinerary_items
+                : (data.plan || []).flatMap((d, di) =>
+                    (d.places || []).map((p, pi) => ({
+                        day_number: d.day,
+                        place_id: p.id,
+                        places: p,
+                    }))
+                );
+
             const groups = {};
-            (data.itinerary_items || []).forEach(item => {
-                if (!groups[item.day_number]) groups[item.day_number] = [];
-                groups[item.day_number].push(String(item.place_id));
+            allItems.forEach(item => {
+                const day = item.day_number;
+                if (!groups[day]) groups[day] = [];
+                groups[day].push(item);
             });
+
             const meals = {};
-            for (const [day, usedIds] of Object.entries(groups)) {
-                meals[day] = await getMealSuggestions(data.city_id, usedIds, Number(day));
+            for (const [day, dayItems] of Object.entries(groups)) {
+                const usedIds = dayItems.map(i => String(i.place_id));
+                // Günün yerlerini sırayla al — aralarına yemek önerisi eklenecek
+                const orderedPlaces = dayItems
+                    .sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0))
+                    .map(i => i.places);
+                meals[day] = await getMealSuggestions(data.city_id, cityName, usedIds, orderedPlaces);
             }
             setMealSuggestions(meals);
         }
@@ -99,35 +118,68 @@ const ItineraryDetailScreen = ({ route, navigation }) => {
     );
 
     const dayGroups = React.useMemo(() => {
-        if (!itinerary?.itinerary_items) return [];
-        const groups = {};
-        itinerary.itinerary_items
-            .sort((a, b) => a.day_number - b.day_number || a.order_index - b.order_index)
-            .forEach((item) => {
-                if (!groups[item.day_number]) groups[item.day_number] = [];
-                groups[item.day_number].push(item);
-            });
-        return Object.entries(groups).map(([day, items]) => ({ day: Number(day), items }));
+        // Önce itinerary_items'tan oku (Supabase yerleri)
+        if (itinerary?.itinerary_items?.length > 0) {
+            const groups = {};
+            itinerary.itinerary_items
+                .sort((a, b) => a.day_number - b.day_number || a.order_index - b.order_index)
+                .forEach((item) => {
+                    if (!groups[item.day_number]) groups[item.day_number] = [];
+                    groups[item.day_number].push(item);
+                });
+            return Object.entries(groups).map(([day, items]) => ({ day: Number(day), items }));
+        }
+        // Fallback: plan JSONB'den oku (Kültür Portalı yerleri)
+        if (itinerary?.plan?.length > 0) {
+            return itinerary.plan.map(dayPlan => ({
+                day: dayPlan.day,
+                items: (dayPlan.places || []).map((place, idx) => ({
+                    id: `plan-${dayPlan.day}-${idx}`,
+                    day_number: dayPlan.day,
+                    order_index: idx,
+                    is_completed: false,
+                    place_id: place.id,
+                    places: {
+                        id: place.id,
+                        name: place.name,
+                        category: place.category,
+                        avg_duration: place.avg_duration ?? 1,
+                        entry_fee: place.entry_fee ?? 0,
+                        lat: place.lat,
+                        lng: place.lng,
+                        popularity_score: place.popularity_score,
+                        image_url: place.image_url || place.imageUrl,
+                    },
+                })),
+            }));
+        }
+        return [];
     }, [itinerary]);
 
     const progress = React.useMemo(() => {
-        if (!itinerary?.itinerary_items) return { completed: 0, total: 0, percentage: 0 };
-        const total = itinerary.itinerary_items.length;
-        const completed = itinerary.itinerary_items.filter((i) => i.is_completed).length;
+        const items = itinerary?.itinerary_items || [];
+        // plan JSONB'den gelen yerler için tüm items'ı dayGroups'tan al
+        const allItems = items.length > 0
+            ? items
+            : dayGroups.flatMap(g => g.items);
+        const total = allItems.length;
+        const completed = allItems.filter((i) => i.is_completed).length;
         return { completed, total, percentage: total > 0 ? Math.round((completed / total) * 100) : 0 };
-    }, [itinerary]);
+    }, [itinerary, dayGroups]);
 
     const budget = React.useMemo(() => {
-        if (!itinerary?.itinerary_items) return null;
-        const totalFee = itinerary.itinerary_items.reduce((s, i) => s + (i.places?.entry_fee ?? 0), 0);
+        const items = itinerary?.itinerary_items?.length > 0
+            ? itinerary.itinerary_items
+            : dayGroups.flatMap(g => g.items);
+        const totalFee = items.reduce((s, i) => s + (i.places?.entry_fee ?? 0), 0);
         return estimateTotalBudget({
             entryFees: totalFee,
             distanceKm: 0,
-            days: itinerary.days ?? 1,
-            hasTransport: itinerary.has_transport ?? false,
+            days: itinerary?.days ?? 1,
+            hasTransport: itinerary?.has_transport ?? false,
             restaurantPerDay: 250,
         });
-    }, [itinerary]);
+    }, [itinerary, dayGroups]);
 
     const handleToggleCompletion = async (item) => {
         const newValue = !item.is_completed;
@@ -206,23 +258,42 @@ const ItineraryDetailScreen = ({ route, navigation }) => {
 
     // ─── Google Maps Rota ───────────────────────────────────────────────────────
     const openRouteInMaps = (mode = 'driving') => {
-        const sorted = itinerary?.itinerary_items
-            ?.filter(i => i.places?.lat && i.places?.lng)
-            ?.sort((a, b) => a.day_number - b.day_number || a.order_index - b.order_index);
+        // Hem itinerary_items hem plan JSONB'den koordinatlı yerleri topla
+        let coordPlaces = [];
 
-        if (!sorted || sorted.length === 0) {
-            Alert.alert('Bilgi', 'Haritada gösterilecek koordinatlı yer bulunamadı.');
+        if (itinerary?.itinerary_items?.length > 0) {
+            coordPlaces = (itinerary.itinerary_items || [])
+                .filter(i => i.places?.lat && i.places?.lng)
+                .sort((a, b) => a.day_number - b.day_number || a.order_index - b.order_index)
+                .map(i => ({ lat: i.places.lat, lng: i.places.lng, name: i.places.name }));
+        }
+
+        // itinerary_items koordinatsızsa plan JSONB'den al
+        if (coordPlaces.length === 0 && itinerary?.plan?.length > 0) {
+            coordPlaces = itinerary.plan
+                .flatMap(d => (d.places || []))
+                .filter(p => p.lat && p.lng)
+                .map(p => ({ lat: p.lat, lng: p.lng, name: p.name }));
+        }
+
+        if (coordPlaces.length === 0) {
+            // Koordinat yoksa şehir merkezini aç
+            const cityName = itinerary?.cities?.name || '';
+            const { getCityCenter } = require('../../constants/cities');
+            const center = getCityCenter(cityName);
+            const url = `https://www.google.com/maps/search/?api=1&query=${center.lat},${center.lng}`;
+            Linking.openURL(url);
             return;
         }
 
         let url;
-        if (sorted.length === 1) {
-            url = `https://www.google.com/maps/dir/?api=1&destination=${sorted[0].places.lat},${sorted[0].places.lng}&travelmode=${mode}`;
+        if (coordPlaces.length === 1) {
+            url = `https://www.google.com/maps/dir/?api=1&destination=${coordPlaces[0].lat},${coordPlaces[0].lng}&travelmode=${mode}`;
         } else {
-            const origin = `${sorted[0].places.lat},${sorted[0].places.lng}`;
-            const dest = `${sorted[sorted.length - 1].places.lat},${sorted[sorted.length - 1].places.lng}`;
-            const mid = sorted.slice(1, -1).slice(0, 8);
-            const wps = mid.map(p => `${p.places.lat},${p.places.lng}`).join('|');
+            const origin = `${coordPlaces[0].lat},${coordPlaces[0].lng}`;
+            const dest = `${coordPlaces[coordPlaces.length - 1].lat},${coordPlaces[coordPlaces.length - 1].lng}`;
+            const mid = coordPlaces.slice(1, -1).slice(0, 8);
+            const wps = mid.map(p => `${p.lat},${p.lng}`).join('|');
             url = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${dest}${wps ? `&waypoints=${encodeURIComponent(wps)}` : ''}&travelmode=${mode}`;
         }
         Linking.openURL(url);
@@ -385,107 +456,107 @@ const ItineraryDetailScreen = ({ route, navigation }) => {
                         </View>
 
                         {group.items.map((item, idx) => (
-                            <View key={item.id} style={styles.timelineItemRow}>
-                                <View style={styles.timelineRail}>
-                                    <View style={[styles.timelineDot, item.is_completed && styles.timelineDotCompleted]}>
-                                        <Ionicons
-                                            name={item.is_completed ? 'checkmark' : 'ellipse'}
-                                            size={item.is_completed ? 12 : 8}
-                                            color="#fff"
-                                        />
-                                    </View>
-                                    {idx < group.items.length - 1 && <View style={styles.timelineLine} />}
-                                </View>
-
-                                <View style={[styles.timelineCard, item.is_completed && styles.timelineCardCompleted]}>
-                                    <View style={styles.timelineCardTop}>
-                                        <Text style={[styles.itemName, item.is_completed && styles.itemNameCompleted]}>
-                                            {item.places?.name || 'Bilinmeyen Yer'}
-                                        </Text>
-                                        <TouchableOpacity
-                                            style={styles.checkToggleBtn}
-                                            onPress={() => handleToggleCompletion(item)}
-                                            disabled={isCompleted}
-                                        >
+                            <React.Fragment key={item.id}>
+                                <View style={styles.timelineItemRow}>
+                                    <View style={styles.timelineRail}>
+                                        <View style={[styles.timelineDot, item.is_completed && styles.timelineDotCompleted]}>
                                             <Ionicons
-                                                name={item.is_completed ? 'checkmark-circle' : 'ellipse-outline'}
-                                                size={22}
-                                                color={item.is_completed ? COLORS.success : COLORS.textLight}
+                                                name={item.is_completed ? 'checkmark' : 'ellipse'}
+                                                size={item.is_completed ? 12 : 8}
+                                                color="#fff"
                                             />
-                                        </TouchableOpacity>
+                                        </View>
+                                        {idx < group.items.length - 1 && <View style={styles.timelineLine} />}
                                     </View>
 
-                                    <Text style={styles.itemMeta}>
-                                        {item.places?.category} · {item.places?.avg_duration}s ·{' '}
-                                        {item.places?.entry_fee > 0 ? `₺${item.places.entry_fee}` : 'Ücretsiz'}
-                                    </Text>
-
-                                    <View style={styles.timelineActionsRow}>
-                                        {item.places?.lat && item.places?.lng && (
+                                    <View style={[styles.timelineCard, item.is_completed && styles.timelineCardCompleted]}>
+                                        <View style={styles.timelineCardTop}>
+                                            <Text style={[styles.itemName, item.is_completed && styles.itemNameCompleted]}>
+                                                {item.places?.name || 'Bilinmeyen Yer'}
+                                            </Text>
                                             <TouchableOpacity
-                                                onPress={() => Linking.openURL(`https://www.google.com/maps/dir/?api=1&destination=${item.places.lat},${item.places.lng}&travelmode=driving`)}
-                                                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                                                style={styles.timelineActionPill}
+                                                style={styles.checkToggleBtn}
+                                                onPress={() => handleToggleCompletion(item)}
+                                                disabled={isCompleted}
                                             >
-                                                <Ionicons name="navigate" size={14} color={COLORS.info} />
-                                                <Text style={styles.timelineActionText}>Harita</Text>
+                                                <Ionicons
+                                                    name={item.is_completed ? 'checkmark-circle' : 'ellipse-outline'}
+                                                    size={22}
+                                                    color={item.is_completed ? COLORS.success : COLORS.textLight}
+                                                />
                                             </TouchableOpacity>
-                                        )}
-                                        {!isCompleted && (
-                                            <>
+                                        </View>
+
+                                        <Text style={styles.itemMeta}>
+                                            {item.places?.category} · {item.places?.avg_duration}s ·{' '}
+                                            {item.places?.entry_fee > 0 ? `₺${item.places.entry_fee}` : 'Ücretsiz'}
+                                        </Text>
+
+                                        <View style={styles.timelineActionsRow}>
+                                            {item.places?.lat && item.places?.lng && (
                                                 <TouchableOpacity
-                                                    onPress={() => handleSuggestAlternative(item)}
+                                                    onPress={() => Linking.openURL(`https://www.google.com/maps/dir/?api=1&destination=${item.places.lat},${item.places.lng}&travelmode=driving`)}
                                                     hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                                                     style={styles.timelineActionPill}
                                                 >
-                                                    <Ionicons name="swap-horizontal-outline" size={14} color={COLORS.primary} />
-                                                    <Text style={styles.timelineActionText}>Alternatif</Text>
+                                                    <Ionicons name="navigate" size={14} color={COLORS.info} />
+                                                    <Text style={styles.timelineActionText}>Harita</Text>
                                                 </TouchableOpacity>
-                                                <TouchableOpacity
-                                                    onPress={() => handleRemoveItem(item)}
-                                                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                                                    style={styles.timelineActionPillDanger}
-                                                >
-                                                    <Ionicons name="trash-outline" size={14} color={COLORS.error} />
-                                                    <Text style={styles.timelineActionTextDanger}>Sil</Text>
-                                                </TouchableOpacity>
-                                            </>
-                                        )}
+                                            )}
+                                            {!isCompleted && (
+                                                <>
+                                                    <TouchableOpacity
+                                                        onPress={() => handleSuggestAlternative(item)}
+                                                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                                                        style={styles.timelineActionPill}
+                                                    >
+                                                        <Ionicons name="swap-horizontal-outline" size={14} color={COLORS.primary} />
+                                                        <Text style={styles.timelineActionText}>Alternatif</Text>
+                                                    </TouchableOpacity>
+                                                    <TouchableOpacity
+                                                        onPress={() => handleRemoveItem(item)}
+                                                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                                                        style={styles.timelineActionPillDanger}
+                                                    >
+                                                        <Ionicons name="trash-outline" size={14} color={COLORS.error} />
+                                                        <Text style={styles.timelineActionTextDanger}>Sil</Text>
+                                                    </TouchableOpacity>
+                                                </>
+                                            )}
+                                        </View>
                                     </View>
                                 </View>
-                            </View>
-                        ))}
 
-                        {group.items.length === 0 && (
-                            <View style={styles.timelineEmptyBox}>
-                                <Text style={styles.timelineEmptyText}>Bu gün için planlanan durak yok.</Text>
-                            </View>
-                        )}
-
-                        {/* ── Yemek Önerileri ── */}
-                        {(() => {
-                            const meal = mealSuggestions[group.day];
-                            if (!meal || (!meal.lunch && !meal.dinner)) return null;
-                            return (
-                                <View style={styles.mealSection}>
-                                    <View style={styles.mealSectionHeader}>
-                                        <Ionicons name="restaurant-outline" size={14} color={COLORS.primary} />
-                                        <Text style={styles.mealSectionTitle}>Yemek Önerileri</Text>
-                                    </View>
-                                    {meal.lunch && (
-                                        <MealCard
-                                            label="🍽️ Öğle"
+                                {/* Öğle yemeği önerisi — günün ortasındaki iki yer arasına */}
+                                {(() => {
+                                    const meal = mealSuggestions[group.day];
+                                    if (!meal?.lunch) return null;
+                                    if (idx !== meal.lunchAfterIndex) return null;
+                                    return (
+                                        <InlineMealCard
+                                            key={`lunch-${group.day}`}
+                                            emoji="🍽️"
+                                            label="Öğle Yemeği Önerisi"
                                             place={meal.lunch}
                                             onAdd={() => {
-                                                addItineraryItem(itinerary.id, meal.lunch.id, group.day, group.items.length);
+                                                addItineraryItem(itinerary.id, meal.lunch.id, group.day, idx + 1);
                                                 fetchData();
                                             }}
                                             isCompleted={isCompleted}
                                         />
-                                    )}
-                                    {meal.dinner && (
-                                        <MealCard
-                                            label="🌙 Akşam"
+                                    );
+                                })()}
+
+                                {/* Akşam yemeği önerisi — son yerden sonra */}
+                                {(() => {
+                                    const meal = mealSuggestions[group.day];
+                                    if (!meal?.dinner) return null;
+                                    if (idx !== meal.dinnerAfterIndex) return null;
+                                    return (
+                                        <InlineMealCard
+                                            key={`dinner-${group.day}`}
+                                            emoji="🌙"
+                                            label="Akşam Yemeği Önerisi"
                                             place={meal.dinner}
                                             onAdd={() => {
                                                 addItineraryItem(itinerary.id, meal.dinner.id, group.day, group.items.length + 1);
@@ -493,35 +564,18 @@ const ItineraryDetailScreen = ({ route, navigation }) => {
                                             }}
                                             isCompleted={isCompleted}
                                         />
-                                    )}
-                                </View>
-                            );
-                        })()}
+                                    );
+                                })()}
+                            </React.Fragment>
+                        ))}
+
+                        {group.items.length === 0 && (
+                            <View style={styles.timelineEmptyBox}>
+                                <Text style={styles.timelineEmptyText}>Bu gün için planlanan durak yok.</Text>
+                            </View>
+                        )}
                     </View>
                 ))}
-
-                {/* ─── Bütçe Özeti ─── */}
-                {budget && (
-                    <View style={styles.budgetCard}>
-                        <Text style={styles.budgetTitle}>💰 Tahmini Bütçe</Text>
-                        {budget.breakdown.map((item) => (
-                            <View key={item.label} style={styles.budgetRow}>
-                                <Text style={styles.budgetEmoji}>{item.emoji}</Text>
-                                <Text style={styles.budgetLabel}>{item.label}</Text>
-                                <Text style={styles.budgetAmount}>₺{item.amount.toLocaleString('tr-TR')}</Text>
-                            </View>
-                        ))}
-                        <View style={styles.budgetDivider} />
-                        <View style={styles.budgetRow}>
-                            <Text style={styles.budgetEmoji}>📊</Text>
-                            <Text style={[styles.budgetLabel, { fontFamily: 'Inter_700Bold' }]}>Toplam Tahmini</Text>
-                            <Text style={[styles.budgetAmount, { fontFamily: 'Inter_700Bold', color: COLORS.primary }]}>
-                                ₺{budget.total.toLocaleString('tr-TR')}
-                            </Text>
-                        </View>
-                        <Text style={styles.budgetNote}>* Yemek tahmini kişi başı günlük ₺250 baz alınmıştır.</Text>
-                    </View>
-                )}
 
                 {/* AI Asistan */}
                 <TouchableOpacity style={styles.assistantBtn} onPress={openAssistant} activeOpacity={0.85}>
@@ -881,65 +935,91 @@ const styles = StyleSheet.create({
         fontFamily: 'Inter_400Regular',
     },
 
-    // ─── Yemek Önerileri ───
-    mealSection: {
-        marginTop: SPACING.sm,
-        paddingTop: SPACING.sm,
-        borderTopWidth: 1,
-        borderTopColor: COLORS.border,
-    },
-    mealSectionHeader: {
+    // ─── Inline Yemek Önerisi ───
+    inlineMealRow: {
         flexDirection: 'row',
-        alignItems: 'center',
-        gap: 4,
         marginBottom: SPACING.xs,
     },
-    mealSectionTitle: {
-        fontFamily: 'Inter_600SemiBold',
-        fontSize: FONT_SIZES.xs,
-        color: COLORS.primary,
-        textTransform: 'uppercase',
-        letterSpacing: 0.5,
+    inlineMealDot: {
+        width: 24,
+        height: 24,
+        borderRadius: 12,
+        backgroundColor: '#FEF3C7',
+        borderWidth: 1.5,
+        borderColor: '#F59E0B',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginRight: SPACING.sm,
+        flexShrink: 0,
     },
-    mealCard: {
+    inlineMealCard: {
+        flex: 1,
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: COLORS.background,
-        borderRadius: BORDER_RADIUS.md,
+        backgroundColor: '#FFFBEB',
+        borderRadius: BORDER_RADIUS.lg,
         padding: SPACING.sm,
-        marginBottom: SPACING.xs,
         borderWidth: 1,
-        borderColor: COLORS.border,
+        borderColor: '#FDE68A',
         gap: SPACING.sm,
+        marginBottom: SPACING.xs,
     },
-    mealLabel: {
+    inlineMealLeft: {
+        flex: 1,
+        gap: 3,
+    },
+    inlineMealBadge: {
+        backgroundColor: '#FEF3C7',
+        paddingHorizontal: 7,
+        paddingVertical: 2,
+        borderRadius: 4,
+        alignSelf: 'flex-start',
+    },
+    inlineMealBadgeText: {
         fontFamily: 'Inter_600SemiBold',
-        fontSize: FONT_SIZES.xs,
-        color: COLORS.textSecondary,
-        width: 52,
+        fontSize: 10,
+        color: '#D97706',
     },
-    mealInfo: { flex: 1 },
-    mealName: {
-        fontFamily: 'Inter_500Medium',
+    inlineMealName: {
+        fontFamily: 'Inter_600SemiBold',
         fontSize: FONT_SIZES.sm,
         color: COLORS.textPrimary,
     },
-    mealMeta: {
+    inlineMealMeta: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 3,
+    },
+    inlineMealMetaText: {
         fontFamily: 'Inter_400Regular',
-        fontSize: 10,
-        color: COLORS.textLight,
-        marginTop: 1,
+        fontSize: 11,
+        color: COLORS.textSecondary,
     },
-    mealAddBtn: {
+    inlineMealActions: {
+        flexDirection: 'row',
+        gap: SPACING.xs,
+        marginTop: 4,
+        flexWrap: 'wrap',
+    },
+    inlineMealActionBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 3,
         backgroundColor: COLORS.primaryMuted,
-        borderRadius: BORDER_RADIUS.sm,
-        paddingHorizontal: SPACING.sm,
+        paddingHorizontal: 8,
         paddingVertical: 4,
+        borderRadius: BORDER_RADIUS.sm,
     },
-    mealAddBtnText: {
-        fontFamily: 'Inter_600SemiBold',
-        fontSize: 10,
+    inlineMealActionText: {
+        fontFamily: 'Inter_500Medium',
+        fontSize: 11,
         color: COLORS.primary,
+    },
+    inlineMealAddress: {
+        fontFamily: 'Inter_400Regular',
+        fontSize: 11,
+        color: COLORS.textSecondary,
+        marginTop: 2,
     },
 
     // ─── Alt Butonlar ───
@@ -1013,22 +1093,76 @@ const styles = StyleSheet.create({
 });
 
 
-// ─── MealCard ────────────────────────────────────────────────────────────────
-const MealCard = ({ label, place, onAdd, isCompleted }) => (
-    <View style={styles.mealCard}>
-        <Text style={styles.mealLabel}>{label}</Text>
-        <View style={styles.mealInfo}>
-            <Text style={styles.mealName} numberOfLines={1}>{place.name}</Text>
-            <Text style={styles.mealMeta}>
-                {place.category} · {place.avg_duration ? `${place.avg_duration}s` : ''}{place.entry_fee > 0 ? ` · ₺${place.entry_fee}` : ' · Ücretsiz'}
-            </Text>
+// ─── InlineMealCard — yerler arasına entegre yemek yeri önerisi ─────────────
+const InlineMealCard = ({ emoji, label, place, onAdd, isCompleted }) => {
+    const isRestaurant = place.category === 'restaurant' || place.category === 'cafe'
+        || place.type === 'restaurant';
+
+    const openDirections = () => {
+        if (place.lat && place.lng) {
+            Linking.openURL(
+                `https://www.google.com/maps/dir/?api=1&destination=${place.lat},${place.lng}&travelmode=walking`
+            );
+        }
+    };
+
+    const openMaps = () => {
+        if (place.lat && place.lng) {
+            Linking.openURL(
+                `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(place.name)}&ll=${place.lat},${place.lng}`
+            );
+        }
+    };
+
+    return (
+        <View style={styles.inlineMealRow}>
+            <View style={styles.timelineRail}>
+                <View style={styles.inlineMealDot}>
+                    <Text style={{ fontSize: 10 }}>{emoji}</Text>
+                </View>
+                <View style={styles.timelineLine} />
+            </View>
+
+            <View style={styles.inlineMealCard}>
+                <View style={styles.inlineMealLeft}>
+                    <View style={styles.inlineMealBadge}>
+                        <Text style={styles.inlineMealBadgeText}>{label}</Text>
+                    </View>
+                    <Text style={styles.inlineMealName} numberOfLines={1}>{place.name}</Text>
+
+                    <View style={styles.inlineMealMeta}>
+                        <Ionicons name="restaurant-outline" size={11} color={COLORS.textSecondary} />
+                        <Text style={styles.inlineMealMetaText}>
+                            {place.categoryLabel || (place.category === 'cafe' ? 'Kafe' : 'Restoran')}
+                            {place.cuisine ? ` · ${place.cuisine}` : ''}
+                        </Text>
+                    </View>
+
+                    {place.address ? (
+                        <Text style={styles.inlineMealAddress} numberOfLines={1}>
+                            📍 {place.address}
+                        </Text>
+                    ) : null}
+
+                    {/* Aksiyon butonları */}
+                    <View style={styles.inlineMealActions}>
+                        {place.lat && place.lng && (
+                            <>
+                                <TouchableOpacity style={styles.inlineMealActionBtn} onPress={openDirections}>
+                                    <Ionicons name="navigate-outline" size={12} color={COLORS.primary} />
+                                    <Text style={styles.inlineMealActionText}>Yol Tarifi</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity style={styles.inlineMealActionBtn} onPress={openMaps}>
+                                    <Ionicons name="map-outline" size={12} color={COLORS.primary} />
+                                    <Text style={styles.inlineMealActionText}>Haritada Gör</Text>
+                                </TouchableOpacity>
+                            </>
+                        )}
+                    </View>
+                </View>
+            </View>
         </View>
-        {!isCompleted && (
-            <TouchableOpacity style={styles.mealAddBtn} onPress={onAdd}>
-                <Text style={styles.mealAddBtnText}>+ Ekle</Text>
-            </TouchableOpacity>
-        )}
-    </View>
-);
+    );
+};
 
 export default ItineraryDetailScreen;

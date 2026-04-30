@@ -18,6 +18,7 @@ export const createItinerary = async ({
     startLocationLat = null,
     startLocationLng = null,
     items = [],
+    plan = null,
 }) => {
     const { data: itinerary, error: itineraryError } = await supabase
         .from('itineraries')
@@ -31,14 +32,20 @@ export const createItinerary = async ({
             has_transport: hasTransport,
             start_location_lat: startLocationLat,
             start_location_lng: startLocationLng,
+            plan: plan ?? null,
         }])
         .select()
         .single();
 
     if (itineraryError) return { data: null, error: itineraryError };
 
-    if (items.length > 0) {
-        const itemsToInsert = items.map((item) => ({
+    // Sadece numeric (Supabase) ID'li yerleri kaydet
+    const validItems = items.filter(item =>
+        item.place_id != null && !isNaN(Number(item.place_id))
+    ).map(item => ({ ...item, place_id: Number(item.place_id) }));
+
+    if (validItems.length > 0) {
+        const itemsToInsert = validItems.map((item) => ({
             itinerary_id: itinerary.id,
             place_id: item.place_id,
             day_number: item.day_number,
