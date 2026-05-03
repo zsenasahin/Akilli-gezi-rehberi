@@ -28,11 +28,13 @@ import Button from '../../components/common/Button';
 import { ItineraryDetailSkeleton } from '../../components/common/SkeletonLoader';
 import ErrorMessage from '../../components/common/ErrorMessage';
 import { useAssistantContext } from '../../contexts/AssistantContext';
+import { useThemePreference } from '../../contexts/ThemeContext';
 
 const ItineraryDetailScreen = ({ route, navigation }) => {
     const { itineraryId } = route.params;
     const { setAssistantContext, clearAssistantContext } = useAssistantContext();
     const insets = useSafeAreaInsets();
+    useThemePreference();
 
     const [itinerary, setItinerary] = useState(null);
     const [allCityPlaces, setAllCityPlaces] = useState([]);
@@ -41,53 +43,76 @@ const ItineraryDetailScreen = ({ route, navigation }) => {
     const [refreshing, setRefreshing] = useState(false);
     const [error, setError] = useState(null);
 
+    const loadSupplementalData = useCallback(async (data) => {
+        if (!data?.city_id) return;
+
+        const cityName = data.cities?.name || '';
+        const allItems = data.itinerary_items?.length > 0
+            ? data.itinerary_items
+            : (data.plan || []).flatMap((d) =>
+                (d.places || []).map((p) => ({
+                    day_number: d.day,
+                    place_id: p.id,
+                    places: p,
+                }))
+            );
+
+        const groups = {};
+        allItems.forEach(item => {
+            const day = item.day_number;
+            if (!groups[day]) groups[day] = [];
+            groups[day].push(item);
+        });
+
+        try {
+            const { data: cityPlaces } = await getPlacesByCity(data.city_id, cityName);
+            setAllCityPlaces(cityPlaces || []);
+        } catch (placesError) {
+            console.warn('Plan alternatif yerleri yüklenemedi:', placesError.message);
+            setAllCityPlaces([]);
+        }
+
+        try {
+            const mealEntries = await Promise.all(
+                Object.entries(groups).map(async ([day, dayItems]) => {
+                    const usedIds = dayItems.map(i => String(i.place_id));
+                    const orderedPlaces = [...dayItems]
+                        .sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0))
+                        .map(i => i.places);
+                    const meal = await getMealSuggestions(data.city_id, cityName, usedIds, orderedPlaces);
+                    return [day, meal];
+                })
+            );
+            setMealSuggestions(Object.fromEntries(mealEntries));
+        } catch (mealError) {
+            console.warn('Yemek önerileri yüklenemedi:', mealError.message);
+            setMealSuggestions({});
+        }
+    }, []);
+
     const fetchData = useCallback(async () => {
         setError(null);
-        const { data, error: fetchError } = await getItineraryById(itineraryId);
-        if (fetchError) {
+        try {
+            const { data, error: fetchError } = await getItineraryById(itineraryId);
+            if (fetchError) {
+                setError('Plan yüklenirken hata oluştu.');
+                setLoading(false);
+                setRefreshing(false);
+                return;
+            }
+
+            setItinerary(data);
+            setLoading(false);
+            setRefreshing(false);
+
+            loadSupplementalData(data);
+        } catch (fetchError) {
+            console.warn('Plan detayı yüklenemedi:', fetchError.message);
             setError('Plan yüklenirken hata oluştu.');
             setLoading(false);
-            return;
+            setRefreshing(false);
         }
-        setItinerary(data);
-        if (data?.city_id) {
-            const { data: cityPlaces } = await getPlacesByCity(data.city_id);
-            setAllCityPlaces(cityPlaces || []);
-
-            // Her gün için yemek önerisi üret
-            // plan JSONB veya itinerary_items'tan günlük yerleri al
-            const cityName = data.cities?.name || '';
-            const allItems = data.itinerary_items?.length > 0
-                ? data.itinerary_items
-                : (data.plan || []).flatMap((d, di) =>
-                    (d.places || []).map((p, pi) => ({
-                        day_number: d.day,
-                        place_id: p.id,
-                        places: p,
-                    }))
-                );
-
-            const groups = {};
-            allItems.forEach(item => {
-                const day = item.day_number;
-                if (!groups[day]) groups[day] = [];
-                groups[day].push(item);
-            });
-
-            const meals = {};
-            for (const [day, dayItems] of Object.entries(groups)) {
-                const usedIds = dayItems.map(i => String(i.place_id));
-                // Günün yerlerini sırayla al — aralarına yemek önerisi eklenecek
-                const orderedPlaces = dayItems
-                    .sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0))
-                    .map(i => i.places);
-                meals[day] = await getMealSuggestions(data.city_id, cityName, usedIds, orderedPlaces);
-            }
-            setMealSuggestions(meals);
-        }
-        setLoading(false);
-        setRefreshing(false);
-    }, [itineraryId]);
+    }, [itineraryId, loadSupplementalData]);
 
     useEffect(() => { fetchData(); }, [fetchData]);
 

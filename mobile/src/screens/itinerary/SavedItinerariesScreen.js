@@ -8,6 +8,7 @@ import {
     Alert,
     RefreshControl,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect } from '@react-navigation/native';
@@ -25,9 +26,11 @@ import {
 import { formatDate } from '../../utils/formatters';
 import { SkeletonLoader } from '../../components/common/SkeletonLoader';
 import ErrorMessage from '../../components/common/ErrorMessage';
+import { useThemePreference } from '../../contexts/ThemeContext';
 
 const SavedItinerariesScreen = ({ navigation }) => {
     const { user } = useAuth();
+    const { theme } = useThemePreference();
     const [itineraries, setItineraries] = useState([]);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
@@ -175,7 +178,11 @@ const SavedItinerariesScreen = ({ navigation }) => {
 
     if (loading) {
         return (
-            <View style={styles.container}>
+            <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]} edges={['top']}>
+                <View style={styles.headerBar}>
+                    <Text style={[styles.headerTitle, { color: theme.colors.text }]}>Planlarim</Text>
+                    <Text style={[styles.headerSubtitle, { color: theme.colors.textSecondary }]}>Tum rotalarin tek yerde</Text>
+                </View>
                 <View style={styles.filterRow}>
                     {[0, 1, 2].map(i => (
                         <SkeletonLoader key={i} width="30%" height={40} radius={BORDER_RADIUS.lg} />
@@ -192,12 +199,16 @@ const SavedItinerariesScreen = ({ navigation }) => {
                         </View>
                     ))}
                 </View>
-            </View>
+            </SafeAreaView>
         );
     }
 
     return (
-        <View style={styles.container}>
+        <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]} edges={['top']}>
+            <View style={styles.headerBar}>
+                <Text style={[styles.headerTitle, { color: theme.colors.text }]}>Planlarim</Text>
+                <Text style={[styles.headerSubtitle, { color: theme.colors.textSecondary }]}>{filteredItineraries.length} gorunen plan</Text>
+            </View>
             {/* Filter tabs */}
             <View style={styles.filterRow}>
                 {[
@@ -257,18 +268,33 @@ const SavedItinerariesScreen = ({ navigation }) => {
                     )
                 }
             />
-        </View>
+        </SafeAreaView>
     );
 };
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: COLORS.background },
+    container: { flex: 1 },
+    headerBar: {
+        paddingHorizontal: SPACING.lg,
+        paddingTop: 10,
+        paddingBottom: 8,
+    },
+    headerTitle: {
+        fontFamily: FONTS.heading,
+        fontSize: 28,
+    },
+    headerSubtitle: {
+        marginTop: 4,
+        fontFamily: FONTS.body,
+        fontSize: 13,
+    },
 
     // ─── Filters ───
     filterRow: {
         flexDirection: 'row',
         paddingHorizontal: SPACING.lg,
-        paddingVertical: SPACING.sm,
+        paddingTop: SPACING.xs,
+        paddingBottom: SPACING.sm,
         gap: SPACING.sm,
     },
     filterTab: {
@@ -278,7 +304,7 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         gap: 5,
         paddingVertical: 10,
-        borderRadius: BORDER_RADIUS.lg,
+        borderRadius: BORDER_RADIUS.full,
         backgroundColor: COLORS.surface,
         borderWidth: 1.5,
         borderColor: COLORS.border,
@@ -299,20 +325,21 @@ const styles = StyleSheet.create({
 
     // ─── List ───
     listContent: {
-        padding: SPACING.lg,
+        paddingHorizontal: SPACING.lg,
+        paddingTop: SPACING.sm,
         paddingBottom: SPACING.xxl,
     },
 
     // ─── Card ───
     card: {
         backgroundColor: COLORS.surface,
-        borderRadius: BORDER_RADIUS.lg,
+        borderRadius: 22,
         marginBottom: SPACING.md,
         overflow: 'hidden',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 3 },
+        shadowColor: '#10211A',
+        shadowOffset: { width: 0, height: 8 },
         shadowOpacity: 0.08,
-        shadowRadius: 12,
+        shadowRadius: 18,
         elevation: 4,
     },
     cardImageContainer: {

@@ -44,6 +44,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { getCityCenter } from '../../constants/cities';
 import { CityDetailSkeleton, SkeletonLoader } from '../../components/common/SkeletonLoader';
 import { useAssistantContext } from '../../contexts/AssistantContext';
+import { useThemePreference } from '../../contexts/ThemeContext';
 
 import mutfakData from '../../data/turkiye_mutfak.json';
 
@@ -57,7 +58,6 @@ const CATEGORIES = [
     { key: 'restaurant', label: 'Restoranlar', icon: 'storefront', emoji: '🏪' },
     { key: 'cafe', label: 'Kafeler', icon: 'cafe', emoji: '☕' },
     { key: 'hotel', label: 'Oteller', icon: 'bed', emoji: '🏨' },
-    { key: 'bar', label: 'Barlar', icon: 'beer', emoji: '🍺' },
     { key: 'practical', label: 'Pratik', icon: 'medkit', emoji: '🏧' },
 ];
 
@@ -69,11 +69,13 @@ const CityDetailScreen = ({ route, navigation }) => {
     const cityCenter = getCityCenter(cityName);
     const cityImages = getCityImages(cityName, city?.region);
     const { setAssistantContext, clearAssistantContext } = useAssistantContext();
+    useThemePreference();
 
     // State
     const [activeCategory, setActiveCategory] = useState('places');
     const [places, setPlaces] = useState([]);
     const [pois, setPois] = useState({});
+    const [poiErrors, setPoiErrors] = useState({});
     const [loading, setLoading] = useState(true);
     const [loadingProgress, setLoadingProgress] = useState('');
     const [poiLoading, setPoiLoading] = useState(false);
@@ -180,6 +182,7 @@ const CityDetailScreen = ({ route, navigation }) => {
 
     const loadPOIs = async (category) => {
         setPoiLoading(true);
+        setPoiErrors(prev => ({ ...prev, [category]: null }));
         let cat = category;
         let radius = 2000;
 
@@ -194,12 +197,18 @@ const CityDetailScreen = ({ route, navigation }) => {
                 ...(pharmacies.data || []),
             ];
             setPois(prev => ({ ...prev, practical: combined }));
+            if (combined.length === 0 && (atms.error || pharmacies.error)) {
+                setPoiErrors(prev => ({ ...prev, practical: 'Pratik yerler şu an alınamadı.' }));
+            }
             setPoiLoading(false);
             return;
         }
 
-        const { data } = await getCityPOIs(cityCenter.lat, cityCenter.lng, cat, radius);
+        const { data, error: poiError } = await getCityPOIs(cityCenter.lat, cityCenter.lng, cat, radius);
         setPois(prev => ({ ...prev, [category]: data || [] }));
+        if ((!data || data.length === 0) && poiError) {
+            setPoiErrors(prev => ({ ...prev, [category]: 'Bu kategori için sonuçlar şu an alınamadı.' }));
+        }
         setPoiLoading(false);
     };
 
@@ -213,17 +222,21 @@ const CityDetailScreen = ({ route, navigation }) => {
         setFavorites(favMap);
     };
 
-    const handleToggleFavorite = async (placeId) => {
+    const handleToggleFavorite = async (place) => {
         if (!user) {
             Alert.alert('Giriş Gerekli', 'Favorilere eklemek için giriş yapmalısınız.');
             return;
         }
-        const { isFavorite, error } = await toggleFavorite(user.id, placeId);
+        const placeToSave = {
+            ...place,
+            cities: place.cities || { name: cityName }
+        };
+        const { isFavorite, error } = await toggleFavorite(user.id, placeToSave);
         if (error) {
             Alert.alert('Hata', 'Favori işlemi gerçekleştirilemedi: ' + (error.message || 'Bilinmeyen hata'));
             return;
         }
-        setFavorites(prev => ({ ...prev, [placeId]: isFavorite }));
+        setFavorites(prev => ({ ...prev, [place.id]: isFavorite }));
     };
 
     // ─── Telefon ara ───
@@ -286,7 +299,7 @@ const CityDetailScreen = ({ route, navigation }) => {
                 {!isOverpassPlace && (
                     <TouchableOpacity
                         style={styles.favButton}
-                        onPress={() => handleToggleFavorite(place.id)}
+                        onPress={() => handleToggleFavorite(place)}
                         hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                     >
                         <Ionicons
@@ -432,7 +445,7 @@ const CityDetailScreen = ({ route, navigation }) => {
                             </View>
                             {isDB && (
                                 <TouchableOpacity
-                                    onPress={() => handleToggleFavorite(item.id)}
+                                    onPress={() => handleToggleFavorite(item)}
                                     style={styles.detailFavButton}
                                 >
                                     <Ionicons
@@ -817,6 +830,7 @@ const CityDetailScreen = ({ route, navigation }) => {
 
         // POI kategorileri
         const currentPOIs = pois[activeCategory];
+        const currentPOIError = poiErrors[activeCategory];
 
         if (poiLoading) {
             return (
@@ -845,10 +859,18 @@ const CityDetailScreen = ({ route, navigation }) => {
                                 : activeCategory === 'hotel' ? '🏨'
                                     : '📍'}
                     </Text>
-                    <Text style={styles.emptyText}>Bu bölgede sonuç bulunamadı</Text>
-                    <Text style={styles.emptySubtext}>
-                        Farklı bir şehir merkezinde deneyin
+                    <Text style={styles.emptyText}>
+                        {currentPOIError ? 'Şu an sonuç alınamadı' : 'Bu bölgede sonuç bulunamadı'}
                     </Text>
+                    <Text style={styles.emptySubtext}>
+                        {currentPOIError ? 'Ücretsiz harita servisleri bazen yanıt vermeyebilir.' : 'Farklı bir şehir merkezinde deneyin'}
+                    </Text>
+                    {currentPOIError ? (
+                        <TouchableOpacity style={styles.retryPoiBtn} onPress={() => loadPOIs(activeCategory)} activeOpacity={0.82}>
+                            <Ionicons name="refresh" size={15} color="#fff" />
+                            <Text style={styles.retryPoiText}>Tekrar dene</Text>
+                        </TouchableOpacity>
+                    ) : null}
                 </View>
             );
         }
@@ -1431,7 +1453,22 @@ const styles = StyleSheet.create({
     },
     emptySubtext: {
         fontFamily: 'Inter_400Regular', fontSize: FONT_SIZES.sm,
-        color: COLORS.textLight, marginTop: 4,
+        color: COLORS.textLight, marginTop: 4, textAlign: 'center',
+    },
+    retryPoiBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        marginTop: SPACING.md,
+        paddingHorizontal: 16,
+        paddingVertical: 10,
+        borderRadius: BORDER_RADIUS.full,
+        backgroundColor: COLORS.primary,
+    },
+    retryPoiText: {
+        fontFamily: FONTS.bodySemiBold,
+        fontSize: FONT_SIZES.sm,
+        color: '#fff',
     },
 
     // Loading

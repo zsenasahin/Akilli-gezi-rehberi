@@ -24,8 +24,10 @@ import { getCities } from '../../services/cityService';
 import { getProfile } from '../../services/profileService';
 import { HomeScreenSkeleton } from '../../components/common/SkeletonLoader';
 import ErrorMessage from '../../components/common/ErrorMessage';
+import { useThemePreference } from '../../contexts/ThemeContext';
 
 import { getEtkinlikler } from '../../services/etkinlikService';
+import { getTurizmAktiviteleri } from '../../services/turizmAktiviteService';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const HERO_HEIGHT = SCREEN.height * 0.48;
@@ -35,6 +37,7 @@ const HERO_IMAGE = 'https://images.unsplash.com/photo-1524231757912-21f4fe3a7200
 
 const HomeScreen = ({ navigation }) => {
     const { user, isGuest } = useAuth();
+    const { theme } = useThemePreference();
     const requireAuth = useRequireAuth(navigation);
     const [profile, setProfile] = useState(null);
     const [cities, setCities] = useState([]);
@@ -43,6 +46,7 @@ const HomeScreen = ({ navigation }) => {
     const [error, setError] = useState(null);
     const [etkinlikler, setEtkinlikler] = useState([]);
     const [etkinliklerLoading, setEtkinliklerLoading] = useState(true);
+    const turizmAktiviteleri = getTurizmAktiviteleri().slice(0, 6);
 
     // Scroll animasyonu – parallax için
     const scrollY = useRef(new Animated.Value(0)).current;
@@ -125,7 +129,7 @@ const HomeScreen = ({ navigation }) => {
     });
 
     return (
-        <View style={styles.root}>
+        <View style={[styles.root, { backgroundColor: theme.colors.background }]}>
             {/* ═══ HERO — STICKY ARKAPLAN ═══ */}
             <View style={styles.heroSection}>
                 <Animated.View
@@ -195,7 +199,7 @@ const HomeScreen = ({ navigation }) => {
                 </View>
 
                 {/* İçerik kartı — beyaz yüzey */}
-                <View style={styles.contentCard}>
+                <View style={[styles.contentCard, { backgroundColor: theme.colors.background }]}>
                     {error && <ErrorMessage message={error} onRetry={fetchData} />}
 
                     {/* Misafir Banner */}
@@ -261,12 +265,7 @@ const HomeScreen = ({ navigation }) => {
                         transform: [{ translateY: contentAnim.interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }]
                     }]}>
                         <View style={styles.sectionHeaderRow}>
-                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                                <Text style={styles.sectionTitle}>Etkinlikler</Text>
-                                <View style={styles.liveBadge}>
-                                    <Text style={styles.liveBadgeText}>CANLI</Text>
-                                </View>
-                            </View>
+                            <Text style={styles.sectionTitle}>Etkinlikler</Text>
                             <TouchableOpacity
                                 style={styles.seeAllBtn}
                                 onPress={() => navigation.navigate('Etkinlikler')}
@@ -307,17 +306,39 @@ const HomeScreen = ({ navigation }) => {
                                         onPress={() => navigation.navigate('Etkinlikler')}
                                     />
                                 ))}
-                                <TouchableOpacity
-                                    style={styles.etkinlikAllBtn}
-                                    onPress={() => navigation.navigate('Etkinlikler')}
-                                    activeOpacity={0.8}
-                                >
-                                    <Ionicons name="calendar-outline" size={16} color={COLORS.primary} />
-                                    <Text style={styles.etkinlikAllText}>Tüm Etkinlikleri Gör</Text>
-                                    <Ionicons name="chevron-forward" size={14} color={COLORS.primary} />
-                                </TouchableOpacity>
                             </>
                         )}
+                    </Animated.View>
+
+                    {/* ═══ TURİZM AKTİVİTELERİ ═══ */}
+                    <Animated.View style={[styles.section, {
+                        opacity: contentAnim,
+                        transform: [{ translateY: contentAnim.interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }]
+                    }]}>
+                        <View style={styles.sectionHeaderRow}>
+                            <View>
+                                <Text style={styles.sectionTitle}>Turizm Aktiviteleri</Text>
+                                <Text style={styles.sectionMiniSub}>Kültür Portalı rotalarından seçmeler</Text>
+                            </View>
+                            <TouchableOpacity
+                                style={styles.seeAllBtn}
+                                onPress={() => navigation.navigate('Etkinlikler', { focus: 'turizm' })}
+                                activeOpacity={0.7}
+                            >
+                                <Text style={styles.seeAllText}>Tümünü Gör</Text>
+                                <Ionicons name="arrow-forward" size={12} color={COLORS.primary} />
+                            </TouchableOpacity>
+                        </View>
+
+                        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.activityRail}>
+                            {turizmAktiviteleri.map((activity) => (
+                                <TurizmActivityCard
+                                    key={activity.id}
+                                    activity={activity}
+                                    onPress={() => navigation.navigate('Etkinlikler', { focus: 'turizm', selectedActivity: activity.id })}
+                                />
+                            ))}
+                        </ScrollView>
                     </Animated.View>
 
                 </View>
@@ -356,6 +377,23 @@ const EtkinlikCard = React.memo(({ etkinlik, onPress }) => {
         </TouchableOpacity>
     );
 });
+
+const TurizmActivityCard = React.memo(({ activity, onPress }) => (
+    <TouchableOpacity style={styles.activityCard} onPress={onPress} activeOpacity={0.86}>
+        <SmartImage uri={activity.imageUrl} style={styles.activityImage} contentFit="cover" transition={350} />
+        <LinearGradient colors={['transparent', 'rgba(0,0,0,0.72)']} style={StyleSheet.absoluteFillObject} />
+        <View style={styles.activityTypeBadge}>
+            <Text style={styles.activityTypeText}>{activity.type}</Text>
+        </View>
+        <View style={styles.activityContent}>
+            <Text style={styles.activityTitle} numberOfLines={2}>{activity.title}</Text>
+            <View style={styles.activityMeta}>
+                <Ionicons name="location-outline" size={11} color="rgba(255,255,255,0.82)" />
+                <Text style={styles.activityCity}>{activity.city}</Text>
+            </View>
+        </View>
+    </TouchableOpacity>
+));
 
 // ─── City Card — Grid kartı ─────────────────────────────────────────────────
 const CityCard = React.memo(({ city, images, index, onPress, onPlanPress }) => {
@@ -553,6 +591,12 @@ const styles = StyleSheet.create({
         color: COLORS.textSecondary,
         marginLeft: SPACING.sm,
     },
+    sectionMiniSub: {
+        fontFamily: FONTS.body,
+        fontSize: FONT_SIZES.xs,
+        color: COLORS.textSecondary,
+        marginTop: 2,
+    },
     seeAllBtn: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -627,15 +671,6 @@ const styles = StyleSheet.create({
     },
 
     // ─── ETKİNLİKLER ───
-    liveBadge: {
-        backgroundColor: '#EF4444',
-        paddingHorizontal: 6, paddingVertical: 2,
-        borderRadius: 4,
-    },
-    liveBadgeText: {
-        fontFamily: FONTS.bodySemiBold, fontSize: 9,
-        color: '#fff', letterSpacing: 0.5,
-    },
     etkinlikCard: {
         flexDirection: 'row', alignItems: 'center',
         backgroundColor: COLORS.surface,
@@ -681,6 +716,57 @@ const styles = StyleSheet.create({
     etkinlikAllText: {
         fontFamily: FONTS.bodySemiBold, fontSize: FONT_SIZES.sm,
         color: COLORS.primary,
+    },
+    activityRail: {
+        gap: SPACING.sm,
+        paddingRight: SPACING.md,
+    },
+    activityCard: {
+        width: 188,
+        height: 142,
+        borderRadius: BORDER_RADIUS.xl,
+        overflow: 'hidden',
+        backgroundColor: COLORS.surface,
+    },
+    activityImage: {
+        ...StyleSheet.absoluteFillObject,
+    },
+    activityTypeBadge: {
+        position: 'absolute',
+        top: 10,
+        left: 10,
+        paddingHorizontal: 9,
+        paddingVertical: 5,
+        borderRadius: BORDER_RADIUS.full,
+        backgroundColor: 'rgba(255,255,255,0.9)',
+    },
+    activityTypeText: {
+        fontFamily: FONTS.bodySemiBold,
+        fontSize: 10,
+        color: COLORS.primaryDark,
+    },
+    activityContent: {
+        position: 'absolute',
+        left: 12,
+        right: 12,
+        bottom: 12,
+    },
+    activityTitle: {
+        fontFamily: FONTS.bodySemiBold,
+        fontSize: FONT_SIZES.sm,
+        color: '#fff',
+        lineHeight: 18,
+    },
+    activityMeta: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 3,
+        marginTop: 5,
+    },
+    activityCity: {
+        fontFamily: FONTS.body,
+        fontSize: FONT_SIZES.xs,
+        color: 'rgba(255,255,255,0.82)',
     },
 });
 

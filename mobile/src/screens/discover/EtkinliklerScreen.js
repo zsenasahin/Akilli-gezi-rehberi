@@ -16,6 +16,8 @@ import { COLORS } from '../../constants/colors';
 import { FONTS, FONT_SIZES } from '../../constants/typography';
 import { SPACING, BORDER_RADIUS } from '../../constants/layout';
 import { getEtkinlikler } from '../../services/etkinlikService';
+import { getTurizmAktiviteleri } from '../../services/turizmAktiviteService';
+import { useThemePreference } from '../../contexts/ThemeContext';
 
 const SCREEN_W = require('react-native').Dimensions.get('window').width;
 const BASE_URL = 'https://www.kulturportali.gov.tr';
@@ -38,7 +40,11 @@ const FALLBACK_IMAGE = 'https://images.unsplash.com/photo-1533174072545-7a4b6ad7
 
 export default function EtkinliklerScreen({ navigation, route }) {
     const insets = useSafeAreaInsets();
+    useThemePreference();
     const filterIl = route?.params?.il || null;
+    const focus = route?.params?.focus || null;
+    const selectedActivityId = route?.params?.selectedActivity || null;
+    const tourismOnly = focus === 'turizm';
 
     const [etkinlikler, setEtkinlikler] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -48,6 +54,7 @@ export default function EtkinliklerScreen({ navigation, route }) {
     const [hasMore, setHasMore] = useState(true);
     const [search, setSearch] = useState('');
     const [selected, setSelected] = useState(null);
+    const [selectedActivity, setSelectedActivity] = useState(null);
 
     const loadEtkinlikler = useCallback(async (page = 1, append = false) => {
         if (page === 1) setLoading(true);
@@ -65,7 +72,21 @@ export default function EtkinliklerScreen({ navigation, route }) {
         setLoadingMore(false);
     }, []);
 
-    useEffect(() => { loadEtkinlikler(1); }, []);
+    useEffect(() => {
+        if (tourismOnly) {
+            setLoading(false);
+            return;
+        }
+        loadEtkinlikler(1);
+    }, [loadEtkinlikler, tourismOnly]);
+
+    const turizmAktiviteleri = getTurizmAktiviteleri({ cityName: filterIl, search });
+
+    useEffect(() => {
+        if (!selectedActivityId) return;
+        const found = getTurizmAktiviteleri().find(item => item.id === selectedActivityId);
+        if (found) setSelectedActivity(found);
+    }, [selectedActivityId]);
 
     const loadMore = () => {
         if (loadingMore || !hasMore) return;
@@ -81,6 +102,48 @@ export default function EtkinliklerScreen({ navigation, route }) {
             e.tur?.toLowerCase().includes(search.toLowerCase())
         )
         : etkinlikler;
+
+    const renderTurizmSection = () => {
+        if (turizmAktiviteleri.length === 0) return null;
+        return (
+            <View style={[styles.turizmSection, tourismOnly && styles.turizmSectionOnly]}>
+                <View style={styles.turizmHeader}>
+                    <View>
+                        <Text style={styles.turizmTitle}>Turizm Aktiviteleri</Text>
+                        <Text style={styles.turizmSub}>
+                            {filterIl ? `${filterIl} için ${turizmAktiviteleri.length} aktivite` : `${turizmAktiviteleri.length} Kültür Portalı rotası`}
+                        </Text>
+                    </View>
+                    <View style={styles.kpBadge}>
+                        <Text style={styles.kpBadgeText}>Kültür Portalı</Text>
+                    </View>
+                </View>
+                <View style={styles.activityGrid}>
+                    {turizmAktiviteleri.map((activity) => (
+                        <TouchableOpacity
+                            key={activity.id}
+                            style={styles.activityCard}
+                            activeOpacity={0.86}
+                            onPress={() => setSelectedActivity(activity)}
+                        >
+                            <Image source={{ uri: activity.imageUrl || FALLBACK_IMAGE }} style={styles.activityImage} contentFit="cover" transition={300} />
+                            <LinearGradient colors={['transparent', 'rgba(0,0,0,0.76)']} style={StyleSheet.absoluteFillObject} />
+                            <View style={styles.activityBadge}>
+                                <Text style={styles.activityBadgeText}>{activity.type}</Text>
+                            </View>
+                            <View style={styles.activityBody}>
+                                <Text style={styles.activityTitle} numberOfLines={2}>{activity.title}</Text>
+                                <View style={styles.activityMeta}>
+                                    <Ionicons name="location-outline" size={12} color="rgba(255,255,255,0.78)" />
+                                    <Text style={styles.activityCity}>{activity.city}</Text>
+                                </View>
+                            </View>
+                        </TouchableOpacity>
+                    ))}
+                </View>
+            </View>
+        );
+    };
 
     const renderItem = ({ item, index }) => {
         const turStyle = getTurStyle(item.tur);
@@ -140,7 +203,7 @@ export default function EtkinliklerScreen({ navigation, route }) {
                     <Ionicons name="arrow-back" size={22} color={COLORS.textPrimary} />
                 </TouchableOpacity>
                 <View style={styles.headerCenter}>
-                    <Text style={styles.headerTitle}>Etkinlikler</Text>
+                    <Text style={styles.headerTitle}>{tourismOnly ? 'Turizm Aktiviteleri' : 'Etkinlikler'}</Text>
                     <Text style={styles.headerSub}>Kültür Portalı</Text>
                 </View>
                 <View style={{ width: 36 }} />
@@ -151,7 +214,7 @@ export default function EtkinliklerScreen({ navigation, route }) {
                 <Ionicons name="search" size={16} color={COLORS.textSecondary} />
                 <TextInput
                     style={styles.searchInput}
-                    placeholder="Etkinlik, şehir veya tür ara..."
+                    placeholder={tourismOnly ? 'Aktivite, şehir veya tür ara...' : 'Etkinlik, şehir veya tür ara...'}
                     placeholderTextColor={COLORS.textSecondary}
                     value={search}
                     onChangeText={setSearch}
@@ -178,24 +241,30 @@ export default function EtkinliklerScreen({ navigation, route }) {
                 </View>
             ) : (
                 <FlatList
-                    data={filtered}
+                    data={tourismOnly ? [] : filtered}
                     keyExtractor={(_, i) => String(i)}
                     renderItem={renderItem}
                     contentContainerStyle={styles.list}
                     showsVerticalScrollIndicator={false}
-                    onEndReached={loadMore}
+                    onEndReached={tourismOnly ? undefined : loadMore}
                     onEndReachedThreshold={0.3}
-                    ListEmptyComponent={
+                    ListHeaderComponent={tourismOnly ? renderTurizmSection() : null}
+                    ListEmptyComponent={!tourismOnly ? (
                         <View style={styles.center}>
                             <Text style={styles.emptyEmoji}>🎭</Text>
                             <Text style={styles.emptyText}>Etkinlik bulunamadı</Text>
                         </View>
-                    }
+                    ) : null}
                     ListFooterComponent={
-                        loadingMore ? (
-                            <View style={styles.footerLoader}>
-                                <ActivityIndicator size="small" color={COLORS.primary} />
-                            </View>
+                        !tourismOnly ? (
+                            <>
+                            {loadingMore ? (
+                                <View style={styles.footerLoader}>
+                                    <ActivityIndicator size="small" color={COLORS.primary} />
+                                </View>
+                            ) : null}
+                            {renderTurizmSection()}
+                            </>
                         ) : null
                     }
                 />
@@ -312,6 +381,77 @@ export default function EtkinliklerScreen({ navigation, route }) {
                     </View>
                 )}
             </Modal>
+
+            {/* Turizm Aktivitesi Detay Modal */}
+            <Modal
+                visible={!!selectedActivity}
+                animationType="slide"
+                transparent
+                onRequestClose={() => setSelectedActivity(null)}
+            >
+                {selectedActivity && (
+                    <View style={styles.modalOverlay}>
+                        <TouchableOpacity style={styles.modalBackdrop} onPress={() => setSelectedActivity(null)} />
+                        <View style={styles.modalSheet}>
+                            <View style={styles.modalHero}>
+                                <Image
+                                    source={{ uri: selectedActivity.imageUrl || FALLBACK_IMAGE }}
+                                    style={styles.modalHeroImage}
+                                    contentFit="cover"
+                                    transition={300}
+                                />
+                                <LinearGradient colors={['transparent', 'rgba(0,0,0,0.68)']} style={StyleSheet.absoluteFillObject} />
+                                <TouchableOpacity style={styles.modalClose} onPress={() => setSelectedActivity(null)}>
+                                    <Ionicons name="close" size={20} color="#fff" />
+                                </TouchableOpacity>
+                                <View style={styles.modalHeroBadge}>
+                                    <View style={styles.kpBadgeDark}>
+                                        <Text style={styles.kpBadgeDarkText}>Turizm Aktivitesi</Text>
+                                    </View>
+                                </View>
+                            </View>
+                            <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false}>
+                                <Text style={styles.modalTitle}>{selectedActivity.title}</Text>
+                                <View style={styles.modalInfoRow}>
+                                    <View style={styles.modalInfoIcon}>
+                                        <Ionicons name="trail-sign" size={16} color={COLORS.primary} />
+                                    </View>
+                                    <View style={{ flex: 1 }}>
+                                        <Text style={styles.modalInfoLabel}>Tür</Text>
+                                        <Text style={styles.modalInfoValue}>{selectedActivity.type}</Text>
+                                    </View>
+                                </View>
+                                <View style={styles.modalInfoRow}>
+                                    <View style={styles.modalInfoIcon}>
+                                        <Ionicons name="location" size={16} color={COLORS.accent} />
+                                    </View>
+                                    <View style={{ flex: 1 }}>
+                                        <Text style={styles.modalInfoLabel}>Şehir</Text>
+                                        <Text style={styles.modalInfoValue}>{selectedActivity.city}</Text>
+                                    </View>
+                                </View>
+                                <View style={styles.modalDesc}>
+                                    <Text style={styles.modalDescText}>
+                                        Bu aktivite Kültür Portalı turizm aktiviteleri kataloğundan alınmıştır.
+                                    </Text>
+                                </View>
+                                {selectedActivity.url ? (
+                                    <View style={styles.modalActions}>
+                                        <TouchableOpacity
+                                            style={styles.modalActionBtn}
+                                            onPress={() => Linking.openURL(selectedActivity.url)}
+                                        >
+                                            <Ionicons name="open-outline" size={18} color="#fff" />
+                                            <Text style={styles.modalActionText}>Kültür Portalı'nda Gör</Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                ) : null}
+                                <View style={{ height: 32 }} />
+                            </ScrollView>
+                        </View>
+                    </View>
+                )}
+            </Modal>
         </View>
     );
 }
@@ -358,7 +498,7 @@ const styles = StyleSheet.create({
     cardImage: { ...StyleSheet.absoluteFillObject },
     dateBadge: {
         position: 'absolute', top: SPACING.sm, left: SPACING.sm,
-        backgroundColor: '#fff', borderRadius: BORDER_RADIUS.md,
+        backgroundColor: COLORS.surface, borderRadius: BORDER_RADIUS.md,
         paddingHorizontal: 10, paddingVertical: 6, alignItems: 'center',
         shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
         shadowOpacity: 0.15, shadowRadius: 4, elevation: 3,
@@ -391,6 +531,105 @@ const styles = StyleSheet.create({
     emptyEmoji: { fontSize: 48, marginBottom: 12 },
     emptyText: { fontFamily: FONTS.body, fontSize: FONT_SIZES.md, color: COLORS.textSecondary },
     footerLoader: { paddingVertical: 20, alignItems: 'center' },
+    turizmSection: {
+        marginTop: SPACING.lg,
+        paddingTop: SPACING.md,
+        borderTopWidth: 1,
+        borderTopColor: COLORS.border,
+    },
+    turizmSectionOnly: {
+        marginTop: 0,
+        paddingTop: 0,
+        borderTopWidth: 0,
+    },
+    turizmHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: SPACING.sm,
+    },
+    turizmTitle: {
+        fontFamily: FONTS.bodySemiBold,
+        fontSize: FONT_SIZES.lg,
+        color: COLORS.textPrimary,
+    },
+    turizmSub: {
+        marginTop: 2,
+        fontFamily: FONTS.body,
+        fontSize: FONT_SIZES.xs,
+        color: COLORS.textSecondary,
+    },
+    kpBadge: {
+        backgroundColor: COLORS.primaryMuted,
+        borderRadius: BORDER_RADIUS.full,
+        paddingHorizontal: 10,
+        paddingVertical: 5,
+    },
+    kpBadgeText: {
+        fontFamily: FONTS.bodySemiBold,
+        fontSize: 10,
+        color: COLORS.primary,
+    },
+    activityGrid: {
+        gap: SPACING.sm,
+    },
+    activityCard: {
+        height: 168,
+        borderRadius: BORDER_RADIUS.xl,
+        overflow: 'hidden',
+        backgroundColor: COLORS.surface,
+    },
+    activityImage: {
+        ...StyleSheet.absoluteFillObject,
+    },
+    activityBadge: {
+        position: 'absolute',
+        top: SPACING.sm,
+        left: SPACING.sm,
+        backgroundColor: 'rgba(255,255,255,0.9)',
+        borderRadius: BORDER_RADIUS.full,
+        paddingHorizontal: 10,
+        paddingVertical: 5,
+    },
+    activityBadgeText: {
+        fontFamily: FONTS.bodySemiBold,
+        fontSize: 10,
+        color: COLORS.primaryDark,
+    },
+    activityBody: {
+        position: 'absolute',
+        left: SPACING.md,
+        right: SPACING.md,
+        bottom: SPACING.md,
+    },
+    activityTitle: {
+        fontFamily: FONTS.bodySemiBold,
+        fontSize: FONT_SIZES.md,
+        color: '#fff',
+        lineHeight: 21,
+    },
+    activityMeta: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        marginTop: 6,
+    },
+    activityCity: {
+        fontFamily: FONTS.body,
+        fontSize: FONT_SIZES.xs,
+        color: 'rgba(255,255,255,0.78)',
+    },
+    kpBadgeDark: {
+        backgroundColor: 'rgba(255,255,255,0.9)',
+        borderRadius: BORDER_RADIUS.full,
+        paddingHorizontal: 10,
+        paddingVertical: 5,
+    },
+    kpBadgeDarkText: {
+        fontFamily: FONTS.bodySemiBold,
+        fontSize: 11,
+        color: COLORS.primaryDark,
+    },
 
     // Modal
     modalOverlay: { flex: 1, justifyContent: 'flex-end' },

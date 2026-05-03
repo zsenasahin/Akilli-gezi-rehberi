@@ -1,21 +1,26 @@
 /**
  * OverpassApi – OpenStreetMap Overpass API istemcisi.
  *
- * Doğrudan Overpass API'ye erişir — Edge Function gerektirmez.
- * Tamamen ücretsiz, API key yok.
+ * Önce Supabase Edge Function üzerinden TomTom POI dener.
+ * Başarısız olursa ücretsiz Overpass + stale cache fallback kullanır.
  *
  * Kategoriler: restaurant, cafe, bar, fast_food, hotel, atm, pharmacy, attraction
  */
 
+import { supabase } from '../../config/supabase';
+import { cache, TTL } from '../../services/cacheService';
+
 const OVERPASS_SERVERS = [
     'https://overpass-api.de/api/interpreter',
     'https://overpass.kumi.systems/api/interpreter',
+    'https://overpass.openstreetmap.ru/api/interpreter',
+    'https://maps.mail.ru/osm/tools/overpass/api/interpreter',
 ];
 
 /**
  * Timeout wrapper - fetch çağrılarına zaman aşımı ekler
  */
-const fetchWithTimeout = (url, options = {}, timeout = 20000) => {
+const fetchWithTimeout = (url, options = {}, timeout = 10000) => {
     return Promise.race([
         fetch(url, options),
         new Promise((_, reject) =>
@@ -92,14 +97,13 @@ async function queryOverpass(query) {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
                 body: `data=${encodeURIComponent(query)}`,
-            }, 20000);
+            }, 10000);
             if (res.ok) {
                 const data = await res.json();
                 if (data.elements) return data;
             }
-        } catch (err) {
-            console.warn(`Overpass sunucu hatası (${server}):`, err.message);
-            // Bir sonraki sunucuyu dene
+        } catch {
+            // Bir sonraki ücretsiz public sunucuyu dene.
         }
     }
     throw new Error('Overpass sunucularına ulaşılamadı');
@@ -147,8 +151,6 @@ function parseElement(el) {
     };
 }
 
-import { cache, TTL } from '../../services/cacheService';
-
 /**
  * Belirli kategorideki POI'ları getirir.
  * @param {number} lat
@@ -170,9 +172,26 @@ export async function getCityPOIs(lat, lng, category = 'all', radius = 2000) {
         const cached = await cache.get(CACHE_KEY);
         if (cached) return { data: cached, error: null, fromCache: true };
 
+        const { data: functionData, error: functionError } = await supabase.functions.invoke('city-pois', {
+            body: { lat, lng, radius, category },
+        });
+
+        if (!functionError) {
+            const tomTomPois = functionData?.pois || functionData?.data || [];
+            if (tomTomPois.length > 0) {
+                await cache.set(CACHE_KEY, tomTomPois, TTL.LONG);
+                return {
+                    data: tomTomPois,
+                    error: null,
+                    fromCache: !!functionData?.fromCache,
+                    source: functionData?.source || 'tomtom',
+                };
+            }
+        }
+
         const limit = category === 'atm' || category === 'pharmacy' ? 10 : 25;
         const filter = buildFilter(category, radius, lat, lng);
-        const query = `[out:json][timeout:20];(${filter});out body ${limit};`;
+        const query = `[out:json][timeout:12];(${filter});out body ${limit};`;
         const overpassData = await queryOverpass(query);
 
         const pois = overpassData.elements
@@ -186,7 +205,9 @@ export async function getCityPOIs(lat, lng, category = 'all', radius = 2000) {
 
         return { data: pois, error: null, fromCache: false };
     } catch (err) {
-        console.error('getCityPOIs error:', err.message);
+        const stale = await cache.getStale(CACHE_KEY);
+        if (stale) return { data: stale, error: err.message, fromCache: true, stale: true };
+        console.warn('POI verisi şu an alınamadı:', err.message);
         return { data: [], error: err.message };
     }
 }

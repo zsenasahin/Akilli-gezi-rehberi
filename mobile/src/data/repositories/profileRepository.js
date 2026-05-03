@@ -25,7 +25,7 @@ export const getProfile = async (userId) => {
 export const updateProfile = async (userId, updates) => {
     // Sadece bilinen sütunları filtrele — DB'de olmayan sütunlar hata verebilir
     const safeUpdates = {};
-    const ALLOWED = ['full_name', 'travel_style', 'bio', 'avatar_url', 'phone', 'city'];
+    const ALLOWED = ['full_name', 'travel_style', 'bio', 'avatar_url', 'cover_url', 'phone', 'city'];
     Object.keys(updates).forEach(k => {
         if (ALLOWED.includes(k)) safeUpdates[k] = updates[k];
     });

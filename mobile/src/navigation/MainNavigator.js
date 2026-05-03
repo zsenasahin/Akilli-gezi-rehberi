@@ -19,10 +19,16 @@ import ItineraryResultScreen from '../screens/itinerary/ItineraryResultScreen';
 import SavedItinerariesScreen from '../screens/itinerary/SavedItinerariesScreen';
 import ItineraryDetailScreen from '../screens/itinerary/ItineraryDetailScreen';
 import FavoritesScreen from '../screens/favorites/FavoritesScreen';
+import MenuScreen from '../screens/profile/MenuScreen';
 import ProfileScreen from '../screens/profile/ProfileScreen';
+import CityCollectionScreen from '../screens/profile/CityCollectionScreen';
+import BadgesScreen from '../screens/profile/BadgesScreen';
+import ThemeSettingsScreen from '../screens/profile/ThemeSettingsScreen';
+import JournalPage from '../screens/journal/JournalPage';
 import MapScreen from '../screens/map/MapScreen';
 import TravelAssistantScreen from '../screens/assistant/TravelAssistantScreen';
 import EtkinliklerScreen from '../screens/discover/EtkinliklerScreen';
+import PasswordResetScreen from '../screens/auth/PasswordResetScreen';
 
 const Tab = createBottomTabNavigator();
 const HomeStack = createNativeStackNavigator();
@@ -121,10 +127,16 @@ const ProfileStackNavigator = () => {
     return (
         <ProfileStack.Navigator screenOptions={stackScreenOptions}>
             <ProfileStack.Screen name="ProfileMain" component={ProfileScreen} options={{ headerShown: false }} />
+            <ProfileStack.Screen name="ProfileMenu" component={MenuScreen} options={{ headerShown: false }} />
             <ProfileStack.Screen name="TravelAssistant" component={TravelAssistantScreen} options={{ headerShown: false }} />
             <ProfileStack.Screen name="ItineraryDetail" component={ItineraryDetailScreen} options={{ headerShown: false }} />
             <ProfileStack.Screen name="Saved" component={SavedItinerariesScreen} options={{ title: 'Planlarım' }} />
             <ProfileStack.Screen name="Favorites" component={FavoritesScreen} options={{ headerShown: false }} />
+            <ProfileStack.Screen name="Journal" component={JournalPage} options={{ headerShown: false }} />
+            <ProfileStack.Screen name="CityCollection" component={CityCollectionScreen} options={{ headerShown: false }} />
+            <ProfileStack.Screen name="Badges" component={BadgesScreen} options={{ headerShown: false }} />
+            <ProfileStack.Screen name="PasswordReset" component={PasswordResetScreen} options={{ headerShown: false }} />
+            <ProfileStack.Screen name="ThemeSettings" component={ThemeSettingsScreen} options={{ headerShown: false }} />
             <ProfileStack.Screen name="CityDetail" component={CityDetailScreen} options={{ headerShown: false }} />
         </ProfileStack.Navigator>
     );
@@ -203,7 +215,7 @@ const TabsWithFloating = () => {
                         let iconName;
                         if (route.name === 'Home') iconName = focused ? 'home-sharp' : 'home-outline';
                         else if (route.name === 'Saved') iconName = focused ? 'bookmarks' : 'bookmarks-outline';
-                        else if (route.name === 'Profile') iconName = focused ? 'person-circle' : 'person-outline';
+                        else if (route.name === 'Profile') iconName = focused ? 'person' : 'person-outline';
                         return <AnimatedTabIcon name={iconName} focused={focused} color={color} />;
                     },
                 })}

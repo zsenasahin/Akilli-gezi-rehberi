@@ -5,6 +5,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useFonts, Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold } from '@expo-google-fonts/inter';
 import { AuthProvider } from './src/contexts/AuthContext';
 import { AssistantProvider } from './src/contexts/AssistantContext';
+import { ThemeProvider } from './src/contexts/ThemeContext';
 import AppNavigator from './src/navigation/AppNavigator';
 import LoadingSpinner from './src/components/common/LoadingSpinner';
 import { initPrefetch } from './src/services/prefetchService';
@@ -36,10 +37,12 @@ export default function App() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <AuthProvider>
-          <AssistantProvider>
-            <StatusBar style="auto" translucent={false} />
-            <AppNavigator />
-          </AssistantProvider>
+          <ThemeProvider>
+            <AssistantProvider>
+              <StatusBar style="auto" translucent={false} />
+              <AppNavigator />
+            </AssistantProvider>
+          </ThemeProvider>
         </AuthProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>

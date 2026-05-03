@@ -16,6 +16,7 @@ import {
     Dimensions,
     RefreshControl,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -28,6 +29,7 @@ import { getCategoryImage } from '../../constants/cityImages';
 import { useAuth } from '../../contexts/AuthContext';
 import { getFavorites, removeFavorite } from '../../services/favoriteService';
 import { SkeletonLoader } from '../../components/common/SkeletonLoader';
+import { useThemePreference } from '../../contexts/ThemeContext';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 const CARD_WIDTH = SCREEN_W - SPACING.lg * 2;
@@ -46,6 +48,7 @@ const getCategoryIcon = (category) => {
 
 const FavoritesScreen = ({ navigation }) => {
     const { user } = useAuth();
+    const { theme } = useThemePreference();
     const [favorites, setFavorites] = useState([]);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
@@ -160,10 +163,17 @@ const FavoritesScreen = ({ navigation }) => {
 
     if (loading) {
         return (
-            <View style={styles.container}>
-                <View style={styles.header}>
-                    <SkeletonLoader width={160} height={28} radius={8} style={{ marginBottom: 6 }} />
-                    <SkeletonLoader width={90} height={14} radius={6} />
+            <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]} edges={['top']}>
+                <View style={[styles.headerBar, { backgroundColor: theme.colors.background }]}>
+                    <View style={styles.headerBarInner}>
+                        <TouchableOpacity style={[styles.backBtn, { backgroundColor: theme.colors.surfaceSoft }]} onPress={() => navigation.goBack()} activeOpacity={0.82}>
+                            <Ionicons name="chevron-back" size={20} color={theme.colors.text} />
+                        </TouchableOpacity>
+                        <View style={styles.headerTextBlock}>
+                            <SkeletonLoader width={160} height={28} radius={8} style={{ marginBottom: 6 }} />
+                            <SkeletonLoader width={90} height={14} radius={6} />
+                        </View>
+                    </View>
                 </View>
                 <View style={styles.listContent}>
                     {[0, 1, 2, 3].map(i => (
@@ -176,20 +186,27 @@ const FavoritesScreen = ({ navigation }) => {
                         />
                     ))}
                 </View>
-            </View>
+            </SafeAreaView>
         );
     }
 
     return (
-        <View style={styles.container}>
+        <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]} edges={['top']}>
             {/* Header */}
-            <View style={styles.header}>
-                <Text style={styles.headerTitle}>Favorilerim</Text>
-                <Text style={styles.headerSubtitle}>
-                    {favorites.length > 0
-                        ? `${favorites.length} kayıtlı yer`
-                        : 'Henüz favori yer yok'}
-                </Text>
+            <View style={[styles.headerBar, { backgroundColor: theme.colors.background }]}>
+                <View style={styles.headerBarInner}>
+                    <TouchableOpacity style={[styles.backBtn, { backgroundColor: theme.colors.surfaceSoft }]} onPress={() => navigation.goBack()} activeOpacity={0.82}>
+                        <Ionicons name="chevron-back" size={20} color={theme.colors.text} />
+                    </TouchableOpacity>
+                    <View style={styles.headerTextBlock}>
+                        <Text style={[styles.headerTitle, { color: theme.colors.text }]}>Favorilerim</Text>
+                        <Text style={[styles.headerSubtitle, { color: theme.colors.textSecondary }]}>
+                            {favorites.length > 0
+                                ? `${favorites.length} kayıtlı yer`
+                                : 'Henüz favori yer yok'}
+                        </Text>
+                    </View>
+                </View>
             </View>
 
             {favorites.length === 0 ? (
@@ -225,7 +242,7 @@ const FavoritesScreen = ({ navigation }) => {
                     }
                 />
             )}
-        </View>
+        </SafeAreaView>
     );
 };
 
@@ -233,21 +250,22 @@ const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: COLORS.background },
 
     // Header
-    header: {
+    headerBar: {
         paddingHorizontal: SPACING.lg,
-        paddingTop: SPACING.xxl + 8,
+        paddingTop: 10,
         paddingBottom: SPACING.sm,
-        backgroundColor: COLORS.surface,
     },
+    headerBarInner: { flexDirection: 'row', alignItems: 'center' },
+    headerTextBlock: { marginLeft: 12, flex: 1, justifyContent: 'center' },
+    headerTopRow: { marginBottom: 12 },
+    backBtn: { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center' },
     headerTitle: {
         fontFamily: FONTS.heading,
-        fontSize: 28,
-        color: COLORS.textPrimary,
+        fontSize: 24,
     },
     headerSubtitle: {
         fontFamily: 'Inter_400Regular',
         fontSize: FONT_SIZES.sm,
-        color: COLORS.textSecondary,
         marginTop: 2,
     },
 

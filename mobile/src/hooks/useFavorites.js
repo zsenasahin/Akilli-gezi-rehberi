@@ -49,7 +49,7 @@ const useFavorites = () => {
 
     /**
      * Check if a place is favorited.
-     * @param {number} placeId
+     * @param {string|number} placeId
      * @returns {boolean}
      */
     const isFavorite = useCallback(
@@ -59,11 +59,12 @@ const useFavorites = () => {
 
     /**
      * Toggle a place in/out of favorites with optimistic update.
-     * @param {number} placeId
+     * @param {object} place
      */
     const toggle = useCallback(
-        async (placeId) => {
-            if (!user) return;
+        async (place) => {
+            if (!user || !place || !place.id) return;
+            const placeId = place.id;
 
             // Optimistic update
             const wasFavorite = favoriteIds.has(placeId);
@@ -77,7 +78,7 @@ const useFavorites = () => {
             setFavoriteIds(newIds);
 
             // Server call
-            const { error: toggleError } = await toggleFavorite(user.id, placeId);
+            const { error: toggleError } = await toggleFavorite(user.id, place);
 
             if (toggleError) {
                 // Revert on error

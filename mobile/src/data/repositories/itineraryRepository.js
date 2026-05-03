@@ -69,7 +69,8 @@ export const getItinerariesByUser = async (userId) => {
         .select(`
             *,
             cities ( name ),
-            itinerary_items ( id )
+            itinerary_items ( id ),
+            plan
         `)
         .eq('user_id', userId)
         .order('created_at', { ascending: false });

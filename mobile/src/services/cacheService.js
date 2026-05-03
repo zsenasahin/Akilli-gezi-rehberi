@@ -31,10 +31,7 @@ const get = async (key) => {
         const raw = await AsyncStorage.getItem(CACHE_PREFIX + key);
         if (!raw) return null;
         const { data, expiresAt } = JSON.parse(raw);
-        if (Date.now() > expiresAt) {
-            AsyncStorage.removeItem(CACHE_PREFIX + key).catch(() => { });
-            return null;
-        }
+        if (Date.now() > expiresAt) return null;
 
         // 3. Bulunduysa belleğe de yaz (L1'e al)
         inMemoryCache.set(key, { data, expiresAt });
@@ -61,6 +58,27 @@ const set = async (key, data, ttlMinutes = DEFAULT_TTL_MIN) => {
         // 2. Diske yaz
         await AsyncStorage.setItem(CACHE_PREFIX + key, JSON.stringify(entry));
     } catch { }
+};
+
+/** Süresi geçmiş olsa bile son kayıtlı veriyi döndürür. Ağ hatalarında yedek olarak kullanılır. */
+const getStale = async (key) => {
+    if (!key) return null;
+    try {
+        if (inMemoryCache.has(key)) {
+            return inMemoryCache.get(key).data ?? null;
+        }
+
+        const raw = await AsyncStorage.getItem(CACHE_PREFIX + key);
+        if (!raw) return null;
+        const entry = JSON.parse(raw);
+        if (entry?.data !== undefined) {
+            inMemoryCache.set(key, entry);
+            return entry.data;
+        }
+        return null;
+    } catch {
+        return null;
+    }
 };
 
 /** Belirli bir anahtarı temizle */
@@ -117,7 +135,7 @@ const getMeta = async (key) => {
     }
 };
 
-export const cache = { get, set, invalidate, clear, fetch, getMeta };
+export const cache = { get, getStale, set, invalidate, clear, fetch, getMeta };
 
 // ─── TTL Sabitleri (okunabilirlik için) ───────────────────────────────────────
 export const TTL = {

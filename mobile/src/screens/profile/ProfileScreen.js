@@ -1,110 +1,174 @@
-import React, { useState, useCallback, useRef, useEffect } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-    View, Text, StyleSheet, ScrollView, TouchableOpacity,
-    TextInput, Alert, RefreshControl, Animated, Platform, Easing,
+    Alert,
+    Animated,
+    Platform,
+    RefreshControl,
+    ScrollView,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import SmartImage from '../../components/common/SmartImage';
 import { COLORS } from '../../constants/colors';
-import { FONTS, FONT_SIZES } from '../../constants/typography';
-import { SPACING, BORDER_RADIUS } from '../../constants/layout';
+import { FONTS } from '../../constants/typography';
+import { SPACING } from '../../constants/layout';
 import { useAuth } from '../../contexts/AuthContext';
 import { getProfile, updateProfile } from '../../services/profileService';
 import { getItinerariesByUser } from '../../services/itineraryService';
 import { signOut } from '../../services/authService';
 import useFavorites from '../../hooks/useFavorites';
 import { ProfileSkeleton } from '../../components/common/SkeletonLoader';
-import { getCityVisitStats } from '../../services/cityVisitService';
+import { getJournalBooks } from '../../services/journalStore';
+import { buildBadges, buildTravelStats } from '../../services/achievementService';
+import { useThemePreference } from '../../contexts/ThemeContext';
+
+const DEFAULT_COVER = require('../../../assets/doga.jpg');
 
 const TRAVEL_STYLES = [
-    { value: 'cultural',    label: 'Kültürel',    emoji: '🏛️' },
-    { value: 'adventure',   label: 'Macera',       emoji: '🧗' },
-    { value: 'relaxed',     label: 'Rahat',        emoji: '🌴' },
-    { value: 'gastronomy',  label: 'Gastronomi',   emoji: '🍽️' },
-    { value: 'nature',      label: 'Doğa',         emoji: '🌿' },
-    { value: 'photography', label: 'Fotoğraf',     emoji: '📸' },
+    { value: 'cultural', label: 'Kültürel' },
+    { value: 'adventure', label: 'Macera' },
+    { value: 'relaxed', label: 'Rahat' },
+    { value: 'gastronomy', label: 'Gastronomi' },
+    { value: 'nature', label: 'Doğa' },
+    { value: 'photography', label: 'Fotoğraf' },
 ];
 
 const LEGACY = { Kültürel: 'cultural', Macera: 'adventure', Rahat: 'relaxed', Gastronomi: 'gastronomy', Doğa: 'nature', Fotoğraf: 'photography' };
-const normalize = (s) => LEGACY[s] || s || '';
-
-const BADGES = [
-    { min: 0,  label: 'Kaşif Adayı',  emoji: '🌱', color: '#6B7280' },
-    { min: 1,  label: 'Gezgin',        emoji: '🗺️', color: '#0891B2' },
-    { min: 3,  label: 'Seyyah',        emoji: '🧭', color: '#7C3AED' },
-    { min: 5,  label: 'Maceracı',      emoji: '⛺', color: '#EA580C' },
-    { min: 10, label: 'Usta Gezgin',   emoji: '🏆', color: '#D97706' },
-];
-const getBadge = (n) => BADGES.slice().reverse().find(b => n >= b.min) || BADGES[0];
+const normalizeStyle = (value) => LEGACY[value] || value || '';
 
 const ProfileScreen = ({ navigation }) => {
     const { user } = useAuth();
     const { favorites } = useFavorites();
+    const { theme } = useThemePreference();
 
-    const [profile, setProfile]         = useState(null);
-    const [itineraries, setItineraries] = useState([]);
-    const [loading, setLoading]         = useState(true);
-    const [refreshing, setRefreshing]   = useState(false);
-    const [editing, setEditing]         = useState(false);
-    const [fullName, setFullName]       = useState('');
-    const [travelStyle, setTravelStyle] = useState('');
-    const [avatarUri, setAvatarUri]     = useState(null);
-    const [bio, setBio]                 = useState('');
-    const [visitedCount, setVisitedCount]   = useState(0);
-    const [wishlistCount, setWishlistCount] = useState(0);
-
-    // Fade-in animation
     const fadeAnim = useRef(new Animated.Value(0)).current;
+
+    const [profile, setProfile] = useState(null);
+    const [itineraries, setItineraries] = useState([]);
+    const [books, setBooks] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [refreshing, setRefreshing] = useState(false);
+    const [editing, setEditing] = useState(false);
+
+    const [fullName, setFullName] = useState('');
+    const [travelStyle, setTravelStyle] = useState('');
+    const [bio, setBio] = useState('');
+    const [coverUri, setCoverUri] = useState(null);
+    const [cityCollection, setCityCollection] = useState([]);
+    const [badges, setBadges] = useState([]);
+
     useEffect(() => {
-        Animated.timing(fadeAnim, { toValue: 1, duration: 500, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start();
-    }, []);
+        Animated.timing(fadeAnim, {
+            toValue: 1,
+            duration: 420,
+            useNativeDriver: true,
+        }).start();
+    }, [fadeAnim]);
 
     const fetchData = useCallback(async () => {
         if (!user) return;
-        const [profileRes, itinRes, statsRes] = await Promise.all([
+
+        const [profileRes, itinerariesRes, journalBooks] = await Promise.all([
             getProfile(user.id),
             getItinerariesByUser(user.id),
-            getCityVisitStats(user.id),
+            getJournalBooks(user.id),
         ]);
-        if (profileRes.data) {
-            const p = profileRes.data;
-            setProfile(p);
-            setFullName(p.full_name || '');
-            setTravelStyle(normalize(p.travel_style));
-            setBio(p.bio || '');
-            if (p.avatar_url) setAvatarUri(p.avatar_url);
-        }
-        if (itinRes.data) setItineraries(itinRes.data);
-        setVisitedCount(statsRes.visitedCount || 0);
-        setWishlistCount(statsRes.wishlistCount || 0);
+
+        const nextProfile = profileRes.data || null;
+        const nextItineraries = itinerariesRes.data || [];
+
+        setProfile(nextProfile);
+        setItineraries(nextItineraries);
+        setBooks(journalBooks || []);
+        setFullName(nextProfile?.full_name || '');
+        setTravelStyle(normalizeStyle(nextProfile?.travel_style));
+        setBio(nextProfile?.bio || '');
+        setCoverUri(nextProfile?.cover_url || null);
+
+        const cityMap = nextItineraries.reduce((acc, itinerary) => {
+            const cityName = itinerary?.cities?.name;
+            if (!cityName) return acc;
+            if (!acc[cityName]) {
+                acc[cityName] = {
+                    cityName,
+                    latestDate: itinerary.created_at || null,
+                    planCount: 0,
+                };
+            }
+            acc[cityName].planCount += 1;
+            if ((itinerary.created_at || '') > (acc[cityName].latestDate || '')) {
+                acc[cityName].latestDate = itinerary.created_at;
+            }
+            return acc;
+        }, {});
+
+        setCityCollection(
+            Object.values(cityMap).sort((a, b) => (b.latestDate || '').localeCompare(a.latestDate || ''))
+        );
+        setBadges(buildBadges(nextItineraries).badges);
         setLoading(false);
         setRefreshing(false);
     }, [user]);
 
-    useFocusEffect(useCallback(() => { fetchData(); }, [fetchData]));
+    useFocusEffect(useCallback(() => {
+        fetchData();
+    }, [fetchData]));
 
-    const handlePickAvatar = async () => {
+    const pickImage = async () => {
         const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-        if (status !== 'granted') { Alert.alert('İzin Gerekli', 'Galeri iznine ihtiyacımız var.'); return; }
-        const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, allowsEditing: true, aspect: [1, 1], quality: 0.8 });
-        if (!result.canceled && result.assets?.[0]?.uri) {
-            setAvatarUri(result.assets[0].uri);
-            await updateProfile(user.id, { avatar_url: result.assets[0].uri });
+        if (status !== 'granted') {
+            Alert.alert('İzin Gerekli', 'Galeri izni olmadan görsel seçilemiyor.');
+            return;
         }
+
+        const result = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ImagePicker.MediaTypeOptions.Images,
+            allowsEditing: true,
+            aspect: [16, 10],
+            quality: 0.9,
+        });
+
+        if (result.canceled || !result.assets?.[0]?.uri) return;
+
+        const nextUri = result.assets[0].uri;
+        setCoverUri(nextUri);
+        await updateProfile(user.id, { cover_url: nextUri });
     };
 
     const handleSave = async () => {
-        const { error } = await updateProfile(user.id, { full_name: fullName, travel_style: travelStyle, bio });
-        if (error) { Alert.alert('Hata', error.message); return; }
-        setProfile(p => ({ ...p, full_name: fullName, travel_style: travelStyle, bio }));
+        const { data, error } = await updateProfile(user.id, {
+            full_name: fullName,
+            travel_style: travelStyle,
+            bio,
+            cover_url: coverUri,
+        });
+
+        if (error) {
+            Alert.alert('Hata', error.message || 'Profil güncellenemedi.');
+            return;
+        }
+
+        setProfile(data || {
+            ...profile,
+            full_name: fullName,
+            travel_style: travelStyle,
+            bio,
+            cover_url: coverUri,
+        });
         setEditing(false);
     };
 
     const handleLogout = () => {
-        Alert.alert('Çıkış Yap', 'Emin misiniz?', [
+        Alert.alert('Çıkış Yap', 'Oturumu kapatmak istediğine emin misin?', [
             { text: 'İptal', style: 'cancel' },
             { text: 'Çıkış Yap', style: 'destructive', onPress: async () => { await signOut(); } },
         ]);
@@ -112,252 +176,248 @@ const ProfileScreen = ({ navigation }) => {
 
     if (loading) return <ProfileSkeleton />;
 
-    const completedCount = itineraries.filter(i => i.status === 'completed').length;
-    const badge = getBadge(visitedCount);
-    const initials = (fullName || user?.email || '?')[0].toUpperCase();
-    const styleObj = TRAVEL_STYLES.find(s => s.value === normalize(travelStyle));
-    const travelPct = Math.round(visitedCount / 81 * 100);
+    const totalPages = books.reduce((sum, book) => sum + (book.pages?.length || 0), 0);
+    const travelStats = buildTravelStats(itineraries);
+    const completedPlans = travelStats.completedPlans;
+    const styleLabel = TRAVEL_STYLES.find((item) => item.value === normalizeStyle(travelStyle))?.label || 'Tarz seçilmedi';
+    const profileName = profile?.full_name || 'İsimsiz Gezgin';
+    const visitedRatio = Math.min(100, Math.round((cityCollection.length / 81) * 100));
+    const earnedBadges = badges.filter((badge) => badge.earned).slice(0, 4);
 
     return (
-        <ScrollView
-            style={styles.container}
-            contentContainerStyle={styles.content}
-            showsVerticalScrollIndicator={false}
-            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchData(); }} tintColor={COLORS.primary} />}
-        >
-            <Animated.View style={{ opacity: fadeAnim }}>
-
-                {/* ── HEADER ── */}
-                <LinearGradient colors={['#0C1A2E', '#0E3A5C', '#0891B2']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.header}>
-                    {/* Edit button */}
-                    <TouchableOpacity style={styles.editBtn} onPress={() => setEditing(!editing)}>
-                        <Ionicons name={editing ? 'close' : 'create-outline'} size={18} color="rgba(255,255,255,0.85)" />
-                    </TouchableOpacity>
-
-                    {/* Avatar */}
-                    <TouchableOpacity onPress={editing ? handlePickAvatar : undefined} activeOpacity={editing ? 0.8 : 1} style={styles.avatarWrap}>
-                        <View style={styles.avatar}>
-                            {avatarUri
-                                ? <SmartImage uri={avatarUri} style={styles.avatarImg} contentFit="cover" />
-                                : <Text style={styles.avatarInitials}>{initials}</Text>
-                            }
+        <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.colors.background }]} edges={['top']}>
+            <StatusBar barStyle="light-content" />
+            <ScrollView
+                style={[styles.container, { backgroundColor: theme.colors.background }]}
+                contentContainerStyle={styles.content}
+                showsVerticalScrollIndicator={false}
+                refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchData(); }} tintColor={COLORS.primaryDark} />}
+            >
+                <Animated.View style={{ opacity: fadeAnim }}>
+                    <View style={[styles.heroCard, { backgroundColor: theme.colors.surface }]}>
+                        <View style={styles.coverWrap}>
+                            {coverUri ? (
+                                <SmartImage uri={coverUri} style={styles.coverImage} contentFit="cover" />
+                            ) : (
+                                <SmartImage source={DEFAULT_COVER} style={styles.coverImage} contentFit="cover" />
+                            )}
+                            <LinearGradient colors={['rgba(11,18,16,0.16)', 'rgba(11,18,16,0.8)']} style={styles.coverOverlay} />
+                            <View style={styles.heroTopRow}>
+                                <TouchableOpacity style={styles.heroIconBtn} onPress={() => editing ? pickImage() : setEditing(true)} activeOpacity={0.85}>
+                                    <Ionicons name={editing ? 'image-outline' : 'create-outline'} size={18} color="#fff" />
+                                </TouchableOpacity>
+                                <TouchableOpacity style={styles.heroIconBtn} onPress={() => navigation.navigate('ProfileMenu')} activeOpacity={0.85}>
+                                    <Ionicons name="menu-outline" size={22} color="#fff" />
+                                </TouchableOpacity>
+                            </View>
+                            <View style={styles.heroCopy}>
+                                <Text style={styles.heroEyebrow}>Gezgin profili</Text>
+                                <Text style={styles.heroTitle}>{profileName}</Text>
+                            </View>
                         </View>
-                        {editing && <View style={styles.avatarCam}><Ionicons name="camera" size={12} color="#fff" /></View>}
-                    </TouchableOpacity>
 
-                    {editing ? (
-                        <View style={styles.editForm}>
-                            <TextInput style={styles.editInput} value={fullName} onChangeText={setFullName} placeholder="Ad Soyad" placeholderTextColor="rgba(255,255,255,0.4)" />
-                            <TextInput style={[styles.editInput, { minHeight: 48, textAlignVertical: 'top' }]} value={bio} onChangeText={setBio} placeholder="Kısa bio..." placeholderTextColor="rgba(255,255,255,0.4)" multiline />
-                            <Text style={styles.editLabel}>Seyahat Tarzı</Text>
-                            <View style={styles.styleRow}>
-                                {TRAVEL_STYLES.map(s => (
-                                    <TouchableOpacity key={s.value} style={[styles.styleChip, travelStyle === s.value && styles.styleChipOn]} onPress={() => setTravelStyle(s.value)}>
-                                        <Text style={styles.styleEmoji}>{s.emoji}</Text>
-                                        <Text style={[styles.styleLabel, travelStyle === s.value && { color: '#fff', fontFamily: FONTS.bodySemiBold }]}>{s.label}</Text>
-                                    </TouchableOpacity>
+                        <View style={[styles.profileInfoCard, { backgroundColor: theme.key === 'dark' ? 'rgba(23,33,30,0.96)' : 'rgba(255,255,255,0.96)', borderColor: theme.key === 'dark' ? theme.colors.border : 'rgba(255,255,255,0.85)' }]}>
+                            {editing ? (
+                                <View style={styles.editPanel}>
+                                    <TextInput value={fullName} onChangeText={setFullName} placeholder="Ad soyad" placeholderTextColor="#6B7280" style={styles.editInput} />
+                                    <TextInput value={bio} onChangeText={setBio} placeholder="Kısa bir biyografi" placeholderTextColor="#6B7280" style={[styles.editInput, styles.bioInput]} multiline maxLength={180} />
+                                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.styleList}>
+                                        {TRAVEL_STYLES.map((item) => (
+                                            <TouchableOpacity
+                                                key={item.value}
+                                                style={[styles.styleChip, travelStyle === item.value && styles.styleChipActive]}
+                                                onPress={() => setTravelStyle(item.value)}
+                                                activeOpacity={0.85}
+                                            >
+                                                <Text style={[styles.styleChipTxt, travelStyle === item.value && styles.styleChipTxtActive]}>{item.label}</Text>
+                                            </TouchableOpacity>
+                                        ))}
+                                    </ScrollView>
+                                    <View style={styles.editActions}>
+                                        <TouchableOpacity style={styles.secondaryBtn} onPress={() => setEditing(false)}><Text style={styles.secondaryBtnTxt}>Vazgeç</Text></TouchableOpacity>
+                                        <TouchableOpacity style={styles.primaryBtn} onPress={handleSave}><Text style={styles.primaryBtnTxt}>Kaydet</Text></TouchableOpacity>
+                                    </View>
+                                </View>
+                            ) : (
+                                <View style={styles.identityBlock}>
+                                    <View style={styles.nameRow}>
+                                        <Text style={[styles.profileName, { color: theme.colors.text }]}>{profileName}</Text>
+                                        <TouchableOpacity style={styles.smallEditBtn} onPress={() => setEditing(true)} activeOpacity={0.82}>
+                                            <Ionicons name="create-outline" size={15} color={COLORS.primaryDark} />
+                                        </TouchableOpacity>
+                                    </View>
+                                    <Text style={[styles.profileBio, { color: theme.colors.textSecondary }]}>{bio || 'Kendini, gezi tarzını ve bir sonraki rotanı birkaç cümleyle anlat.'}</Text>
+                                    <View style={styles.badgeRow}>
+                                        <LinearGradient colors={['#DDF2E9', '#F6FAF7']} style={styles.badgePill}>
+                                            <Ionicons name="sparkles-outline" size={13} color={COLORS.primaryDark} />
+                                            <Text style={styles.badgeTxt}>{styleLabel}</Text>
+                                        </LinearGradient>
+                                    </View>
+                                </View>
+                            )}
+                        </View>
+                    </View>
+
+                    <View style={[styles.statsPanel, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
+                        <View style={styles.statsHeader}>
+                            <Text style={[styles.statsTitle, { color: theme.colors.text }]}>Seyahat özeti</Text>
+                            <Text style={[styles.statsMeta, { color: theme.colors.primary }]}>Türkiye hedefi %{visitedRatio}</Text>
+                        </View>
+                        <View style={[styles.progressTrack, { backgroundColor: theme.colors.pill }]}>
+                            <View style={[styles.progressFill, { width: `${Math.max(8, visitedRatio)}%`, backgroundColor: theme.colors.primary }]} />
+                        </View>
+                        <Text style={[styles.progressCaption, { color: theme.colors.textSecondary }]}>{cityCollection.length} / 81 şehir görüldü</Text>
+
+                        <View style={styles.statGrid}>
+                            <InlineStat label="Gezilen şehir" value={cityCollection.length} icon="location-outline" theme={theme} />
+                            <InlineStat label="Favori" value={favorites.length} icon="heart-outline" theme={theme} />
+                            <InlineStat label="Plan" value={itineraries.length} icon="map-outline" theme={theme} />
+                            <InlineStat label="Sayfa" value={totalPages} icon="document-text-outline" theme={theme} />
+                        </View>
+                    </View>
+
+                    <View style={[styles.sectionCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
+                        <View style={styles.sectionHeader}>
+                            <View>
+                                <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Defterlerin</Text>
+                                <Text style={[styles.sectionSub, { color: theme.colors.textSecondary }]}>Defterlerine tek yerden dön</Text>
+                            </View>
+                            <TouchableOpacity style={styles.inlineBtn} onPress={() => navigation.navigate('Journal')}>
+                                <Text style={styles.inlineBtnTxt}>Aç</Text>
+                            </TouchableOpacity>
+                        </View>
+                        <View style={styles.journalSummary}>
+                            <View style={[styles.journalCount, { backgroundColor: theme.colors.surfaceSoft }]}>
+                                <Text style={[styles.journalValue, { color: theme.colors.text }]}>{books.length}</Text>
+                                <Text style={[styles.journalLabel, { color: theme.colors.textSecondary }]}>defter</Text>
+                            </View>
+                            <View style={[styles.journalCount, { backgroundColor: theme.colors.surfaceSoft }]}>
+                                <Text style={[styles.journalValue, { color: theme.colors.text }]}>{totalPages}</Text>
+                                <Text style={[styles.journalLabel, { color: theme.colors.textSecondary }]}>sayfa</Text>
+                            </View>
+                            <View style={[styles.journalCount, { backgroundColor: theme.colors.surfaceSoft }]}>
+                                <Text style={[styles.journalValue, { color: theme.colors.text }]}>{completedPlans}</Text>
+                                <Text style={[styles.journalLabel, { color: theme.colors.textSecondary }]}>tamamlanan plan</Text>
+                            </View>
+                        </View>
+                    </View>
+
+                    <View style={[styles.sectionCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
+                        <View style={styles.sectionHeader}>
+                            <View>
+                                <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Rozetlerin</Text>
+                                <Text style={[styles.sectionSub, { color: theme.colors.textSecondary }]}>Kazandığın madalyalar burada görünür</Text>
+                            </View>
+                            <TouchableOpacity style={styles.inlineBtn} onPress={() => navigation.navigate('Badges')}>
+                                <Text style={styles.inlineBtnTxt}>Tümü</Text>
+                            </TouchableOpacity>
+                        </View>
+                        {earnedBadges.length ? (
+                            <View style={styles.medalRow}>
+                                {earnedBadges.map((badge) => (
+                                    <View key={badge.key} style={styles.medalItem}>
+                                        <View style={[styles.medalOuter, { backgroundColor: badge.ring }]}>
+                                            <View style={[styles.medalInner, { backgroundColor: badge.color }]}>
+                                                <Ionicons name={badge.icon} size={20} color="#fff" />
+                                            </View>
+                                        </View>
+                                        <Text style={[styles.medalLabel, { color: theme.colors.text }]}>{badge.label}</Text>
+                                    </View>
                                 ))}
                             </View>
-                            <View style={styles.editBtns}>
-                                <TouchableOpacity style={styles.cancelBtn} onPress={() => setEditing(false)}><Text style={styles.cancelTxt}>İptal</Text></TouchableOpacity>
-                                <TouchableOpacity style={styles.saveBtn} onPress={handleSave}><Text style={styles.saveTxt}>Kaydet</Text></TouchableOpacity>
-                            </View>
-                        </View>
-                    ) : (
-                        <View style={styles.nameBlock}>
-                            <Text style={styles.name}>{profile?.full_name || 'İsimsiz Gezgin'}</Text>
-                            <Text style={styles.email}>{user?.email}</Text>
-                            {bio ? <Text style={styles.bioTxt}>{bio}</Text> : null}
-                            <View style={styles.tagRow}>
-                                <View style={[styles.tag, { backgroundColor: badge.color + '30' }]}>
-                                    <Text style={styles.tagTxt}>{badge.emoji} {badge.label}</Text>
-                                </View>
-                                {styleObj && (
-                                    <View style={styles.tag}>
-                                        <Text style={styles.tagTxt}>{styleObj.emoji} {styleObj.label}</Text>
-                                    </View>
-                                )}
-                            </View>
-                        </View>
-                    )}
-                </LinearGradient>
-
-                {/* ── STATS GRID ── */}
-                <View style={styles.statsGrid}>
-                    <StatCard value={visitedCount} label="Gezilen Şehir" icon="location" color="#22C55E" />
-                    <StatCard value={wishlistCount} label="Bucket List" icon="heart" color="#EF4444" />
-                    <StatCard value={completedCount} label="Tamamlanan Plan" icon="checkmark-circle" color={COLORS.primary} />
-                    <StatCard value={favorites.length} label="Favori Yer" icon="bookmark" color="#F59E0B" />
-                </View>
-
-                {/* Türkiye progress */}
-                {visitedCount > 0 && (
-                    <View style={styles.progressCard}>
-                        <View style={styles.progressHeader}>
-                            <Text style={styles.progressLabel}>🇹🇷 Türkiye'yi Keşfet</Text>
-                            <Text style={styles.progressPct}>%{travelPct}</Text>
-                        </View>
-                        <View style={styles.progressTrack}>
-                            <View style={[styles.progressFill, { width: `${travelPct}%` }]} />
-                        </View>
-                        <Text style={styles.progressSub}>{visitedCount} / 81 il gezildi</Text>
+                        ) : (
+                            <Text style={[styles.emptyTxt, { color: theme.colors.textSecondary }]}>İlk rozetin için bir şehir planını tamamlaman yeterli.</Text>
+                        )}
                     </View>
-                )}
 
-                {/* ── MENÜ ── */}
-                <View style={styles.menuSection}>
-                    <MenuItem icon="heart-outline" label="Favorilerim" sub={`${favorites.length} mekan`} color="#EF4444" onPress={() => navigation.navigate('Favorites')} />
-                    <MenuItem icon="map-outline" label="Gezi Planlarım" sub={`${itineraries.length} plan`} color={COLORS.primary} onPress={() => navigation.navigate('Saved')} />
-                    <MenuItem icon="chatbubble-ellipses-outline" label="Yardım & Destek" color="#8B5CF6" onPress={() => navigation.navigate('TravelAssistant', { context: {} })} />
-                </View>
-
-                {/* ── ÇIKIŞ ── */}
-                <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout} activeOpacity={0.8}>
-                    <Ionicons name="log-out-outline" size={18} color={COLORS.error} />
-                    <Text style={styles.logoutTxt}>Çıkış Yap</Text>
-                </TouchableOpacity>
-
-                <Text style={styles.version}>Akıllı Gezi Rehberi v1.0</Text>
-            </Animated.View>
-        </ScrollView>
+                    <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout} activeOpacity={0.85}>
+                        <Ionicons name="log-out-outline" size={18} color={COLORS.error} />
+                        <Text style={styles.logoutTxt}>Çıkış yap</Text>
+                    </TouchableOpacity>
+                </Animated.View>
+            </ScrollView>
+        </SafeAreaView>
     );
 };
 
-// ─── Alt bileşenler ──────────────────────────────────────────────────────────
-const StatCard = ({ value, label, icon, color }) => (
-    <View style={styles.statCard}>
-        <View style={[styles.statIcon, { backgroundColor: color + '18' }]}>
-            <Ionicons name={icon} size={20} color={color} />
+const InlineStat = ({ label, value, icon, theme }) => (
+    <View style={styles.statItem}>
+        <View style={[styles.statIconWrap, { backgroundColor: theme.colors.pill }]}>
+            <Ionicons name={icon} size={16} color={theme.colors.primary} />
         </View>
-        <Text style={styles.statValue}>{value}</Text>
-        <Text style={styles.statLabel}>{label}</Text>
+        <View style={styles.statText}>
+            <Text style={[styles.statValue, { color: theme.colors.text }]}>{value}</Text>
+            <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>{label}</Text>
+        </View>
     </View>
 );
 
-const MenuItem = ({ icon, label, sub, color, onPress }) => (
-    <TouchableOpacity style={styles.menuRow} onPress={onPress} activeOpacity={0.7}>
-        <View style={[styles.menuIcon, { backgroundColor: color + '15' }]}>
-            <Ionicons name={icon} size={18} color={color} />
-        </View>
-        <View style={styles.menuInfo}>
-            <Text style={styles.menuLabel}>{label}</Text>
-            {sub && <Text style={styles.menuSub}>{sub}</Text>}
-        </View>
-        <Ionicons name="chevron-forward" size={16} color={COLORS.textLight} />
-    </TouchableOpacity>
-);
-
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: COLORS.background },
-    content: { paddingBottom: 100 },
-
-    // Header
-    header: {
-        paddingTop: Platform.OS === 'ios' ? 64 : 44,
-        paddingBottom: SPACING.xl,
-        paddingHorizontal: SPACING.lg,
-        alignItems: 'center',
-    },
-    editBtn: {
-        position: 'absolute', top: Platform.OS === 'ios' ? 60 : 40, right: SPACING.lg,
-        width: 34, height: 34, borderRadius: 17,
-        backgroundColor: 'rgba(255,255,255,0.15)',
-        justifyContent: 'center', alignItems: 'center', zIndex: 10,
-    },
-    avatarWrap: { position: 'relative', marginBottom: SPACING.sm },
-    avatar: {
-        width: 88, height: 88, borderRadius: 44,
-        backgroundColor: 'rgba(255,255,255,0.2)',
-        justifyContent: 'center', alignItems: 'center',
-        borderWidth: 3, borderColor: 'rgba(255,255,255,0.4)', overflow: 'hidden',
-    },
-    avatarImg: { width: '100%', height: '100%' },
-    avatarInitials: { fontFamily: FONTS.heading, fontSize: 34, color: '#fff' },
-    avatarCam: {
-        position: 'absolute', bottom: 0, right: 0,
-        width: 26, height: 26, borderRadius: 13,
-        backgroundColor: COLORS.primary, justifyContent: 'center', alignItems: 'center',
-        borderWidth: 2, borderColor: '#fff',
-    },
-    nameBlock: { alignItems: 'center', gap: 4 },
-    name: { fontFamily: FONTS.heading, fontSize: 22, color: '#fff', letterSpacing: -0.3 },
-    email: { fontFamily: FONTS.body, fontSize: FONT_SIZES.xs, color: 'rgba(255,255,255,0.6)' },
-    bioTxt: { fontFamily: FONTS.body, fontSize: FONT_SIZES.sm, color: 'rgba(255,255,255,0.75)', textAlign: 'center', marginTop: 4, paddingHorizontal: SPACING.lg, lineHeight: 20 },
-    tagRow: { flexDirection: 'row', gap: SPACING.xs, marginTop: SPACING.sm, flexWrap: 'wrap', justifyContent: 'center' },
-    tag: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.15)', paddingHorizontal: 10, paddingVertical: 4, borderRadius: BORDER_RADIUS.full },
-    tagTxt: { fontFamily: FONTS.bodySemiBold, fontSize: 11, color: '#fff' },
-
-    // Edit form
-    editForm: { width: '100%', gap: SPACING.sm },
-    editInput: {
-        backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: BORDER_RADIUS.md,
-        paddingHorizontal: SPACING.md, paddingVertical: 10,
-        fontFamily: FONTS.body, fontSize: FONT_SIZES.md, color: '#fff',
-        borderWidth: 1, borderColor: 'rgba(255,255,255,0.18)',
-    },
-    editLabel: { fontFamily: FONTS.bodySemiBold, fontSize: FONT_SIZES.xs, color: 'rgba(255,255,255,0.75)' },
-    styleRow: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.xs },
-    styleChip: {
-        flexDirection: 'row', alignItems: 'center', gap: 4,
-        paddingHorizontal: 10, paddingVertical: 5, borderRadius: BORDER_RADIUS.full,
-        backgroundColor: 'rgba(255,255,255,0.1)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)',
-    },
-    styleChipOn: { backgroundColor: 'rgba(255,255,255,0.28)', borderColor: '#fff' },
-    styleEmoji: { fontSize: 13 },
-    styleLabel: { fontFamily: FONTS.body, fontSize: FONT_SIZES.xs, color: 'rgba(255,255,255,0.7)' },
-    editBtns: { flexDirection: 'row', gap: SPACING.sm, marginTop: 4 },
-    cancelBtn: { flex: 1, paddingVertical: 11, borderRadius: BORDER_RADIUS.md, backgroundColor: 'rgba(255,255,255,0.1)', alignItems: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)' },
-    cancelTxt: { fontFamily: FONTS.bodySemiBold, fontSize: FONT_SIZES.sm, color: '#fff' },
-    saveBtn: { flex: 2, paddingVertical: 11, borderRadius: BORDER_RADIUS.md, backgroundColor: 'rgba(255,255,255,0.9)', alignItems: 'center' },
-    saveTxt: { fontFamily: FONTS.bodySemiBold, fontSize: FONT_SIZES.sm, color: COLORS.primary },
-
-    // Stats grid — 2x2
-    statsGrid: {
-        flexDirection: 'row', flexWrap: 'wrap',
-        marginHorizontal: SPACING.md, marginTop: SPACING.md,
-        gap: SPACING.sm,
-    },
-    statCard: {
-        width: '47.5%', backgroundColor: COLORS.surface,
-        borderRadius: BORDER_RADIUS.lg, padding: SPACING.md,
-        alignItems: 'flex-start',
-        shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 3,
-    },
-    statIcon: { width: 38, height: 38, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginBottom: SPACING.sm },
-    statValue: { fontFamily: FONTS.heading, fontSize: 26, color: COLORS.textPrimary, letterSpacing: -0.5 },
-    statLabel: { fontFamily: FONTS.body, fontSize: FONT_SIZES.xs, color: COLORS.textSecondary, marginTop: 2 },
-
-    // Progress
-    progressCard: {
-        marginHorizontal: SPACING.md, marginTop: SPACING.sm,
-        backgroundColor: COLORS.surface, borderRadius: BORDER_RADIUS.lg,
-        padding: SPACING.md,
-        shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 3,
-    },
-    progressHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: SPACING.sm },
-    progressLabel: { fontFamily: FONTS.bodySemiBold, fontSize: FONT_SIZES.sm, color: COLORS.textPrimary },
-    progressPct: { fontFamily: FONTS.heading, fontSize: FONT_SIZES.lg, color: COLORS.primary },
-    progressTrack: { height: 8, backgroundColor: COLORS.border, borderRadius: 4, overflow: 'hidden' },
-    progressFill: { height: '100%', backgroundColor: COLORS.primary, borderRadius: 4 },
-    progressSub: { fontFamily: FONTS.body, fontSize: FONT_SIZES.xs, color: COLORS.textSecondary, marginTop: 6 },
-
-    // Menu
-    menuSection: { marginHorizontal: SPACING.md, marginTop: SPACING.md, backgroundColor: COLORS.surface, borderRadius: BORDER_RADIUS.lg, overflow: 'hidden', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 3 },
-    menuRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, paddingHorizontal: SPACING.md, borderBottomWidth: 1, borderBottomColor: COLORS.divider },
-    menuIcon: { width: 36, height: 36, borderRadius: 10, justifyContent: 'center', alignItems: 'center', marginRight: SPACING.sm },
-    menuInfo: { flex: 1 },
-    menuLabel: { fontFamily: FONTS.bodySemiBold, fontSize: FONT_SIZES.sm, color: COLORS.textPrimary },
-    menuSub: { fontFamily: FONTS.body, fontSize: FONT_SIZES.xs, color: COLORS.textSecondary, marginTop: 1 },
-
-    // Logout
-    logoutBtn: {
-        flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-        marginHorizontal: SPACING.md, marginTop: SPACING.md,
-        paddingVertical: 14, borderRadius: BORDER_RADIUS.lg,
-        backgroundColor: COLORS.error + '08', borderWidth: 1, borderColor: COLORS.error + '20',
-    },
-    logoutTxt: { fontFamily: FONTS.bodySemiBold, fontSize: FONT_SIZES.sm, color: COLORS.error },
-    version: { fontFamily: FONTS.body, fontSize: FONT_SIZES.xs, color: COLORS.textLight, textAlign: 'center', marginTop: SPACING.md, marginBottom: SPACING.xl },
+    safeArea: { flex: 1, backgroundColor: '#F5F6F1' },
+    container: { flex: 1, backgroundColor: '#F5F6F1' },
+    content: { paddingBottom: 110 },
+    heroCard: { marginHorizontal: SPACING.md, marginTop: Platform.OS === 'ios' ? SPACING.md : SPACING.sm, borderRadius: 28, overflow: 'hidden', backgroundColor: '#fff' },
+    coverWrap: { height: 230, position: 'relative' },
+    coverImage: { width: '100%', height: '100%' },
+    coverOverlay: { ...StyleSheet.absoluteFillObject },
+    heroTopRow: { position: 'absolute', top: 16, left: 16, right: 16, flexDirection: 'row', justifyContent: 'space-between' },
+    heroIconBtn: { width: 42, height: 42, borderRadius: 21, backgroundColor: 'rgba(255,255,255,0.18)', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.28)' },
+    heroCopy: { position: 'absolute', left: 20, right: 20, bottom: 72 },
+    heroEyebrow: { fontFamily: FONTS.bodySemiBold, fontSize: 12, color: 'rgba(255,255,255,0.82)', letterSpacing: 0, textTransform: 'uppercase' },
+    heroTitle: { marginTop: 4, fontFamily: FONTS.heading, fontSize: 31, color: '#fff' },
+    profileInfoCard: { marginTop: -48, marginHorizontal: 16, marginBottom: 16, padding: 18, borderRadius: 24, backgroundColor: 'rgba(255,255,255,0.96)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.85)' },
+    identityBlock: { alignItems: 'center' },
+    nameRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+    profileName: { fontFamily: FONTS.heading, fontSize: 27, color: '#13231C', textAlign: 'center' },
+    smallEditBtn: { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: '#EAF2EC' },
+    profileBio: { marginTop: 10, fontFamily: FONTS.body, fontSize: 14, lineHeight: 20, color: '#33423C', textAlign: 'center' },
+    badgeRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 8, marginTop: 14 },
+    badgePill: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, backgroundColor: '#EAF2EC' },
+    badgeTxt: { fontFamily: FONTS.bodySemiBold, fontSize: 12, color: COLORS.primaryDark },
+    editPanel: { gap: 10 },
+    editInput: { borderRadius: 16, borderWidth: 1, borderColor: '#D6DFD8', backgroundColor: '#FBFCFB', paddingHorizontal: 14, paddingVertical: 11, fontFamily: FONTS.body, fontSize: 14, color: '#13231C' },
+    bioInput: { minHeight: 92, textAlignVertical: 'top' },
+    styleList: { gap: 8, paddingTop: 2, paddingBottom: 2 },
+    styleChip: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, backgroundColor: '#EEF3EF', borderWidth: 1, borderColor: '#D6DFD8' },
+    styleChipActive: { backgroundColor: '#17372D', borderColor: '#17372D' },
+    styleChipTxt: { fontFamily: FONTS.bodyMedium, fontSize: 12, color: '#43514B' },
+    styleChipTxtActive: { color: '#fff' },
+    editActions: { flexDirection: 'row', gap: 10, marginTop: 4 },
+    secondaryBtn: { flex: 1, borderRadius: 14, backgroundColor: '#EEF3EF', paddingVertical: 12, alignItems: 'center' },
+    secondaryBtnTxt: { fontFamily: FONTS.bodySemiBold, fontSize: 13, color: '#2F3D37' },
+    primaryBtn: { flex: 1.3, borderRadius: 14, backgroundColor: '#17372D', paddingVertical: 12, alignItems: 'center' },
+    primaryBtnTxt: { fontFamily: FONTS.bodySemiBold, fontSize: 13, color: '#fff' },
+    statsPanel: { marginHorizontal: SPACING.md, marginTop: SPACING.md, borderRadius: 24, padding: 18, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E6ECE7' },
+    statsHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12 },
+    statsTitle: { fontFamily: FONTS.bodySemiBold, fontSize: 18, color: '#13231C' },
+    statsMeta: { fontFamily: FONTS.bodySemiBold, fontSize: 13, color: COLORS.primaryDark },
+    progressTrack: { height: 9, borderRadius: 999, backgroundColor: '#E7EEE9', marginTop: 14, overflow: 'hidden' },
+    progressFill: { height: '100%', borderRadius: 999, backgroundColor: COLORS.primaryDark },
+    progressCaption: { marginTop: 10, fontFamily: FONTS.body, fontSize: 13, color: '#66746E' },
+    statGrid: { marginTop: 18, gap: 12 },
+    statItem: { flexDirection: 'row', alignItems: 'center' },
+    statIconWrap: { width: 38, height: 38, borderRadius: 19, backgroundColor: '#EDF4EF', alignItems: 'center', justifyContent: 'center', marginRight: 12 },
+    statText: { flexDirection: 'row', alignItems: 'baseline', gap: 8 },
+    statValue: { fontFamily: FONTS.heading, fontSize: 24, color: '#13231C' },
+    statLabel: { fontFamily: FONTS.body, fontSize: 13, color: '#66746E' },
+    sectionCard: { marginHorizontal: SPACING.md, marginTop: SPACING.md, borderRadius: 24, padding: 16, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E6ECE7' },
+    sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 },
+    sectionTitle: { fontFamily: FONTS.bodySemiBold, fontSize: 18, color: '#13231C' },
+    sectionSub: { marginTop: 2, fontFamily: FONTS.body, fontSize: 12, color: '#66746E' },
+    inlineBtn: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, backgroundColor: '#EDF4EF' },
+    inlineBtnTxt: { fontFamily: FONTS.bodySemiBold, fontSize: 12, color: COLORS.primaryDark },
+    journalSummary: { flexDirection: 'row', justifyContent: 'space-between', gap: 12 },
+    journalCount: { flex: 1, paddingVertical: 10, borderRadius: 18, backgroundColor: '#F7FAF8', alignItems: 'center' },
+    journalValue: { fontFamily: FONTS.heading, fontSize: 24, color: '#13231C' },
+    journalLabel: { marginTop: 4, fontFamily: FONTS.body, fontSize: 12, color: '#66746E', textAlign: 'center' },
+    medalRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' },
+    medalItem: { width: '23%', alignItems: 'center' },
+    medalOuter: { width: 58, height: 58, borderRadius: 29, alignItems: 'center', justifyContent: 'center' },
+    medalInner: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
+    medalLabel: { marginTop: 8, fontFamily: FONTS.bodySemiBold, fontSize: 11, textAlign: 'center' },
+    emptyTxt: { fontFamily: FONTS.body, fontSize: 13, lineHeight: 19, color: '#66746E' },
+    logoutBtn: { marginHorizontal: SPACING.md, marginTop: SPACING.md, borderRadius: 18, backgroundColor: '#FFF4F4', borderWidth: 1, borderColor: '#F6D5D5', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14 },
+    logoutTxt: { fontFamily: FONTS.bodySemiBold, fontSize: 14, color: COLORS.error },
 });
 
 export default ProfileScreen;

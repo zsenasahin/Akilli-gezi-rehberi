@@ -1,7 +1,6 @@
 // supabase/functions/city-pois/index.ts
-// Bir şehrin çevresindeki TÜM ilgi noktalarını getirir.
-// Kategoriler: restaurant, cafe, bar, hotel, atm, pharmacy, attraction
-// Overpass API + Cache (24h TTL)
+// TomTom Search API destekli şehir POI servisi.
+// TOMTOM_API_KEY Supabase secret olarak tanımlanmalı.
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
@@ -11,78 +10,140 @@ const corsHeaders = {
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-const OVERPASS_SERVERS = [
-    'https://overpass-api.de/api/interpreter',
-    'https://overpass.kumi.systems/api/interpreter',
-]
 const CACHE_TTL_HOURS = 24
+const TOMTOM_BASE_URL = 'https://api.tomtom.com/search/2/categorySearch'
 
-async function queryOverpass(query: string): Promise<any> {
-    for (const server of OVERPASS_SERVERS) {
+const CATEGORY_QUERIES: Record<string, string[]> = {
+    restaurant: ['restaurant', 'fast food'],
+    cafe: ['cafe', 'coffee shop'],
+    hotel: ['hotel', 'hostel', 'guest house'],
+    atm: ['atm', 'bank'],
+    pharmacy: ['pharmacy'],
+    attraction: ['tourist attraction', 'museum'],
+    practical: ['atm', 'pharmacy'],
+    all: ['restaurant', 'cafe', 'hotel'],
+}
+
+const CATEGORY_LABELS: Record<string, string> = {
+    restaurant: 'Restoran',
+    fast_food: 'Fast Food',
+    cafe: 'Kafe',
+    hotel: 'Otel',
+    hostel: 'Hostel',
+    guest_house: 'Pansiyon',
+    atm: 'ATM',
+    bank: 'Banka',
+    pharmacy: 'Eczane',
+    attraction: 'Turistik Yer',
+}
+
+const CATEGORY_EMOJIS: Record<string, string> = {
+    restaurant: '🍽️',
+    fast_food: '🍔',
+    cafe: '☕',
+    hotel: '🏨',
+    hostel: '🛏️',
+    guest_house: '🏠',
+    atm: '🏧',
+    bank: '🏦',
+    pharmacy: '💊',
+    attraction: '🏛️',
+}
+
+function inferCategory(poi: any, query: string): string {
+    const normalizedQuery = query.toLowerCase()
+    const categories = [
+        poi?.classifications?.[0]?.names?.[0]?.name,
+        poi?.categories?.[0],
+        poi?.categorySet?.[0]?.id,
+    ].filter(Boolean).join(' ').toLowerCase()
+
+    if (normalizedQuery.includes('coffee') || normalizedQuery.includes('cafe') || categories.includes('cafe')) return 'cafe'
+    if (normalizedQuery.includes('hostel')) return 'hostel'
+    if (normalizedQuery.includes('guest')) return 'guest_house'
+    if (normalizedQuery.includes('hotel') || categories.includes('hotel')) return 'hotel'
+    if (normalizedQuery.includes('atm') || categories.includes('atm')) return 'atm'
+    if (normalizedQuery.includes('bank') || categories.includes('bank')) return 'bank'
+    if (normalizedQuery.includes('pharmacy') || categories.includes('pharmacy')) return 'pharmacy'
+    if (normalizedQuery.includes('museum') || normalizedQuery.includes('tourist')) return 'attraction'
+    if (normalizedQuery.includes('fast')) return 'fast_food'
+    return 'restaurant'
+}
+
+function normalizeTomTomResult(item: any, query: string) {
+    const category = inferCategory(item.poi, query)
+    const address = item.address?.freeformAddress || [
+        item.address?.streetName,
+        item.address?.municipality,
+    ].filter(Boolean).join(' ')
+
+    return {
+        id: `tomtom-${item.id || item.poi?.id || `${item.position?.lat}-${item.position?.lon}`}`,
+        name: item.poi?.name || item.address?.freeformAddress || 'İsimsiz yer',
+        lat: item.position?.lat,
+        lng: item.position?.lon,
+        category,
+        categoryLabel: CATEGORY_LABELS[category] || item.poi?.categories?.[0] || category,
+        emoji: CATEGORY_EMOJIS[category] || '📍',
+        phone: item.poi?.phone || '',
+        website: item.poi?.url || '',
+        address: address || '',
+        cuisine: '',
+        stars: 0,
+        rooms: 0,
+        accommodationType: ['hotel', 'hostel', 'guest_house'].includes(category) ? CATEGORY_LABELS[category] : '',
+        openingHours: '',
+        internetAccess: false,
+        wheelchair: '',
+        dietVegan: false,
+        dietVegetarian: false,
+        priceRange: ['restaurant', 'cafe', 'fast_food'].includes(category) ? '₺₺' : '',
+        source: 'tomtom',
+    }
+}
+
+async function fetchTomTomPOIs(apiKey: string, lat: number, lng: number, radius: number, category: string) {
+    const queries = CATEGORY_QUERIES[category] || CATEGORY_QUERIES.all
+    const requests = queries.map(async (query) => {
+        const params = new URLSearchParams({
+            key: apiKey,
+            lat: String(lat),
+            lon: String(lng),
+            radius: String(radius),
+            limit: '20',
+            countrySet: 'TR',
+            language: 'tr-TR',
+            view: 'TR',
+        })
+
+        const controller = new AbortController()
+        const timer = setTimeout(() => controller.abort(), 9000)
         try {
-            const res = await fetch(server, {
-                method: 'POST',
-                body: `data=${encodeURIComponent(query)}`,
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            const res = await fetch(`${TOMTOM_BASE_URL}/${encodeURIComponent(query)}.json?${params.toString()}`, {
+                method: 'GET',
+                signal: controller.signal,
             })
-            if (res.ok) {
-                const data = await res.json()
-                if (data.elements) return data
-            }
-        } catch (e) { /* try next server */ }
-    }
-    throw new Error('All Overpass servers failed')
-}
+            if (!res.ok) throw new Error(`TomTom HTTP ${res.status}`)
+            const json = await res.json()
+            return (json.results || []).map((item: any) => normalizeTomTomResult(item, query))
+        } finally {
+            clearTimeout(timer)
+        }
+    })
 
-// ─── Fiyat aralığı tahmini ───
-function estimatePriceRange(tags: any): string {
-    // OSM'de bazen 'price_range' veya 'fee' tag'leri olabilir
-    if (tags.price_range) return tags.price_range
-    if (tags['diet:vegan'] === 'only' || tags['diet:vegetarian'] === 'only') return '₺'
-    if (tags.stars) {
-        const s = parseInt(tags.stars)
-        if (s >= 5) return '₺₺₺₺'
-        if (s >= 4) return '₺₺₺'
-        if (s >= 3) return '₺₺'
-        return '₺'
-    }
-    if (tags.amenity === 'fast_food') return '₺'
-    if (tags.amenity === 'cafe') return '₺₺'
-    if (tags.amenity === 'restaurant') return '₺₺'
-    return ''
-}
+    const settled = await Promise.allSettled(requests)
+    const merged = settled.flatMap((item) => item.status === 'fulfilled' ? item.value : [])
+    const seen = new Set<string>()
 
-// ─── Mutfak türünü Türkçe'ye çevir ───
-function translateCuisine(cuisine: string): string {
-    if (!cuisine) return ''
-    const map: Record<string, string> = {
-        'turkish': 'Türk Mutfağı', 'kebab': 'Kebap', 'pizza': 'Pizza',
-        'burger': 'Burger', 'seafood': 'Deniz Ürünleri', 'italian': 'İtalyan',
-        'chinese': 'Çin', 'japanese': 'Japon', 'indian': 'Hint',
-        'mexican': 'Meksika', 'french': 'Fransız', 'asian': 'Asya',
-        'mediterranean': 'Akdeniz', 'breakfast': 'Kahvaltı', 'coffee': 'Kahve',
-        'dessert': 'Tatlı', 'ice_cream': 'Dondurma', 'bakery': 'Fırın',
-        'pide': 'Pide', 'lahmacun': 'Lahmacun', 'doner': 'Döner',
-        'fish': 'Balık', 'regional': 'Yöresel', 'international': 'Uluslararası',
-        'sandwich': 'Sandviç', 'sushi': 'Suşi', 'steak': 'Steak',
-        'chicken': 'Tavuk', 'soup': 'Çorba', 'grill': 'Izgara',
-        'tea': 'Çay', 'cake': 'Pasta',
-    }
-    // Birden fazla mutfak virgülle ayrılabilir
-    return cuisine.split(';').map(c => {
-        const key = c.trim().toLowerCase()
-        return map[key] || c.trim()
-    }).join(', ')
-}
-
-// ─── Konaklama türünü Türkçe'ye çevir ───
-function translateAccommodationType(type: string): string {
-    const map: Record<string, string> = {
-        'hotel': 'Otel', 'hostel': 'Hostel', 'guest_house': 'Pansiyon',
-        'motel': 'Motel', 'apartment': 'Apart', 'camp_site': 'Kamp Alanı',
-        'chalet': 'Dağ Evi', 'bed_and_breakfast': 'B&B',
-    }
-    return map[type] || 'Otel'
+    return merged
+        .filter((poi) => poi.name && poi.lat && poi.lng)
+        .filter((poi) => {
+            const key = `${poi.name.toLocaleLowerCase('tr-TR')}_${Math.round(poi.lat * 10000)}_${Math.round(poi.lng * 10000)}`
+            if (seen.has(key)) return false
+            seen.add(key)
+            return true
+        })
+        .slice(0, category === 'atm' || category === 'pharmacy' ? 12 : 30)
 }
 
 serve(async (req) => {
@@ -92,127 +153,47 @@ serve(async (req) => {
 
     try {
         const { lat, lng, radius = 2000, category = 'all' } = await req.json()
+        const latNum = Number(lat)
+        const lngNum = Number(lng)
+        const radiusNum = Number(radius)
 
-        if (!lat || !lng) {
+        if (Number.isNaN(latNum) || Number.isNaN(lngNum)) {
             return new Response(
-                JSON.stringify({ error: 'lat ve lng parametreleri gerekli.' }),
+                JSON.stringify({ error: 'lat ve lng sayısal değer olmalı.' }),
                 { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
             )
         }
 
-        // ─── Cache kontrolü ───
         const supabase = createClient(
             Deno.env.get('SUPABASE_URL') ?? '',
             Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
         )
 
-        const cacheKey = `city_pois_${category}_${lat.toFixed(3)}_${lng.toFixed(3)}_${radius}`
+        const cacheKey = `tomtom_city_pois_${category}_${latNum.toFixed(3)}_${lngNum.toFixed(3)}_${radiusNum}`
         const { data: cached } = await supabase
             .from('api_cache')
             .select('response, created_at')
             .eq('cache_key', cacheKey)
-            .single()
+            .maybeSingle()
 
         if (cached) {
-            const age = (Date.now() - new Date(cached.created_at).getTime()) / (1000 * 60 * 60)
+            const age = (Date.now() - new Date(cached.created_at as string).getTime()) / (1000 * 60 * 60)
             if (age < CACHE_TTL_HOURS) {
                 return new Response(
-                    JSON.stringify(cached.response),
+                    JSON.stringify({ ...cached.response, fromCache: true }),
                     { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
                 )
             }
         }
 
-        // ─── Kategoriye göre Overpass Query oluştur ───
-        let overpassFilter = ''
-        const limit = 30
-
-        switch (category) {
-            case 'restaurant':
-                overpassFilter = `node["amenity"="restaurant"](around:${radius},${lat},${lng});`
-                break
-            case 'cafe':
-                overpassFilter = `node["amenity"~"cafe|coffee_shop"](around:${radius},${lat},${lng});`
-                break
-            case 'bar':
-                overpassFilter = `node["amenity"~"bar|pub|nightclub"](around:${radius},${lat},${lng});`
-                break
-            case 'fast_food':
-                overpassFilter = `node["amenity"="fast_food"](around:${radius},${lat},${lng});`
-                break
-            case 'hotel':
-                overpassFilter = `node["tourism"~"hotel|hostel|guest_house|motel"](around:${radius},${lat},${lng});`
-                break
-            case 'atm':
-                overpassFilter = `node["amenity"="atm"](around:${radius},${lat},${lng});node["amenity"="bank"](around:${radius},${lat},${lng});`
-                break
-            case 'pharmacy':
-                overpassFilter = `node["amenity"="pharmacy"](around:${radius},${lat},${lng});`
-                break
-            case 'attraction':
-                overpassFilter = `node["tourism"~"attraction|museum|viewpoint|artwork"](around:${radius},${lat},${lng});node["historic"](around:${radius},${lat},${lng});`
-                break
-            case 'all':
-            default:
-                // Tüm yeme-içme + konaklama
-                overpassFilter = `
-                    node["amenity"~"restaurant|cafe|fast_food|bar|pub"](around:${radius},${lat},${lng});
-                    node["tourism"~"hotel|hostel|guest_house"](around:${radius},${lat},${lng});
-                `
-                break
+        const tomTomKey = Deno.env.get('TOMTOM_API_KEY')
+        if (!tomTomKey) {
+            throw new Error('TOMTOM_API_KEY tanımlı değil.')
         }
 
-        const query = `[out:json][timeout:20];(${overpassFilter});out body ${limit};`
-        const overpassData = await queryOverpass(query)
+        const pois = await fetchTomTomPOIs(tomTomKey, latNum, lngNum, radiusNum, category)
+        const result = { pois, data: pois, count: pois.length, category, radius: radiusNum, source: 'tomtom' }
 
-        // ─── Parse sonuçları ───
-        const pois = overpassData.elements
-            .filter((el: any) => el.tags?.name)
-            .map((el: any) => {
-                const tags = el.tags || {}
-                const poiCategory = tags.tourism || tags.amenity || tags.historic || 'other'
-
-                return {
-                    id: el.id,
-                    name: tags.name,
-                    nameEn: tags['name:en'] || '',
-                    lat: el.lat || el.center?.lat,
-                    lng: el.lon || el.center?.lon,
-                    category: poiCategory,
-                    categoryLabel: getCategoryLabel(poiCategory),
-                    // İletişim
-                    phone: tags.phone || tags['contact:phone'] || '',
-                    website: tags.website || tags['contact:website'] || '',
-                    email: tags.email || tags['contact:email'] || '',
-                    // Adres
-                    address: [
-                        tags['addr:street'],
-                        tags['addr:housenumber'],
-                        tags['addr:city'],
-                    ].filter(Boolean).join(' ') || tags['addr:full'] || '',
-                    // Yeme-içme detayları
-                    cuisine: translateCuisine(tags.cuisine || ''),
-                    dietVegetarian: tags['diet:vegetarian'] === 'yes',
-                    dietVegan: tags['diet:vegan'] === 'yes',
-                    // Konaklama detayları
-                    stars: parseInt(tags.stars) || 0,
-                    rooms: parseInt(tags.rooms) || 0,
-                    accommodationType: tags.tourism ? translateAccommodationType(tags.tourism) : '',
-                    // Genel
-                    openingHours: tags.opening_hours || '',
-                    wheelchair: tags.wheelchair || '',
-                    internetAccess: tags.internet_access === 'wlan' || tags.internet_access === 'yes',
-                    smoking: tags.smoking || '',
-                    priceRange: estimatePriceRange(tags),
-                    // Emoji
-                    emoji: getCategoryEmoji(poiCategory),
-                }
-            })
-            .filter((p: any) => p.lat && p.lng)
-
-        const result = { pois, count: pois.length, category, radius }
-
-        // ─── Cache kaydet ───
         await supabase
             .from('api_cache')
             .upsert({
@@ -225,42 +206,11 @@ serve(async (req) => {
             JSON.stringify(result),
             { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         )
-
     } catch (error) {
+        const message = error instanceof Error ? error.message : 'Beklenmeyen hata'
         return new Response(
-            JSON.stringify({ error: error.message }),
+            JSON.stringify({ error: message }),
             { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         )
     }
 })
-
-// ─── Yardımcı: Kategori etiketi ───
-function getCategoryLabel(cat: string): string {
-    const map: Record<string, string> = {
-        'restaurant': 'Restoran', 'cafe': 'Kafe', 'fast_food': 'Fast Food',
-        'bar': 'Bar', 'pub': 'Pub', 'nightclub': 'Gece Kulübü',
-        'hotel': 'Otel', 'hostel': 'Hostel', 'guest_house': 'Pansiyon',
-        'motel': 'Motel', 'atm': 'ATM', 'bank': 'Banka',
-        'pharmacy': 'Eczane', 'attraction': 'Turistik Yer',
-        'museum': 'Müze', 'viewpoint': 'Manzara Noktası',
-        'artwork': 'Sanat Eseri', 'castle': 'Kale', 'monument': 'Anıt',
-        'ruins': 'Harabe', 'archaeological_site': 'Arkeolojik Alan',
-        'coffee_shop': 'Kahveci',
-    }
-    return map[cat] || cat
-}
-
-// ─── Yardımcı: Kategori emoji ───
-function getCategoryEmoji(cat: string): string {
-    const map: Record<string, string> = {
-        'restaurant': '🍽️', 'cafe': '☕', 'fast_food': '🍔',
-        'bar': '🍺', 'pub': '🍻', 'nightclub': '🎶',
-        'hotel': '🏨', 'hostel': '🛏️', 'guest_house': '🏠',
-        'motel': '🏨', 'atm': '🏧', 'bank': '🏦',
-        'pharmacy': '💊', 'attraction': '🏛️',
-        'museum': '🎨', 'viewpoint': '👁️',
-        'artwork': '🖼️', 'castle': '🏰', 'monument': '🗿',
-        'ruins': '🏚️', 'archaeological_site': '⛏️',
-    }
-    return map[cat] || '📍'
-}

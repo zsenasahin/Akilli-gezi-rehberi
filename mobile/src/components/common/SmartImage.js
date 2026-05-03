@@ -13,6 +13,7 @@ import { COLORS } from '../../constants/colors';
 
 const SmartImage = ({
     uri,
+    source,
     fallbackUri,
     style,
     contentFit = 'cover',
@@ -21,17 +22,17 @@ const SmartImage = ({
 }) => {
     const [failed, setFailed] = useState(false);
 
-    const source = failed
+    const resolvedSource = source || (failed
         ? (fallbackUri ? { uri: fallbackUri } : null)
-        : { uri };
+        : (uri ? { uri } : null));
 
-    if (!source) {
+    if (!resolvedSource) {
         return <View style={[styles.placeholder, style]} />;
     }
 
     return (
         <Image
-            source={source}
+            source={resolvedSource}
             style={style}
             contentFit={contentFit}
             transition={transition}
