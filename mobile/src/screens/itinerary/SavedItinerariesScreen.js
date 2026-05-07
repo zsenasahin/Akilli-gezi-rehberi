@@ -27,6 +27,7 @@ import { formatDate } from '../../utils/formatters';
 import { SkeletonLoader } from '../../components/common/SkeletonLoader';
 import ErrorMessage from '../../components/common/ErrorMessage';
 import { useThemePreference } from '../../contexts/ThemeContext';
+import FloatingAssistant from '../../components/common/FloatingAssistant';
 
 const SavedItinerariesScreen = ({ navigation }) => {
     const { user } = useAuth();
@@ -179,10 +180,6 @@ const SavedItinerariesScreen = ({ navigation }) => {
     if (loading) {
         return (
             <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]} edges={['top']}>
-                <View style={styles.headerBar}>
-                    <Text style={[styles.headerTitle, { color: theme.colors.text }]}>Planlarim</Text>
-                    <Text style={[styles.headerSubtitle, { color: theme.colors.textSecondary }]}>Tum rotalarin tek yerde</Text>
-                </View>
                 <View style={styles.filterRow}>
                     {[0, 1, 2].map(i => (
                         <SkeletonLoader key={i} width="30%" height={40} radius={BORDER_RADIUS.lg} />
@@ -205,10 +202,6 @@ const SavedItinerariesScreen = ({ navigation }) => {
 
     return (
         <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]} edges={['top']}>
-            <View style={styles.headerBar}>
-                <Text style={[styles.headerTitle, { color: theme.colors.text }]}>Planlarim</Text>
-                <Text style={[styles.headerSubtitle, { color: theme.colors.textSecondary }]}>{filteredItineraries.length} gorunen plan</Text>
-            </View>
             {/* Filter tabs */}
             <View style={styles.filterRow}>
                 {[
@@ -268,26 +261,13 @@ const SavedItinerariesScreen = ({ navigation }) => {
                     )
                 }
             />
+            <FloatingAssistant />
         </SafeAreaView>
     );
 };
 
 const styles = StyleSheet.create({
     container: { flex: 1 },
-    headerBar: {
-        paddingHorizontal: SPACING.lg,
-        paddingTop: 10,
-        paddingBottom: 8,
-    },
-    headerTitle: {
-        fontFamily: FONTS.heading,
-        fontSize: 28,
-    },
-    headerSubtitle: {
-        marginTop: 4,
-        fontFamily: FONTS.body,
-        fontSize: 13,
-    },
 
     // ─── Filters ───
     filterRow: {

@@ -18,7 +18,11 @@ import {
     removeItineraryItem,
     addItineraryItem,
     updateItineraryStatus,
+    updateItineraryPlan,
+    getItinerariesByUser,
 } from '../../services/itineraryService';
+import { buildBadges } from '../../services/achievementService';
+import BadgeEarnedModal from '../../components/common/BadgeEarnedModal';
 import { getPlacesByCity } from '../../services/placeService';
 import { getMealSuggestions } from '../../data/repositories/placeRepository';
 import { suggestAlternative, estimateTotalBudget } from '../../logic/itineraryGenerator';
@@ -29,6 +33,8 @@ import { ItineraryDetailSkeleton } from '../../components/common/SkeletonLoader'
 import ErrorMessage from '../../components/common/ErrorMessage';
 import { useAssistantContext } from '../../contexts/AssistantContext';
 import { useThemePreference } from '../../contexts/ThemeContext';
+import FloatingAssistant from '../../components/common/FloatingAssistant';
+import ConfettiOverlay from '../../components/common/ConfettiOverlay';
 
 const ItineraryDetailScreen = ({ route, navigation }) => {
     const { itineraryId } = route.params;
@@ -42,6 +48,9 @@ const ItineraryDetailScreen = ({ route, navigation }) => {
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [error, setError] = useState(null);
+    const [showConfetti, setShowConfetti] = useState(false);
+    const [pendingBadge, setPendingBadge] = useState(null);
+    const [newlyEarnedBadge, setNewlyEarnedBadge] = useState(null);
 
     const loadSupplementalData = useCallback(async (data) => {
         if (!data?.city_id) return;
@@ -162,7 +171,7 @@ const ItineraryDetailScreen = ({ route, navigation }) => {
                     id: `plan-${dayPlan.day}-${idx}`,
                     day_number: dayPlan.day,
                     order_index: idx,
-                    is_completed: false,
+                    is_completed: !!place.is_completed,
                     place_id: place.id,
                     places: {
                         id: place.id,
@@ -208,12 +217,31 @@ const ItineraryDetailScreen = ({ route, navigation }) => {
 
     const handleToggleCompletion = async (item) => {
         const newValue = !item.is_completed;
+
+        // Fallback (JSONB) item ise
+        if (typeof item.id === 'string' && item.id.startsWith('plan-')) {
+            const updatedPlan = itinerary.plan.map(day => ({
+                ...day,
+                places: day.places.map(p =>
+                    String(p.id) === String(item.place_id) ? { ...p, is_completed: newValue } : p
+                )
+            }));
+
+            const { error: updateError } = await updateItineraryPlan(itinerary.id, updatedPlan);
+            if (updateError) { console.error('Plan update error:', updateError); Alert.alert('Hata', 'Durum güncellenirken hata oluştu.'); return; }
+
+            setItinerary(prev => ({ ...prev, plan: updatedPlan }));
+            return;
+        }
+
+        // Normal Supabase item ise
         const { error: toggleError } = await toggleItemCompletion(item.id, newValue);
         if (toggleError) { Alert.alert('Hata', 'Durum güncellenirken hata oluştu.'); return; }
+
         setItinerary((prev) => ({
             ...prev,
-            itinerary_items: prev.itinerary_items.map((i) =>
-                i.id === item.id ? { ...i, is_completed: newValue } : i
+            itinerary_items: (prev.itinerary_items || []).map((i) =>
+                String(i.id) === String(item.id) ? { ...i, is_completed: newValue } : i
             ),
         }));
     };
@@ -267,9 +295,22 @@ const ItineraryDetailScreen = ({ route, navigation }) => {
             {
                 text: 'Tamamla',
                 onPress: async () => {
+                    // Rozet kontrolü için önceki hali al
+                    const { data: oldData } = await getItinerariesByUser(itinerary.user_id);
+                    const oldEarnedKeys = buildBadges(oldData || []).badges.filter(b => b.earned).map(b => b.key);
+
                     const { error: statusError } = await updateItineraryStatus(itinerary.id, 'completed');
                     if (statusError) { Alert.alert('Hata', 'Durum güncellenirken hata oluştu.'); }
                     else {
+                        // Yeni rozet kontrolü
+                        const { data: newData } = await getItinerariesByUser(itinerary.user_id);
+                        const newEarnedBadges = buildBadges(newData || []).badges.filter(b => b.earned && !oldEarnedKeys.includes(b.key));
+
+                        if (newEarnedBadges.length > 0) {
+                            setPendingBadge(newEarnedBadges[0]);
+                            setShowConfetti(true);
+                        }
+
                         Alert.alert(
                             'Tebrikler! 🎉',
                             'Gezi planınız tamamlandı! Harika bir seyahat geçirdiniz.',
@@ -495,22 +536,23 @@ const ItineraryDetailScreen = ({ route, navigation }) => {
                                     </View>
 
                                     <View style={[styles.timelineCard, item.is_completed && styles.timelineCardCompleted]}>
-                                        <View style={styles.timelineCardTop}>
+                                        <TouchableOpacity
+                                            style={styles.timelineCardTop}
+                                            onPress={() => handleToggleCompletion(item)}
+                                            activeOpacity={0.7}
+                                            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                                        >
                                             <Text style={[styles.itemName, item.is_completed && styles.itemNameCompleted]}>
                                                 {item.places?.name || 'Bilinmeyen Yer'}
                                             </Text>
-                                            <TouchableOpacity
-                                                style={styles.checkToggleBtn}
-                                                onPress={() => handleToggleCompletion(item)}
-                                                disabled={isCompleted}
-                                            >
+                                            <View style={styles.checkToggleBtn}>
                                                 <Ionicons
                                                     name={item.is_completed ? 'checkmark-circle' : 'ellipse-outline'}
-                                                    size={22}
+                                                    size={24}
                                                     color={item.is_completed ? COLORS.success : COLORS.textLight}
                                                 />
-                                            </TouchableOpacity>
-                                        </View>
+                                            </View>
+                                        </TouchableOpacity>
 
                                         <Text style={styles.itemMeta}>
                                             {item.places?.category} · {item.places?.avg_duration}s ·{' '}
@@ -602,12 +644,6 @@ const ItineraryDetailScreen = ({ route, navigation }) => {
                     </View>
                 ))}
 
-                {/* AI Asistan */}
-                <TouchableOpacity style={styles.assistantBtn} onPress={openAssistant} activeOpacity={0.85}>
-                    <Ionicons name="sparkles" size={18} color="#fff" />
-                    <Text style={styles.assistantBtnText}>Seyahat Asistanı</Text>
-                    <Ionicons name="chevron-forward" size={14} color="#fff" />
-                </TouchableOpacity>
 
                 {!isCompleted && (
                     <Button
@@ -621,6 +657,26 @@ const ItineraryDetailScreen = ({ route, navigation }) => {
                 {/* Alt boşluk */}
                 <View style={{ height: insets.bottom + SPACING.md }} />
             </ScrollView>
+            <FloatingAssistant />
+            <ConfettiOverlay
+                visible={showConfetti}
+                onAnimationFinish={() => {
+                    setShowConfetti(false);
+                    if (pendingBadge) {
+                        setNewlyEarnedBadge(pendingBadge);
+                        setPendingBadge(null);
+                    }
+                }}
+            />
+            <BadgeEarnedModal
+                visible={!!newlyEarnedBadge}
+                badge={newlyEarnedBadge}
+                onClose={() => setNewlyEarnedBadge(null)}
+                onAction={() => {
+                    setNewlyEarnedBadge(null);
+                    navigation.navigate('Badges');
+                }}
+            />
         </View>
     );
 };

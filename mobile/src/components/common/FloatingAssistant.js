@@ -1,11 +1,3 @@
-/**
- * FloatingAssistant — Uygulama genelindeki AI Kedi Asistan Butonu 🐱
- *
- * - Tüm ekranlarda sağ alt köşede görünür (tab bar'ın üstünde)
- * - AssistantContext'ten mevcut ekranın bağlamını okur
- * - Gezi planındayken planı da bilir, şehirdeyken şehri de
- * - Pulse + yüzme animasyonu, açılışta konuşma balonu
- */
 import React, { useRef, useEffect, useState } from 'react';
 import {
     View,
@@ -16,15 +8,16 @@ import {
     Platform,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import LottieView from 'lottie-react-native';
 import { COLORS } from '../../constants/colors';
 import { FONTS, FONT_SIZES } from '../../constants/typography';
 import { BORDER_RADIUS, SPACING } from '../../constants/layout';
 import { useAssistantContext } from '../../contexts/AssistantContext';
-// import CatMascot from './CatMascot'; // Geçici olarak kapalı - development build gerekiyor
 
 const FloatingAssistant = () => {
     const navigation = useNavigation();
     const { context } = useAssistantContext();
+    const lottieRef = useRef(null);
 
     const pulseAnim = useRef(new Animated.Value(1)).current;
     const floatAnim = useRef(new Animated.Value(0)).current;
@@ -37,8 +30,8 @@ const FloatingAssistant = () => {
     useEffect(() => {
         Animated.loop(
             Animated.sequence([
-                Animated.timing(floatAnim, { toValue: -7, duration: 1800, useNativeDriver: true }),
-                Animated.timing(floatAnim, { toValue: 0, duration: 1800, useNativeDriver: true }),
+                Animated.timing(floatAnim, { toValue: -7, duration: 2000, useNativeDriver: true }),
+                Animated.timing(floatAnim, { toValue: 0, duration: 2000, useNativeDriver: true }),
             ])
         ).start();
     }, []);
@@ -47,26 +40,26 @@ const FloatingAssistant = () => {
     useEffect(() => {
         Animated.loop(
             Animated.sequence([
-                Animated.timing(pulseAnim, { toValue: 1.28, duration: 1100, useNativeDriver: true }),
-                Animated.timing(pulseAnim, { toValue: 1, duration: 1100, useNativeDriver: true }),
+                Animated.timing(pulseAnim, { toValue: 1.2, duration: 1500, useNativeDriver: true }),
+                Animated.timing(pulseAnim, { toValue: 1, duration: 1500, useNativeDriver: true }),
             ])
         ).start();
     }, []);
 
-    // Konuşma balonu: 1.2s sonra göster, 6s sonra kapat
+    // Konuşma balonu: 1.5s sonra göster, 7s sonra kapat
     useEffect(() => {
         const show = setTimeout(() => {
             Animated.parallel([
-                Animated.timing(bubbleOpacity, { toValue: 1, duration: 350, useNativeDriver: true }),
-                Animated.timing(bubbleTranslate, { toValue: 0, duration: 350, useNativeDriver: true }),
+                Animated.timing(bubbleOpacity, { toValue: 1, duration: 400, useNativeDriver: true }),
+                Animated.timing(bubbleTranslate, { toValue: 0, duration: 400, useNativeDriver: true }),
             ]).start();
-        }, 1200);
+        }, 1500);
         const hide = setTimeout(() => {
             Animated.parallel([
-                Animated.timing(bubbleOpacity, { toValue: 0, duration: 250, useNativeDriver: true }),
-                Animated.timing(bubbleTranslate, { toValue: 10, duration: 250, useNativeDriver: true }),
+                Animated.timing(bubbleOpacity, { toValue: 0, duration: 300, useNativeDriver: true }),
+                Animated.timing(bubbleTranslate, { toValue: 10, duration: 300, useNativeDriver: true }),
             ]).start(() => setShowBubble(false));
-        }, 6000);
+        }, 8500);
         return () => { clearTimeout(show); clearTimeout(hide); };
     }, []);
 
@@ -78,14 +71,14 @@ const FloatingAssistant = () => {
         if (context?.screen === 'city' && context?.city) {
             return `${context.city} hakkında\nne merak ediyorsun? 🏙️`;
         }
-        return `Merhaba! 🐾\nNasıl yardımcı\nolabilirim?`;
+        return `Merhaba! 👋\nSana nasıl yardımcı\nolabilirim?`;
     };
 
     const handlePress = () => {
         // Zıplama animasyonu
         Animated.sequence([
-            Animated.timing(jumpScale, { toValue: 1.25, duration: 80, useNativeDriver: true }),
-            Animated.timing(jumpScale, { toValue: 1, duration: 80, useNativeDriver: true }),
+            Animated.timing(jumpScale, { toValue: 1.15, duration: 100, useNativeDriver: true }),
+            Animated.timing(jumpScale, { toValue: 1, duration: 100, useNativeDriver: true }),
         ]).start();
         navigation.navigate('TravelAssistant', { context });
     };
@@ -115,8 +108,14 @@ const FloatingAssistant = () => {
             {/* Ana buton */}
             <Animated.View style={{ transform: [{ translateY: floatAnim }] }}>
                 <Animated.View style={{ transform: [{ scale: jumpScale }] }}>
-                    <TouchableOpacity style={styles.button} onPress={handlePress} activeOpacity={0.85}>
-                        <Text style={styles.catEmoji}>🐱</Text>
+                    <TouchableOpacity style={styles.button} onPress={handlePress} activeOpacity={0.9}>
+                        <LottieView
+                            ref={lottieRef}
+                            source={require('../../../assets/animations/Headphone with blueberry cartoon.json')}
+                            autoPlay
+                            loop
+                            style={styles.lottie}
+                        />
                         <View style={styles.onlineBadge} />
                     </TouchableOpacity>
                 </Animated.View>
@@ -128,23 +127,23 @@ const FloatingAssistant = () => {
 const styles = StyleSheet.create({
     container: {
         position: 'absolute',
-        bottom: Platform.OS === 'ios' ? 94 : 86,
+        bottom: Platform.OS === 'ios' ? 84 : 74,
         right: SPACING.md,
         alignItems: 'flex-end',
-        zIndex: 999,
+        zIndex: 1000,
     },
 
     // Konuşma Balonu
     bubble: {
         backgroundColor: COLORS.surface,
         borderRadius: BORDER_RADIUS.lg,
-        paddingHorizontal: SPACING.sm + 2,
+        paddingHorizontal: SPACING.sm + 4,
         paddingVertical: SPACING.sm,
         marginBottom: SPACING.xs,
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.12,
-        shadowRadius: 12,
+        shadowOpacity: 0.1,
+        shadowRadius: 10,
         elevation: 6,
         borderWidth: 1,
         borderColor: COLORS.border,
@@ -152,9 +151,10 @@ const styles = StyleSheet.create({
     },
     bubbleText: {
         fontFamily: FONTS.body,
-        fontSize: FONT_SIZES.xs,
+        fontSize: FONT_SIZES.xs - 1,
         color: COLORS.textPrimary,
-        lineHeight: 18,
+        lineHeight: 16,
+        fontWeight: '500',
     },
     bubbleTail: {
         position: 'absolute',
@@ -168,9 +168,9 @@ const styles = StyleSheet.create({
     // Nabız
     pulseRing: {
         position: 'absolute',
-        width: 76, height: 76, borderRadius: 38,
-        backgroundColor: COLORS.primary + '1A',
-        top: -4, right: -4,
+        width: 80, height: 80, borderRadius: 40,
+        backgroundColor: COLORS.primary + '15',
+        bottom: -6, right: -6,
     },
 
     // Buton
@@ -180,19 +180,25 @@ const styles = StyleSheet.create({
         justifyContent: 'center', alignItems: 'center',
         shadowColor: COLORS.primary,
         shadowOffset: { width: 0, height: 6 },
-        shadowOpacity: 0.28,
-        shadowRadius: 14,
+        shadowOpacity: 0.2,
+        shadowRadius: 12,
         elevation: 8,
-        borderWidth: 2,
-        borderColor: COLORS.primaryMuted,
+        borderWidth: 1.5,
+        borderColor: COLORS.border,
+        overflow: 'hidden',
     },
-    catEmoji: { fontSize: 28 },
+    lottie: {
+        width: '120%',
+        height: '120%',
+    },
     onlineBadge: {
-        position: 'absolute', bottom: 3, right: 3,
+        position: 'absolute', bottom: 8, right: 8,
         width: 12, height: 12, borderRadius: 6,
         backgroundColor: COLORS.success,
         borderWidth: 2, borderColor: '#fff',
+        zIndex: 10,
     },
 });
 
 export default FloatingAssistant;
+

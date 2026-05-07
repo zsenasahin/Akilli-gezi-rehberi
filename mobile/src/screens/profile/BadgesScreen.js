@@ -16,6 +16,8 @@ import { buildBadges } from '../../services/achievementService';
 import { FONTS } from '../../constants/typography';
 import { SPACING } from '../../constants/layout';
 import { useThemePreference } from '../../contexts/ThemeContext';
+import ConfettiOverlay from '../../components/common/ConfettiOverlay';
+import BadgeEarnedModal from '../../components/common/BadgeEarnedModal';
 
 const BadgeMedal = ({ badge, theme }) => (
     <View style={[styles.badgeCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border, opacity: badge.earned ? 1 : 0.52 }]}>
@@ -37,6 +39,10 @@ const BadgesScreen = ({ navigation }) => {
     const [badges, setBadges] = useState([]);
     const [stats, setStats] = useState({ completedPlans: 0, completedCities: 0, totalCompletedDistance: 0 });
     const [refreshing, setRefreshing] = useState(false);
+    const [showConfetti, setShowConfetti] = useState(false);
+    const [pendingBadge, setPendingBadge] = useState(null);
+    const [newlyEarnedBadge, setNewlyEarnedBadge] = useState(null);
+    const [prevEarnedCount, setPrevEarnedCount] = useState(null);
 
     const loadBadges = useCallback(async () => {
         if (!user) return;
@@ -45,7 +51,17 @@ const BadgesScreen = ({ navigation }) => {
         setBadges(next.badges);
         setStats(next.stats);
         setRefreshing(false);
-    }, [user]);
+
+        const earned = next.badges.filter(b => b.earned);
+        const earnedCount = earned.length;
+        
+        if (prevEarnedCount !== null && earnedCount > prevEarnedCount) {
+            // En son kazanılan rozeti bul (basitçe sonuncusu)
+            setPendingBadge(earned[earnedCount - 1]);
+            setShowConfetti(true);
+        }
+        setPrevEarnedCount(earnedCount);
+    }, [user, prevEarnedCount]);
 
     useFocusEffect(useCallback(() => {
         loadBadges();
@@ -82,6 +98,22 @@ const BadgesScreen = ({ navigation }) => {
                     ))}
                 </View>
             </ScrollView>
+            <ConfettiOverlay 
+                visible={showConfetti} 
+                onAnimationFinish={() => {
+                    setShowConfetti(false);
+                    if (pendingBadge) {
+                        setNewlyEarnedBadge(pendingBadge);
+                        setPendingBadge(null);
+                    }
+                }} 
+            />
+            <BadgeEarnedModal
+                visible={!!newlyEarnedBadge}
+                badge={newlyEarnedBadge}
+                onClose={() => setNewlyEarnedBadge(null)}
+                onAction={() => setNewlyEarnedBadge(null)}
+            />
         </SafeAreaView>
     );
 };

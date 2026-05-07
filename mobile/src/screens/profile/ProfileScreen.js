@@ -410,7 +410,7 @@ const styles = StyleSheet.create({
     journalCount: { flex: 1, paddingVertical: 10, borderRadius: 18, backgroundColor: '#F7FAF8', alignItems: 'center' },
     journalValue: { fontFamily: FONTS.heading, fontSize: 24, color: '#13231C' },
     journalLabel: { marginTop: 4, fontFamily: FONTS.body, fontSize: 12, color: '#66746E', textAlign: 'center' },
-    medalRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' },
+    medalRow: { flexDirection: 'row', justifyContent: 'flex-start', gap: 10, flexWrap: 'wrap' },
     medalItem: { width: '23%', alignItems: 'center' },
     medalOuter: { width: 58, height: 58, borderRadius: 29, alignItems: 'center', justifyContent: 'center' },
     medalInner: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },

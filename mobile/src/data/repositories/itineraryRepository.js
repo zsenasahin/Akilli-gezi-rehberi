@@ -110,6 +110,16 @@ export const updateItineraryStatus = async (itineraryId, status) => {
     return { data, error };
 };
 
+export const updateItineraryPlan = async (itineraryId, plan) => {
+    const { data, error } = await supabase
+        .from('itineraries')
+        .update({ plan })
+        .eq('id', itineraryId)
+        .select()
+        .single();
+    return { data, error };
+};
+
 export const deleteItinerary = async (itineraryId) => {
     const { error } = await supabase
         .from('itineraries')
