@@ -38,8 +38,6 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
         flowType: 'pkce',
     },
     global: {
-        // expo-crypto ile SHA-256 hash fonksiyonu sağla
-        fetch: (...args) => fetch(...args),
         headers: {
             'X-Client-Info': 'supabase-js-react-native',
         },

@@ -185,16 +185,21 @@ const LoginScreen = ({ navigation }) => {
         }
 
         setLoading(true);
-        const { data, error: authError } = await signIn(email.trim(), password);
-        setLoading(false);
+        try {
+            const { data, error: authError } = await signIn(email.trim(), password);
+            setLoading(false);
 
-        if (authError) {
-            // Email doğrulanmamış kullanıcıya özel mesaj
-            if (authError.message?.toLowerCase().includes('email not confirmed')) {
-                setError('E-posta adresiniz doğrulanmamış. Lütfen gelen kutunuzu kontrol edin.');
-            } else {
-                setError(authError.message);
+            if (authError) {
+                // Email doğrulanmamış kullanıcıya özel mesaj
+                if (authError.message?.toLowerCase().includes('email not confirmed')) {
+                    setError('E-posta adresiniz doğrulanmamış. Lütfen gelen kutunuzu kontrol edin.');
+                } else {
+                    setError(authError.message);
+                }
             }
+        } catch (err) {
+            setLoading(false);
+            setError(err.message || 'Giriş sırasında bir hata oluştu (Ağ bağlantısı vb.).');
         }
     };
 
@@ -217,10 +222,15 @@ const LoginScreen = ({ navigation }) => {
     const handleGoogleLogin = async () => {
         setError(null);
         setSocialLoading('google');
-        const { data, error: authError } = await signInWithGoogle();
-        setSocialLoading(null);
-        if (authError && authError.message !== 'Giriş iptal edildi.') {
-            setError(authError.message);
+        try {
+            const { data, error: authError } = await signInWithGoogle();
+            setSocialLoading(null);
+            if (authError && authError.message !== 'Giriş iptal edildi.') {
+                setError(authError.message);
+            }
+        } catch (err) {
+            setSocialLoading(null);
+            setError(err.message || 'Google ile giriş başarısız.');
         }
     };
 

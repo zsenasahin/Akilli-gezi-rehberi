@@ -13,6 +13,7 @@ import {
     TextInput,
     Alert,
     Platform,
+    Linking,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import SmartImage from '../../components/common/SmartImage';
@@ -332,12 +333,7 @@ const DiscoverScreen = () => {
                                     style={styles.modalNavBtn}
                                     onPress={() => {
                                         setSelectedPlace(null);
-                                        navigation.navigate('MapScreen', {
-                                            city: { id: p.city_id, name: p.cities?.name },
-                                            focusLat: p.lat,
-                                            focusLng: p.lng,
-                                            viewItem: { name: p.name },
-                                        });
+                                        Linking.openURL(`https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lng}&travelmode=driving`);
                                     }}
                                 >
                                     <Ionicons name="navigate" size={18} color="#fff" />

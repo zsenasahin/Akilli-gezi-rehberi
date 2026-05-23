@@ -41,7 +41,6 @@ const get = async (key) => {
     }
 };
 
-/** Veriyi cache'e yaz, ttlMinutes dakika sonra geçersiz say */
 const set = async (key, data, ttlMinutes = DEFAULT_TTL_MIN) => {
     if (!key) return;
     try {
@@ -57,7 +56,20 @@ const set = async (key, data, ttlMinutes = DEFAULT_TTL_MIN) => {
 
         // 2. Diske yaz
         await AsyncStorage.setItem(CACHE_PREFIX + key, JSON.stringify(entry));
-    } catch { }
+    } catch (error) {
+        console.warn('Cache write failed:', error);
+        // Eğer disk doluysa cache'i temizle (SQLite_Full error)
+        if (error.message?.includes('full') || error.code === '13' || error.message?.includes('quota')) {
+            console.log('Storage limit reached, clearing old cache...');
+            await clear();
+            // Tekrar dene (sadece bir kez)
+            try {
+                const expiresAt = Date.now() + ttlMinutes * 60 * 1000;
+                const entry = { data, expiresAt, createdAt: Date.now() };
+                await AsyncStorage.setItem(CACHE_PREFIX + key, JSON.stringify(entry));
+            } catch { }
+        }
+    }
 };
 
 /** Süresi geçmiş olsa bile son kayıtlı veriyi döndürür. Ağ hatalarında yedek olarak kullanılır. */

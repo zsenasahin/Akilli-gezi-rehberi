@@ -48,8 +48,6 @@ export const addFavorite = async (userId, place) => {
             return { data: null, error: null }; // Already favorite
         }
         
-        // Sadece Favorilerim ekranında kullanılan verileri kaydediyoruz ki
-        // AsyncStorage (SQLite) boyutu aşılmasın.
         const minimalPlace = {
             id: place.id,
             name: place.name,
@@ -66,12 +64,34 @@ export const addFavorite = async (userId, place) => {
             user_id: userId,
             place_id: place.id,
             created_at: new Date().toISOString(),
-            places: minimalPlace // Minimal nesneyi saklıyoruz
+            places: minimalPlace
         };
         data.push(newFav);
-        await AsyncStorage.setItem(getFavoritesKey(userId), JSON.stringify(data));
+        
+        try {
+            await AsyncStorage.setItem(getFavoritesKey(userId), JSON.stringify(data));
+        } catch (saveError) {
+            // Eğer disk dolu hatası alırsak, cache'i temizleyip tekrar deneyelim
+            if (saveError.message?.includes('full') || saveError.code === '13') {
+                console.warn('Storage full, clearing cache to make room for favorite...');
+                // cacheService'i doğrudan import etmek yerine cache prefix ile temizlik yapalım
+                const keys = await AsyncStorage.getAllKeys();
+                const cacheKeys = keys.filter(k => k.startsWith('sgr_cache_'));
+                if (cacheKeys.length > 0) {
+                    await AsyncStorage.multiRemove(cacheKeys);
+                    // Temizlik sonrası tekrar kaydetmeyi dene
+                    await AsyncStorage.setItem(getFavoritesKey(userId), JSON.stringify(data));
+                } else {
+                    throw saveError; // Temizlenecek bir şey yoksa hatayı fırlat
+                }
+            } else {
+                throw saveError;
+            }
+        }
+        
         return { data: newFav, error: null };
     } catch (e) {
+        console.error('Favorite add error:', e);
         return { data: null, error: e };
     }
 };

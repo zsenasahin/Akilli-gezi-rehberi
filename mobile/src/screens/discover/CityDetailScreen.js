@@ -69,7 +69,7 @@ const CityDetailScreen = ({ route, navigation }) => {
     const cityCenter = getCityCenter(cityName);
     const cityImages = getCityImages(cityName, city?.region);
     const { setAssistantContext, clearAssistantContext } = useAssistantContext();
-    useThemePreference();
+    const { theme } = useThemePreference();
 
     // State
     const [activeCategory, setActiveCategory] = useState('places');
@@ -887,21 +887,27 @@ const CityDetailScreen = ({ route, navigation }) => {
     // MAIN RENDER
     // ═══════════════════════════════════════
     return (
-        <View style={styles.container}>
+        <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
             {/* Sabit üst bar (scroll olunca görünür) */}
             <Animated.View
                 pointerEvents={stickyVisible ? 'auto' : 'none'}
-                style={[styles.stickyHeader, { opacity: headerOpacity, paddingTop: insets.top + 6 }]}
+                style={[
+                    styles.stickyHeader, 
+                    { opacity: headerOpacity, paddingTop: insets.top + 6, backgroundColor: theme.colors.surface, borderBottomColor: theme.colors.border }
+                ]}
             >
                 <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-                    <Ionicons name="arrow-back" size={22} color="#fff" />
+                    <Ionicons name="arrow-back" size={22} color={theme.colors.text} />
                 </TouchableOpacity>
-                <Text style={styles.stickyTitle} numberOfLines={1}>{cityName}</Text>
+                <Text style={[styles.stickyTitle, { color: theme.colors.text }]} numberOfLines={1}>{cityName}</Text>
                 <TouchableOpacity
-                    style={styles.mapBtn}
-                    onPress={() => navigation.navigate('MapScreen', { city })}
+                    style={[styles.mapBtn, { backgroundColor: theme.colors.surfaceSoft }]}
+                    onPress={() => {
+                        const center = getCityCenter(cityName);
+                        Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${center.lat},${center.lng}`);
+                    }}
                 >
-                    <Ionicons name="map" size={20} color="#fff" />
+                    <Ionicons name="map" size={20} color={theme.colors.primary} />
                 </TouchableOpacity>
             </Animated.View>
 
@@ -959,7 +965,10 @@ const CityDetailScreen = ({ route, navigation }) => {
                 <View style={styles.quickActions}>
                     <TouchableOpacity
                         style={styles.quickActionBtn}
-                        onPress={() => navigation.navigate('MapScreen', { city })}
+                        onPress={() => {
+                            const center = getCityCenter(cityName);
+                            Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${center.lat},${center.lng}`);
+                        }}
                     >
                         <LinearGradient
                             colors={[COLORS.primary + '18', COLORS.primary + '08']}
@@ -1178,15 +1187,16 @@ const styles = StyleSheet.create({
         position: 'absolute', top: 0, left: 0, right: 0, zIndex: 100,
         flexDirection: 'row', alignItems: 'center',
         paddingBottom: 12, paddingHorizontal: SPACING.md,
-        backgroundColor: COLORS.primary,
+        backgroundColor: COLORS.background,
+        borderBottomWidth: 1, borderBottomColor: COLORS.border,
     },
     backBtn: { padding: 6 },
     stickyTitle: {
         flex: 1, fontFamily: FONTS.heading,
-        fontSize: FONT_SIZES.lg, color: '#fff', marginLeft: SPACING.sm,
+        fontSize: FONT_SIZES.lg, color: COLORS.textPrimary, marginLeft: SPACING.sm,
     },
     mapBtn: {
-        padding: 8, backgroundColor: 'rgba(255,255,255,0.2)',
+        padding: 8, backgroundColor: COLORS.surfaceAlt,
         borderRadius: 10,
     },
 
@@ -1266,6 +1276,7 @@ const styles = StyleSheet.create({
     quickActions: {
         flexDirection: 'row',
         paddingHorizontal: SPACING.lg,
+        paddingTop: SPACING.md,
         paddingBottom: SPACING.md,
         gap: SPACING.sm,
     },

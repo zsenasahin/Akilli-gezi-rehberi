@@ -203,45 +203,55 @@ const RegisterScreen = ({ navigation }) => {
         }
 
         setLoading(true);
-        const { data: authData, error: authError } = await signUp(email.trim(), password);
+        try {
+            const { data: authData, error: authError } = await signUp(email.trim(), password);
 
-        if (authError) {
-            // Kullanıcı zaten kayıtlıysa özel mesaj
-            if (authError.message?.toLowerCase().includes('already registered') ||
-                authError.message?.toLowerCase().includes('user already exists')) {
-                setError('Bu e-posta adresi zaten kayıtlı. Giriş yapmayı deneyin.');
-            } else {
-                setError(authError.message);
+            if (authError) {
+                // Kullanıcı zaten kayıtlıysa özel mesaj
+                if (authError.message?.toLowerCase().includes('already registered') ||
+                    authError.message?.toLowerCase().includes('user already exists')) {
+                    setError('Bu e-posta adresi zaten kayıtlı. Giriş yapmayı deneyin.');
+                } else {
+                    setError(authError.message);
+                }
+                setLoading(false);
+                return;
             }
+
+            const userId = authData.user?.id;
+            if (userId) {
+                await createProfile({
+                    id: userId,
+                    full_name: fullName.trim(),
+                    travel_style: 'relaxed',
+                });
+            }
+
             setLoading(false);
-            return;
-        }
 
-        const userId = authData.user?.id;
-        if (userId) {
-            await createProfile({
-                id: userId,
-                full_name: fullName.trim(),
-                travel_style: 'relaxed',
-            });
+            // session yoksa email doğrulama gerekiyor demektir
+            if (!authData?.session) {
+                setEmailSent(true);
+            }
+            // session varsa AuthContext otomatik yakalar, modal kapanır
+        } catch (err) {
+            setLoading(false);
+            setError(err.message || 'Kayıt sırasında bir hata oluştu (Ağ bağlantısı vb.).');
         }
-
-        setLoading(false);
-
-        // session yoksa email doğrulama gerekiyor demektir
-        if (!authData?.session) {
-            setEmailSent(true);
-        }
-        // session varsa AuthContext otomatik yakalar, modal kapanır
     };
 
     const handleGoogleLogin = async () => {
         setError(null);
         setSocialLoading('google');
-        const { error: authError } = await signInWithGoogle();
-        setSocialLoading(null);
-        if (authError && authError.message !== 'Giriş iptal edildi.') {
-            setError(authError.message);
+        try {
+            const { error: authError } = await signInWithGoogle();
+            setSocialLoading(null);
+            if (authError && authError.message !== 'Giriş iptal edildi.') {
+                setError(authError.message);
+            }
+        } catch (err) {
+            setSocialLoading(null);
+            setError(err.message || 'Google ile giriş başarısız.');
         }
     };
 

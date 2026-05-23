@@ -40,7 +40,7 @@ const FALLBACK_IMAGE = 'https://images.unsplash.com/photo-1533174072545-7a4b6ad7
 
 export default function EtkinliklerScreen({ navigation, route }) {
     const insets = useSafeAreaInsets();
-    useThemePreference();
+    const { theme } = useThemePreference();
     const filterIl = route?.params?.il || null;
     const focus = route?.params?.focus || null;
     const selectedActivityId = route?.params?.selectedActivity || null;
@@ -149,7 +149,7 @@ export default function EtkinliklerScreen({ navigation, route }) {
         const turStyle = getTurStyle(item.tur);
         return (
             <TouchableOpacity
-                style={styles.card}
+                style={[styles.card, { backgroundColor: theme.colors.surface }]}
                 activeOpacity={0.88}
                 onPress={() => setSelected(item)}
             >
@@ -178,17 +178,17 @@ export default function EtkinliklerScreen({ navigation, route }) {
 
                 {/* İçerik */}
                 <View style={styles.cardBody}>
-                    <Text style={styles.cardTitle} numberOfLines={2}>{item.baslik}</Text>
+                    <Text style={[styles.cardTitle, { color: theme.colors.text }]} numberOfLines={2}>{item.baslik}</Text>
                     <View style={styles.cardMeta}>
-                        <Ionicons name="location-outline" size={13} color={COLORS.textSecondary} />
-                        <Text style={styles.cardMetaText} numberOfLines={1}>{item.il}</Text>
+                        <Ionicons name="location-outline" size={13} color={theme.colors.textSecondary} />
+                        <Text style={[styles.cardMetaText, { color: theme.colors.textSecondary }]} numberOfLines={1}>{item.il}</Text>
                     </View>
                     {item.aciklama ? (
-                        <Text style={styles.cardDesc} numberOfLines={2}>{item.aciklama}</Text>
+                        <Text style={[styles.cardDesc, { color: theme.colors.textSecondary }]} numberOfLines={2}>{item.aciklama}</Text>
                     ) : null}
                     <View style={styles.cardFooter}>
-                        <Ionicons name="calendar-outline" size={12} color={COLORS.textSecondary} />
-                        <Text style={styles.cardDate} numberOfLines={1}>{item.baslangic}</Text>
+                        <Ionicons name="calendar-outline" size={12} color={theme.colors.textSecondary} />
+                        <Text style={[styles.cardDate, { color: theme.colors.textSecondary }]} numberOfLines={1}>{item.baslangic}</Text>
                     </View>
                 </View>
             </TouchableOpacity>
@@ -196,26 +196,26 @@ export default function EtkinliklerScreen({ navigation, route }) {
     };
 
     return (
-        <View style={[styles.container, { paddingTop: insets.top }]}>
+        <View style={[styles.container, { paddingTop: insets.top, backgroundColor: theme.colors.background }]}>
             {/* Header */}
-            <View style={styles.header}>
+            <View style={[styles.header, { borderBottomColor: theme.colors.border, backgroundColor: theme.colors.surface }]}>
                 <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-                    <Ionicons name="arrow-back" size={22} color={COLORS.textPrimary} />
+                    <Ionicons name="arrow-back" size={22} color={theme.colors.text} />
                 </TouchableOpacity>
                 <View style={styles.headerCenter}>
-                    <Text style={styles.headerTitle}>{tourismOnly ? 'Turizm Aktiviteleri' : 'Etkinlikler'}</Text>
-                    <Text style={styles.headerSub}>Kültür Portalı</Text>
+                    <Text style={[styles.headerTitle, { color: theme.colors.text }]}>{tourismOnly ? 'Turizm Aktiviteleri' : 'Etkinlikler'}</Text>
+                    <Text style={[styles.headerSub, { color: theme.colors.textSecondary }]}>Kültür Portalı</Text>
                 </View>
                 <View style={{ width: 36 }} />
             </View>
 
             {/* Arama */}
-            <View style={styles.searchBar}>
-                <Ionicons name="search" size={16} color={COLORS.textSecondary} />
+            <View style={[styles.searchBar, { backgroundColor: theme.colors.surfaceSoft, borderColor: theme.colors.border, borderWidth: 1 }]}>
+                <Ionicons name="search" size={16} color={theme.colors.textSecondary} />
                 <TextInput
-                    style={styles.searchInput}
+                    style={[styles.searchInput, { color: theme.colors.text }]}
                     placeholder={tourismOnly ? 'Aktivite, şehir veya tür ara...' : 'Etkinlik, şehir veya tür ara...'}
-                    placeholderTextColor={COLORS.textSecondary}
+                    placeholderTextColor={theme.colors.textSecondary}
                     value={search}
                     onChangeText={setSearch}
                 />
@@ -256,15 +256,10 @@ export default function EtkinliklerScreen({ navigation, route }) {
                         </View>
                     ) : null}
                     ListFooterComponent={
-                        !tourismOnly ? (
-                            <>
-                            {loadingMore ? (
-                                <View style={styles.footerLoader}>
-                                    <ActivityIndicator size="small" color={COLORS.primary} />
-                                </View>
-                            ) : null}
-                            {renderTurizmSection()}
-                            </>
+                        !tourismOnly && loadingMore ? (
+                            <View style={styles.footerLoader}>
+                                <ActivityIndicator size="small" color={COLORS.primary} />
+                            </View>
                         ) : null
                     }
                 />

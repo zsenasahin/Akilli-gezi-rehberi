@@ -210,10 +210,7 @@ const ProfileScreen = ({ navigation }) => {
                                     <Ionicons name="menu-outline" size={22} color="#fff" />
                                 </TouchableOpacity>
                             </View>
-                            <View style={styles.heroCopy}>
-                                <Text style={styles.heroEyebrow}>Gezgin profili</Text>
-                                <Text style={styles.heroTitle}>{profileName}</Text>
-                            </View>
+
                         </View>
 
                         <View style={[styles.profileInfoCard, { backgroundColor: theme.key === 'dark' ? 'rgba(23,33,30,0.96)' : 'rgba(255,255,255,0.96)', borderColor: theme.key === 'dark' ? theme.colors.border : 'rgba(255,255,255,0.85)' }]}>
@@ -362,9 +359,7 @@ const styles = StyleSheet.create({
     coverOverlay: { ...StyleSheet.absoluteFillObject },
     heroTopRow: { position: 'absolute', top: 16, left: 16, right: 16, flexDirection: 'row', justifyContent: 'space-between' },
     heroIconBtn: { width: 42, height: 42, borderRadius: 21, backgroundColor: 'rgba(255,255,255,0.18)', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.28)' },
-    heroCopy: { position: 'absolute', left: 20, right: 20, bottom: 72 },
-    heroEyebrow: { fontFamily: FONTS.bodySemiBold, fontSize: 12, color: 'rgba(255,255,255,0.82)', letterSpacing: 0, textTransform: 'uppercase' },
-    heroTitle: { marginTop: 4, fontFamily: FONTS.heading, fontSize: 31, color: '#fff' },
+
     profileInfoCard: { marginTop: -48, marginHorizontal: 16, marginBottom: 16, padding: 18, borderRadius: 24, backgroundColor: 'rgba(255,255,255,0.96)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.85)' },
     identityBlock: { alignItems: 'center' },
     nameRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
