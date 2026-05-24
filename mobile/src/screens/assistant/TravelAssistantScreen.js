@@ -144,22 +144,20 @@ export default function TravelAssistantScreen({ route, navigation }) {
                             colors={COLORS.gradients.primary}
                             style={styles.avatar}
                         >
-                            <Ionicons name="sparkles" size={18} color="#fff" />
+                            <Ionicons name="chatbubble-ellipses" size={18} color="#fff" />
                         </LinearGradient>
                         <View style={styles.onlineDot} />
                     </View>
                     <View>
                         <Text style={styles.headerTitle}>Gezi Asistanı</Text>
                         <Text style={styles.headerSub}>
-                            {context.city ? `${context.city} · ${context.days || '?'} gün` : 'AI destekli rehber'}
+                            {context.city ? `${context.city} · ${context.days || '?'} gün` : 'Seyahat yardımı'}
                         </Text>
                     </View>
                 </View>
-
-                <View style={styles.aiBadge}>
-                    <Text style={styles.aiBadgeText}>AI</Text>
-                </View>
             </View>
+
+            <AssistantSummary context={context} />
 
             <KeyboardAvoidingView
                 style={{ flex: 1 }}
@@ -181,7 +179,7 @@ export default function TravelAssistantScreen({ route, navigation }) {
                     {loading && (
                         <View style={styles.typingRow}>
                             <View style={styles.typingAvatar}>
-                                <Ionicons name="sparkles" size={14} color={COLORS.primary} />
+                                <Ionicons name="chatbubble-ellipses" size={14} color={COLORS.primary} />
                             </View>
                             <View style={styles.typingBubble}>
                                 <ActivityIndicator size="small" color={COLORS.primary} />
@@ -251,13 +249,36 @@ export default function TravelAssistantScreen({ route, navigation }) {
     );
 }
 
+const AssistantSummary = React.memo(({ context }) => {
+    const mode = context?.screen === 'itinerary' ? 'Plan modu' : context?.screen === 'city' ? 'Şehir modu' : 'Rehber modu';
+    const detail = context?.screen === 'itinerary'
+        ? `${context.completedCount || 0}/${context.totalPlaces || 0} durak tamamlandı`
+        : (context?.city ? `${context.city} önerileri` : 'Türkiye gezi önerileri');
+
+    return (
+        <View style={styles.summaryBand}>
+            <View style={styles.summaryItem}>
+                <Ionicons name="navigate-circle-outline" size={17} color={COLORS.primary} />
+                <View style={styles.summaryTextWrap}>
+                    <Text style={styles.summaryLabel}>{mode}</Text>
+                    <Text style={styles.summaryValue} numberOfLines={1}>{detail}</Text>
+                </View>
+            </View>
+            <View style={styles.localBadge}>
+                <Ionicons name="phone-portrait-outline" size={13} color={COLORS.primaryDark} />
+                <Text style={styles.localBadgeText}>Yerel</Text>
+            </View>
+        </View>
+    );
+});
+
 const MessageBubble = React.memo(({ msg }) => {
     const isUser = msg.role === 'user';
     return (
         <View style={[styles.msgRow, isUser ? styles.msgRowUser : styles.msgRowAssistant]}>
             {!isUser && (
                 <View style={styles.msgAvatar}>
-                    <Ionicons name="sparkles" size={14} color={COLORS.primary} />
+                    <Ionicons name="chatbubble-ellipses" size={14} color={COLORS.primary} />
                 </View>
             )}
             <View style={[styles.bubble, isUser ? styles.bubbleUser : styles.bubbleAssistant]}>
@@ -330,20 +351,53 @@ const styles = StyleSheet.create({
         color: COLORS.textSecondary,
         marginTop: 1,
     },
-    aiBadge: {
-        backgroundColor: COLORS.primaryMuted,
-        paddingHorizontal: 10,
-        paddingVertical: 4,
-        borderRadius: BORDER_RADIUS.full,
-        borderWidth: 1,
-        borderColor: COLORS.primary + '30',
+    summaryBand: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: SPACING.sm,
+        paddingHorizontal: SPACING.md,
+        paddingVertical: 10,
+        backgroundColor: COLORS.surfaceAlt,
+        borderBottomWidth: 1,
+        borderBottomColor: COLORS.divider,
     },
-    aiBadgeText: {
+    summaryItem: {
+        flex: 1,
+        minWidth: 0,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: SPACING.sm,
+    },
+    summaryTextWrap: {
+        flex: 1,
+        minWidth: 0,
+    },
+    summaryLabel: {
         fontFamily: FONTS.bodySemiBold,
-        fontSize: 11,
-        color: COLORS.primary,
+        fontSize: FONT_SIZES.xs,
+        color: COLORS.textPrimary,
     },
-
+    summaryValue: {
+        marginTop: 1,
+        fontFamily: FONTS.body,
+        fontSize: FONT_SIZES.xs,
+        color: COLORS.textSecondary,
+    },
+    localBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        paddingHorizontal: 9,
+        paddingVertical: 6,
+        borderRadius: BORDER_RADIUS.full,
+        backgroundColor: COLORS.primaryMuted,
+    },
+    localBadgeText: {
+        fontFamily: FONTS.bodySemiBold,
+        fontSize: FONT_SIZES.xs,
+        color: COLORS.primaryDark,
+    },
     // ─── Mesajlar ───
     messages: { flex: 1, backgroundColor: COLORS.background },
     messagesContent: {

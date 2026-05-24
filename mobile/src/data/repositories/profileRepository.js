@@ -71,3 +71,41 @@ export const updateProfile = async (userId, updates) => {
 
     return { data: null, error: new Error('Profil güncelleme başarısız oldu.') };
 };
+
+const getFileExtension = (uri = '', mimeType = '') => {
+    const fromUri = uri.split('?')[0].split('.').pop();
+    if (fromUri && fromUri.length <= 5) return fromUri.toLowerCase();
+    if (mimeType.includes('png')) return 'png';
+    if (mimeType.includes('webp')) return 'webp';
+    return 'jpg';
+};
+
+export const uploadProfileMedia = async (userId, asset, kind = 'avatar') => {
+    if (!userId || !asset?.uri) {
+        return { data: null, error: new Error('Yüklenecek görsel bulunamadı.') };
+    }
+
+    const mimeType = asset.mimeType || 'image/jpeg';
+    const ext = getFileExtension(asset.uri, mimeType);
+    const filePath = `${userId}/${kind}-${Date.now()}.${ext}`;
+
+    try {
+        const arrayBuffer = await fetch(asset.uri).then((res) => res.arrayBuffer());
+        const { error: uploadError } = await supabase.storage
+            .from('profile-media')
+            .upload(filePath, arrayBuffer, {
+                contentType: mimeType,
+                upsert: true,
+            });
+
+        if (uploadError) return { data: null, error: uploadError };
+
+        const { data } = supabase.storage
+            .from('profile-media')
+            .getPublicUrl(filePath);
+
+        return { data: { path: filePath, publicUrl: data.publicUrl }, error: null };
+    } catch (error) {
+        return { data: null, error };
+    }
+};

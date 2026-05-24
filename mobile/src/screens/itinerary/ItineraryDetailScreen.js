@@ -5,7 +5,6 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { COLORS } from '../../constants/colors';
@@ -31,14 +30,11 @@ import { shareItinerary } from '../../utils/shareManager';
 import Button from '../../components/common/Button';
 import { ItineraryDetailSkeleton } from '../../components/common/SkeletonLoader';
 import ErrorMessage from '../../components/common/ErrorMessage';
-import { useAssistantContext } from '../../contexts/AssistantContext';
 import { useThemePreference } from '../../contexts/ThemeContext';
-import FloatingAssistant from '../../components/common/FloatingAssistant';
 import ConfettiOverlay from '../../components/common/ConfettiOverlay';
 
 const ItineraryDetailScreen = ({ route, navigation }) => {
     const { itineraryId } = route.params;
-    const { setAssistantContext, clearAssistantContext } = useAssistantContext();
     const insets = useSafeAreaInsets();
     useThemePreference();
 
@@ -124,32 +120,6 @@ const ItineraryDetailScreen = ({ route, navigation }) => {
     }, [itineraryId, loadSupplementalData]);
 
     useEffect(() => { fetchData(); }, [fetchData]);
-
-    // Ekran odaklandığında asistan bağlamını güncelle
-    useFocusEffect(
-        useCallback(() => {
-            if (!itinerary) return;
-            const completedPlaces = itinerary.itinerary_items
-                .filter(i => i.is_completed).map(i => i.places?.name).filter(Boolean);
-            const allPlaces = itinerary.itinerary_items.map(i => ({
-                name: i.places?.name || '',
-                category: i.places?.category || '',
-                day: i.day_number,
-            }));
-            setAssistantContext({
-                screen: 'itinerary',
-                city: itinerary.cities?.name,
-                days: itinerary.days,
-                startDate: itinerary.start_date,
-                places: allPlaces,
-                completedPlaces,
-                completedCount: completedPlaces.length,
-                totalPlaces: itinerary.itinerary_items.length,
-                status: itinerary.status,
-            });
-            return () => clearAssistantContext();
-        }, [itinerary, setAssistantContext, clearAssistantContext])
-    );
 
     const dayGroups = React.useMemo(() => {
         // Önce itinerary_items'tan oku (Supabase yerleri)
@@ -363,31 +333,6 @@ const ItineraryDetailScreen = ({ route, navigation }) => {
             url = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${dest}${wps ? `&waypoints=${encodeURIComponent(wps)}` : ''}&travelmode=${mode}`;
         }
         Linking.openURL(url);
-    };
-
-    // ─── AI Asistan ───────────────────────────────────────────────────────────
-    const openAssistant = () => {
-        const completedPlaces = itinerary.itinerary_items
-            .filter(i => i.is_completed).map(i => i.places?.name).filter(Boolean);
-        const allPlaces = itinerary.itinerary_items.map(i => ({
-            name: i.places?.name || '',
-            category: i.places?.category || '',
-            day: i.day_number,
-        }));
-        navigation.navigate('TravelAssistant', {
-            context: {
-                screen: 'itinerary',
-                city: itinerary.cities?.name,
-                days: itinerary.days,
-                startDate: itinerary.start_date,
-                currentDay: dayGroups.length > 0 ? dayGroups[0].day : 1,
-                places: allPlaces,
-                completedPlaces,
-                completedCount: completedPlaces.length,
-                totalPlaces: itinerary.itinerary_items.length,
-                remainingTime: null,
-            },
-        });
     };
 
     if (loading) return <ItineraryDetailSkeleton />;
@@ -657,7 +602,6 @@ const ItineraryDetailScreen = ({ route, navigation }) => {
                 {/* Alt boşluk */}
                 <View style={{ height: insets.bottom + SPACING.md }} />
             </ScrollView>
-            <FloatingAssistant />
             <ConfettiOverlay
                 visible={showConfetti}
                 onAnimationFinish={() => {
@@ -1103,23 +1047,6 @@ const styles = StyleSheet.create({
         marginTop: 2,
     },
 
-    // ─── Alt Butonlar ───
-    assistantBtn: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: SPACING.sm,
-        backgroundColor: COLORS.accent,
-        borderRadius: BORDER_RADIUS.lg,
-        paddingVertical: 14,
-        marginBottom: SPACING.sm,
-        shadowColor: COLORS.accent,
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 8,
-        elevation: 5,
-    },
-    assistantBtnText: { fontFamily: 'Inter_700Bold', fontSize: FONT_SIZES.md, color: '#fff' },
     completeButton: { marginTop: SPACING.xs },
 
     // ─── Bütçe Kartı ───

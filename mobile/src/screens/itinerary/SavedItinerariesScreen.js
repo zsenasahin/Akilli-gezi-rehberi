@@ -27,7 +27,6 @@ import { formatDate } from '../../utils/formatters';
 import { SkeletonLoader } from '../../components/common/SkeletonLoader';
 import ErrorMessage from '../../components/common/ErrorMessage';
 import { useThemePreference } from '../../contexts/ThemeContext';
-import FloatingAssistant from '../../components/common/FloatingAssistant';
 
 const SavedItinerariesScreen = ({ navigation }) => {
     const { user } = useAuth();
@@ -261,7 +260,6 @@ const SavedItinerariesScreen = ({ navigation }) => {
                     )
                 }
             />
-            <FloatingAssistant />
         </SafeAreaView>
     );
 };
@@ -306,7 +304,7 @@ const styles = StyleSheet.create({
     // ─── List ───
     listContent: {
         paddingHorizontal: SPACING.lg,
-        paddingTop: SPACING.sm,
+        paddingTop: SPACING.xs,
         paddingBottom: SPACING.xxl,
     },
 

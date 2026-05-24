@@ -76,7 +76,7 @@ const BadgesScreen = ({ navigation }) => {
                 <View>
                     <Text style={[styles.title, { color: theme.colors.text }]}>Rozetlerim</Text>
                     <Text style={[styles.subtitle, { color: theme.colors.textSecondary }]}>
-                        {badges.filter((item) => item.earned).length} / {badges.length} kazanildi
+                        {badges.filter((item) => item.earned).length} / {badges.length} kazanıldı
                     </Text>
                 </View>
             </View>
@@ -88,7 +88,7 @@ const BadgesScreen = ({ navigation }) => {
             >
                 <View style={[styles.summary, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
                     <SummaryStat value={stats.completedPlans} label="Tamamlanan plan" theme={theme} />
-                    <SummaryStat value={stats.completedCities} label="Gezilen sehir" theme={theme} />
+                    <SummaryStat value={stats.completedCities} label="Gezilen şehir" theme={theme} />
                     <SummaryStat value={`${stats.totalCompletedDistance} km`} label="Toplam rota" theme={theme} />
                 </View>
 

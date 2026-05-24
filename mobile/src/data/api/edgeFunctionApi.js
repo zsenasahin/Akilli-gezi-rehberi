@@ -1,5 +1,8 @@
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from '../../config/secrets';
+import Constants from 'expo-constants';
 import { getNearbyHotels, getNearbyRestaurants } from './overpassApi';
+
+const SUPABASE_URL = Constants.expoConfig?.extra?.supabaseUrl;
+const SUPABASE_ANON_KEY = Constants.expoConfig?.extra?.supabaseAnonKey;
 
 /**
  * EdgeFunctionApi – Supabase Edge Function çağrıları.
@@ -53,48 +56,45 @@ export const getOptimizedRoute = async (accommodation, places) => {
 // Overpass'tan gelen kolaylık fonksiyonlarını buradan da export et
 export { getNearbyHotels, getNearbyRestaurants };
 
-/**
- * Gemini 1.5 Flash — Doğrudan API çağrısı (Edge Function yok)
- * API key secrets.js'den gelir (.gitignore'da, güvende)
- */
 export const askTravelAssistant = async (message, context = {}, history = []) => {
-    try {
-        const { GEMINI_API_KEY } = await import('../../config/secrets');
+    const useRemoteAssistant = Constants.expoConfig?.extra?.useRemoteAssistant === true;
 
-        if (!GEMINI_API_KEY || GEMINI_API_KEY === 'BURAYA_KEY_YAZ') {
-            return { data: { reply: '⚙️ Gemini API key henüz ayarlanmamış.' }, error: null };
+    if (!useRemoteAssistant) {
+        return {
+            data: {
+                reply: 'Gezi asistanı şu anda devre dışı.',
+                fallback: true,
+                source: 'disabled',
+            },
+            error: null,
+        };
+    }
+
+    try {
+        if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+            return {
+                data: {
+                    reply: 'Gezi asistanı şu anda devre dışı.',
+                    fallback: true,
+                    source: 'disabled',
+                },
+                error: null,
+            };
         }
 
-        const systemText = buildSystemPrompt(context);
-
-        const systemTurn = [
-            { role: 'user', parts: [{ text: systemText }] },
-            { role: 'model', parts: [{ text: 'Anladım, Türkçe olarak yardımcı olmaya hazırım! 👋' }] },
-        ];
-
-        const historyTurns = history.map(h => ({
-            role: h.role === 'assistant' ? 'model' : 'user',
-            parts: [{ text: h.text }],
-        }));
-
-        const contents = [
-            ...systemTurn,
-            ...historyTurns,
-            { role: 'user', parts: [{ text: message }] },
-        ];
-
         const response = await fetchWithTimeout(
-            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key=${GEMINI_API_KEY}`,
+            `${SUPABASE_URL}/functions/v1/travel-assistant`,
             {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+                    apikey: SUPABASE_ANON_KEY,
+                },
                 body: JSON.stringify({
-                    contents,
-                    generationConfig: {
-                        temperature: 0.7,
-                        maxOutputTokens: 1024,
-                        topP: 0.9,
-                    },
+                    message,
+                    context,
+                    history,
                 }),
             },
             15000
@@ -102,46 +102,51 @@ export const askTravelAssistant = async (message, context = {}, history = []) =>
 
         if (!response.ok) {
             const errText = await response.text();
-            console.warn('Gemini API error:', errText);
+            console.warn('travel-assistant Edge Function error:', errText);
+            const isQuotaError =
+                response.status === 429 ||
+                errText.includes('RESOURCE_EXHAUSTED') ||
+                errText.includes('Quota exceeded');
+
+            if (isQuotaError) {
+                return {
+                    data: {
+                        reply: buildOfflineAssistantReply(
+                            message,
+                            context,
+                            'Asistan kotası dolu olduğu için şimdilik yerel öneriyle yardımcı oluyorum.'
+                        ),
+                        fallback: true,
+                        source: 'local',
+                    },
+                    error: null,
+                };
+            }
+
             return { data: null, error: 'Asistan yanıt veremedi.' };
         }
 
         const data = await response.json();
-        const reply = data.candidates?.[0]?.content?.parts?.[0]?.text ?? 'Yanıt alınamadı.';
-        return { data: { reply }, error: null };
+        return { data, error: null };
 
     } catch (err) {
         console.warn('askTravelAssistant error:', err.message);
-        return { data: null, error: 'Bağlantı hatası.' };
+        return {
+            data: {
+                reply: buildOfflineAssistantReply(
+                    message,
+                    context,
+                    'Bağlantı sorunu olduğu için çevrimdışı öneri sunuyorum.'
+                ),
+                fallback: true,
+                source: 'local',
+            },
+            error: null,
+        };
     }
 };
 
-// ─── Sistem Prompt ────────────────────────────────────────────────────────────
-function buildSystemPrompt(context = {}) {
-    let prompt = `Sen "Gezi Asistanı" adlı, Türkiye'yi seven ve bilen samimi bir seyahat rehberisin.
-Kısa, net ve pratik yanıtlar verirsin. Emoji kullanmaktan çekinmezsin.
-Yanıtlarını Türkçe verirsin.
-Yalnızca seyahat, gezi, yemek, konaklama ve şehir rehberliği konularında yardımcı olursun.
-ÖNEMLİ: Hava durumu sorusunda ASLA tahmin yapma. Sadece sana verilen gerçek veriyi kullan.
-`;
-    if (context.city) prompt += `\nKullanıcı şu an ${context.city} şehrinde gezi planlıyor veya gezide.`;
-    if (context.days) prompt += ` Gezi toplam ${context.days} gün.`;
-    if (context.startDate) prompt += ` Başlangıç tarihi: ${context.startDate}.`;
-    if (context.currentDay) prompt += ` Şu an ${context.currentDay}. günde.`;
-    if (context.remainingTime > 0) prompt += ` Bugünkü planında yaklaşık ${context.remainingTime} dakika boş vakti var.`;
-    if (context.places?.length) {
-        const todayPlaces = context.places.filter(p => p.day === context.currentDay).map(p => p.name);
-        if (todayPlaces.length) prompt += ` Bugünkü plan: ${todayPlaces.join(', ')}.`;
-    }
-    if (context.completedPlaces?.length) {
-        prompt += ` Tamamlanan yerler: ${context.completedPlaces.join(', ')}.`;
-    }
-    if (context.weatherInfo) {
-        prompt += `\n\n${context.weatherInfo}`;
-    } else {
-        prompt += `\n\nHava durumu sorusunda: "Gerçek zamanlı hava verim yok, uygulamadaki Hava Durumu widget'ına bakabilirsiniz 🌤️" de.`;
-    }
-    prompt += `\n\nKullanıcının sorusuna göre pratik, özgün ve eğlenceli öneriler sun.
-Yanıtların 2-4 cümle olsun, çok uzun yazma.`;
-    return prompt;
+function buildOfflineAssistantReply(message, context = {}, prefix = '') {
+    const intro = prefix ? `${prefix}\n\n` : '';
+    return intro + 'Gezi asistanı şu anda devre dışı.';
 }

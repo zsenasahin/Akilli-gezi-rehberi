@@ -24,9 +24,7 @@ import ProfileScreen from '../screens/profile/ProfileScreen';
 import CityCollectionScreen from '../screens/profile/CityCollectionScreen';
 import BadgesScreen from '../screens/profile/BadgesScreen';
 import ThemeSettingsScreen from '../screens/profile/ThemeSettingsScreen';
-import JournalPage from '../screens/journal/JournalPage';
 import MapScreen from '../screens/map/MapScreen';
-import TravelAssistantScreen from '../screens/assistant/TravelAssistantScreen';
 import EtkinliklerScreen from '../screens/discover/EtkinliklerScreen';
 import PasswordResetScreen from '../screens/auth/PasswordResetScreen';
 
@@ -103,7 +101,6 @@ const HomeStackNavigator = () => (
         <HomeStack.Screen name="CityDetail" component={CityDetailScreen} options={{ headerShown: false }} />
         <HomeStack.Screen name="AllCities" component={AllCitiesScreen} options={{ headerShown: false }} />
         <HomeStack.Screen name="Etkinlikler" component={EtkinliklerScreen} options={{ headerShown: false }} />
-        <HomeStack.Screen name="TravelAssistant" component={TravelAssistantScreen} options={{ headerShown: false }} />
         <HomeStack.Screen name="ItineraryDetail" component={ItineraryDetailScreen} options={{ headerShown: false }} />
         <HomeStack.Screen name="Saved" component={SavedItinerariesScreen} options={{ title: 'Planlarım' }} />
     </HomeStack.Navigator>
@@ -116,7 +113,6 @@ const SavedStackNavigator = () => {
         <SavedStack.Navigator screenOptions={stackScreenOptions}>
             <SavedStack.Screen name="SavedList" component={SavedItinerariesScreen} options={{ title: 'Planlarım' }} />
             <SavedStack.Screen name="ItineraryDetail" component={ItineraryDetailScreen} options={{ headerShown: false }} />
-            <SavedStack.Screen name="TravelAssistant" component={TravelAssistantScreen} options={{ headerShown: false }} />
         </SavedStack.Navigator>
     );
 };
@@ -128,11 +124,9 @@ const ProfileStackNavigator = () => {
         <ProfileStack.Navigator screenOptions={stackScreenOptions}>
             <ProfileStack.Screen name="ProfileMain" component={ProfileScreen} options={{ headerShown: false }} />
             <ProfileStack.Screen name="ProfileMenu" component={MenuScreen} options={{ headerShown: false }} />
-            <ProfileStack.Screen name="TravelAssistant" component={TravelAssistantScreen} options={{ headerShown: false }} />
             <ProfileStack.Screen name="ItineraryDetail" component={ItineraryDetailScreen} options={{ headerShown: false }} />
             <ProfileStack.Screen name="Saved" component={SavedItinerariesScreen} options={{ title: 'Planlarım' }} />
             <ProfileStack.Screen name="Favorites" component={FavoritesScreen} options={{ headerShown: false }} />
-            <ProfileStack.Screen name="Journal" component={JournalPage} options={{ headerShown: false }} />
             <ProfileStack.Screen name="CityCollection" component={CityCollectionScreen} options={{ headerShown: false }} />
             <ProfileStack.Screen name="Badges" component={BadgesScreen} options={{ headerShown: false }} />
             <ProfileStack.Screen name="PasswordReset" component={PasswordResetScreen} options={{ headerShown: false }} />
@@ -233,7 +227,6 @@ const RootStack = createNativeStackNavigator();
 const MainNavigator = () => (
     <RootStack.Navigator screenOptions={{ headerShown: false }}>
         <RootStack.Screen name="Main" component={TabsWithFloating} />
-        <RootStack.Screen name="TravelAssistant" component={TravelAssistantScreen} />
     </RootStack.Navigator>
 );
 

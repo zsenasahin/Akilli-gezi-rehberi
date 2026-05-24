@@ -36,14 +36,12 @@ import { getPlaceImage } from '../../constants/placeImages';
 import { getCityPOIs } from '../../services/poiService';
 import { getBatchPlacePhotos } from '../../services/placePhotoService';
 import { toggleFavorite, getFavoriteIds } from '../../services/favoriteService';
-import { useFocusEffect } from '@react-navigation/native';
 import { loadCityPlaces } from '../../services/placeDataManager';
 import { cache, TTL } from '../../services/cacheService';
 
 import { useAuth } from '../../contexts/AuthContext';
 import { getCityCenter } from '../../constants/cities';
 import { CityDetailSkeleton, SkeletonLoader } from '../../components/common/SkeletonLoader';
-import { useAssistantContext } from '../../contexts/AssistantContext';
 import { useThemePreference } from '../../contexts/ThemeContext';
 
 import mutfakData from '../../data/turkiye_mutfak.json';
@@ -68,7 +66,6 @@ const CityDetailScreen = ({ route, navigation }) => {
     const cityName = city?.name || 'İstanbul';
     const cityCenter = getCityCenter(cityName);
     const cityImages = getCityImages(cityName, city?.region);
-    const { setAssistantContext, clearAssistantContext } = useAssistantContext();
     const { theme } = useThemePreference();
 
     // State
@@ -106,18 +103,6 @@ const CityDetailScreen = ({ route, navigation }) => {
         });
         return () => scrollY.removeListener(id);
     }, [scrollY]);
-
-    // ─── Asistan bağlamını güncelle ───
-    useFocusEffect(
-        useCallback(() => {
-            setAssistantContext({
-                screen: 'city',
-                city: cityName,
-                cityDescription,
-            });
-            return () => clearAssistantContext();
-        }, [cityName, cityDescription, setAssistantContext, clearAssistantContext])
-    );
 
     // ─── Şehir verileri yükle ───
     useEffect(() => {

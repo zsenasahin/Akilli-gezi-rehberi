@@ -1,8 +1,8 @@
 const BADGE_DEFINITIONS = [
     {
         key: 'first_completed',
-        label: 'Ilk Adim',
-        description: 'Ilk sehir planini tamamla',
+        label: 'İlk Adım',
+        description: 'İlk şehir planını tamamla',
         icon: 'flag',
         color: '#D97706',
         ring: '#FDE7C4',
@@ -10,8 +10,8 @@ const BADGE_DEFINITIONS = [
     },
     {
         key: 'city_3',
-        label: '3 Sehir',
-        description: '3 farkli sehri tamamla',
+        label: '3 Şehir',
+        description: '3 farklı şehri tamamla',
         icon: 'location',
         color: '#0F766E',
         ring: '#D6F5F1',
@@ -19,8 +19,8 @@ const BADGE_DEFINITIONS = [
     },
     {
         key: 'city_5',
-        label: '5 Sehir',
-        description: '5 farkli sehri tamamla',
+        label: '5 Şehir',
+        description: '5 farklı şehri tamamla',
         icon: 'earth',
         color: '#2563EB',
         ring: '#DCEBFF',
@@ -28,8 +28,8 @@ const BADGE_DEFINITIONS = [
     },
     {
         key: 'city_10',
-        label: '10 Sehir',
-        description: '10 farkli sehri tamamla',
+        label: '10 Şehir',
+        description: '10 farklı şehri tamamla',
         icon: 'compass',
         color: '#7C3AED',
         ring: '#EBDDFF',
@@ -37,8 +37,8 @@ const BADGE_DEFINITIONS = [
     },
     {
         key: 'city_20',
-        label: '20 Sehir',
-        description: '20 farkli sehri tamamla',
+        label: '20 Şehir',
+        description: '20 farklı şehri tamamla',
         icon: 'trail-sign',
         color: '#DB2777',
         ring: '#FFDCEF',
@@ -46,8 +46,8 @@ const BADGE_DEFINITIONS = [
     },
     {
         key: 'city_50',
-        label: '50 Sehir',
-        description: '50 farkli sehri tamamla',
+        label: '50 Şehir',
+        description: '50 farklı şehri tamamla',
         icon: 'map',
         color: '#CA8A04',
         ring: '#FEF3C7',
@@ -55,8 +55,8 @@ const BADGE_DEFINITIONS = [
     },
     {
         key: 'city_81',
-        label: '81 Sehir',
-        description: 'Tum Turkiye hedefini tamamla',
+        label: '81 Şehir',
+        description: 'Tüm Türkiye hedefini tamamla',
         icon: 'trophy',
         color: '#B45309',
         ring: '#FDE68A',

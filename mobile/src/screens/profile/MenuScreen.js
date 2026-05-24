@@ -18,8 +18,6 @@ const MENU_ITEMS = [
     { key: 'saved', label: 'Planlarım', meta: 'Oluşturduğun rotalar', icon: 'map-outline', route: 'Saved' },
     { key: 'collection', label: 'Şehir koleksiyonum', meta: 'Gittiğin şehirler tek yerde', icon: 'images-outline', route: 'CityCollection' },
     { key: 'badges', label: 'Rozetlerim', meta: 'Kilometre ve şehir rozetleri', icon: 'ribbon-outline', route: 'Badges' },
-    { key: 'journals', label: 'Defterlerim', meta: 'Hatıra defterlerine dön', icon: 'book-outline', route: 'Journal' },
-    { key: 'support', label: 'Yardım ve destek', meta: 'Asistan ile yardım al', icon: 'help-buoy-outline', route: 'TravelAssistant' },
     { key: 'password', label: 'Şifre güncelle', meta: 'Hesap güvenliğini yönet', icon: 'key-outline', route: 'PasswordReset' },
     { key: 'theme', label: 'Tema değiştir', meta: 'Görünüm tercihlerini seç', icon: 'contrast-outline', route: 'ThemeSettings' },
 ];

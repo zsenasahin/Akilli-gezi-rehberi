@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
     Alert,
     Animated,
-    Platform,
     RefreshControl,
     ScrollView,
     StatusBar,
@@ -22,12 +21,11 @@ import { COLORS } from '../../constants/colors';
 import { FONTS } from '../../constants/typography';
 import { SPACING } from '../../constants/layout';
 import { useAuth } from '../../contexts/AuthContext';
-import { getProfile, updateProfile } from '../../services/profileService';
+import { getProfile, updateProfile, uploadProfileMedia } from '../../services/profileService';
 import { getItinerariesByUser } from '../../services/itineraryService';
 import { signOut } from '../../services/authService';
 import useFavorites from '../../hooks/useFavorites';
 import { ProfileSkeleton } from '../../components/common/SkeletonLoader';
-import { getJournalBooks } from '../../services/journalStore';
 import { buildBadges, buildTravelStats } from '../../services/achievementService';
 import { useThemePreference } from '../../contexts/ThemeContext';
 
@@ -44,6 +42,11 @@ const TRAVEL_STYLES = [
 
 const LEGACY = { Kültürel: 'cultural', Macera: 'adventure', Rahat: 'relaxed', Gastronomi: 'gastronomy', Doğa: 'nature', Fotoğraf: 'photography' };
 const normalizeStyle = (value) => LEGACY[value] || value || '';
+const getInitials = (name = '') => {
+    const parts = name.trim().split(/\s+/).filter(Boolean);
+    if (!parts.length) return 'SG';
+    return parts.slice(0, 2).map((part) => part[0]?.toLocaleUpperCase('tr-TR')).join('');
+};
 
 const ProfileScreen = ({ navigation }) => {
     const { user } = useAuth();
@@ -54,7 +57,6 @@ const ProfileScreen = ({ navigation }) => {
 
     const [profile, setProfile] = useState(null);
     const [itineraries, setItineraries] = useState([]);
-    const [books, setBooks] = useState([]);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [editing, setEditing] = useState(false);
@@ -63,6 +65,7 @@ const ProfileScreen = ({ navigation }) => {
     const [travelStyle, setTravelStyle] = useState('');
     const [bio, setBio] = useState('');
     const [coverUri, setCoverUri] = useState(null);
+    const [avatarUri, setAvatarUri] = useState(null);
     const [cityCollection, setCityCollection] = useState([]);
     const [badges, setBadges] = useState([]);
 
@@ -77,10 +80,9 @@ const ProfileScreen = ({ navigation }) => {
     const fetchData = useCallback(async () => {
         if (!user) return;
 
-        const [profileRes, itinerariesRes, journalBooks] = await Promise.all([
+        const [profileRes, itinerariesRes] = await Promise.all([
             getProfile(user.id),
             getItinerariesByUser(user.id),
-            getJournalBooks(user.id),
         ]);
 
         const nextProfile = profileRes.data || null;
@@ -88,11 +90,11 @@ const ProfileScreen = ({ navigation }) => {
 
         setProfile(nextProfile);
         setItineraries(nextItineraries);
-        setBooks(journalBooks || []);
         setFullName(nextProfile?.full_name || '');
         setTravelStyle(normalizeStyle(nextProfile?.travel_style));
         setBio(nextProfile?.bio || '');
         setCoverUri(nextProfile?.cover_url || null);
+        setAvatarUri(nextProfile?.avatar_url || null);
 
         const cityMap = nextItineraries.reduce((acc, itinerary) => {
             const cityName = itinerary?.cities?.name;
@@ -123,7 +125,7 @@ const ProfileScreen = ({ navigation }) => {
         fetchData();
     }, [fetchData]));
 
-    const pickImage = async () => {
+    const pickProfileMedia = async (kind) => {
         const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
         if (status !== 'granted') {
             Alert.alert('İzin Gerekli', 'Galeri izni olmadan görsel seçilemiyor.');
@@ -132,16 +134,65 @@ const ProfileScreen = ({ navigation }) => {
 
         const result = await ImagePicker.launchImageLibraryAsync({
             mediaTypes: ImagePicker.MediaTypeOptions.Images,
-            allowsEditing: true,
-            aspect: [16, 10],
+            allowsEditing: false,
             quality: 0.9,
         });
 
         if (result.canceled || !result.assets?.[0]?.uri) return;
 
-        const nextUri = result.assets[0].uri;
-        setCoverUri(nextUri);
-        await updateProfile(user.id, { cover_url: nextUri });
+        const asset = result.assets[0];
+        if (kind === 'avatar') setAvatarUri(asset.uri);
+        else setCoverUri(asset.uri);
+
+        const { data, error } = await uploadProfileMedia(user.id, asset, kind);
+        if (error) {
+            Alert.alert('Yükleme Hatası', error.message || 'Görsel yüklenemedi.');
+            fetchData();
+            return;
+        }
+
+        const column = kind === 'avatar' ? 'avatar_url' : 'cover_url';
+        const publicUrl = data.publicUrl;
+        const { error: updateError } = await updateProfile(user.id, { [column]: publicUrl });
+        if (updateError) {
+            Alert.alert('Hata', updateError.message || 'Profil görseli kaydedilemedi.');
+            fetchData();
+            return;
+        }
+
+        if (kind === 'avatar') setAvatarUri(publicUrl);
+        else setCoverUri(publicUrl);
+    };
+
+    const removeProfileMedia = async (kind) => {
+        const column = kind === 'avatar' ? 'avatar_url' : 'cover_url';
+        const { error } = await updateProfile(user.id, { [column]: null });
+        if (error) {
+            Alert.alert('Hata', error.message || 'Görsel kaldırılamadı.');
+            return;
+        }
+        if (kind === 'avatar') setAvatarUri(null);
+        else setCoverUri(null);
+    };
+
+    const showMediaOptions = (kind) => {
+        const isAvatar = kind === 'avatar';
+        const hasImage = isAvatar ? Boolean(avatarUri) : Boolean(coverUri);
+        const title = isAvatar ? 'Profil fotoğrafı' : 'Kapak fotoğrafı';
+        const actions = [
+            { text: 'Yeni fotoğraf seç', onPress: () => pickProfileMedia(kind) },
+        ];
+
+        if (hasImage) {
+            actions.push({
+                text: 'Fotoğrafı kaldır',
+                style: 'destructive',
+                onPress: () => removeProfileMedia(kind),
+            });
+        }
+
+        actions.push({ text: 'Vazgeç', style: 'cancel' });
+        Alert.alert(title, 'Ne yapmak istersin?', actions);
     };
 
     const handleSave = async () => {
@@ -150,6 +201,7 @@ const ProfileScreen = ({ navigation }) => {
             travel_style: travelStyle,
             bio,
             cover_url: coverUri,
+            avatar_url: avatarUri,
         });
 
         if (error) {
@@ -163,6 +215,7 @@ const ProfileScreen = ({ navigation }) => {
             travel_style: travelStyle,
             bio,
             cover_url: coverUri,
+            avatar_url: avatarUri,
         });
         setEditing(false);
     };
@@ -176,9 +229,7 @@ const ProfileScreen = ({ navigation }) => {
 
     if (loading) return <ProfileSkeleton />;
 
-    const totalPages = books.reduce((sum, book) => sum + (book.pages?.length || 0), 0);
     const travelStats = buildTravelStats(itineraries);
-    const completedPlans = travelStats.completedPlans;
     const styleLabel = TRAVEL_STYLES.find((item) => item.value === normalizeStyle(travelStyle))?.label || 'Tarz seçilmedi';
     const profileName = profile?.full_name || 'İsimsiz Gezgin';
     const visitedRatio = Math.min(100, Math.round((cityCollection.length / 81) * 100));
@@ -194,116 +245,98 @@ const ProfileScreen = ({ navigation }) => {
                 refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchData(); }} tintColor={COLORS.primaryDark} />}
             >
                 <Animated.View style={{ opacity: fadeAnim }}>
-                    <View style={[styles.heroCard, { backgroundColor: theme.colors.surface }]}>
-                        <View style={styles.coverWrap}>
-                            {coverUri ? (
-                                <SmartImage uri={coverUri} style={styles.coverImage} contentFit="cover" />
-                            ) : (
-                                <SmartImage source={DEFAULT_COVER} style={styles.coverImage} contentFit="cover" />
-                            )}
-                            <LinearGradient colors={['rgba(11,18,16,0.16)', 'rgba(11,18,16,0.8)']} style={styles.coverOverlay} />
-                            <View style={styles.heroTopRow}>
-                                <TouchableOpacity style={styles.heroIconBtn} onPress={() => editing ? pickImage() : setEditing(true)} activeOpacity={0.85}>
-                                    <Ionicons name={editing ? 'image-outline' : 'create-outline'} size={18} color="#fff" />
+                    <View style={styles.coverWrap}>
+                        {coverUri ? (
+                            <SmartImage uri={coverUri} style={styles.coverImage} contentFit="cover" />
+                        ) : (
+                            <SmartImage source={DEFAULT_COVER} style={styles.coverImage} contentFit="cover" />
+                        )}
+                        <LinearGradient colors={['rgba(11,18,16,0.06)', 'rgba(11,18,16,0.62)']} style={styles.coverOverlay} />
+                        <View style={styles.heroTopRow}>
+                            <TouchableOpacity style={styles.heroIconBtn} onPress={() => showMediaOptions('cover')} activeOpacity={0.85}>
+                                <Ionicons name="image-outline" size={18} color="#fff" />
+                            </TouchableOpacity>
+                            <View style={styles.heroActionGroup}>
+                                <TouchableOpacity style={styles.heroIconBtn} onPress={() => setEditing((value) => !value)} activeOpacity={0.85}>
+                                    <Ionicons name={editing ? 'close-outline' : 'create-outline'} size={20} color="#fff" />
                                 </TouchableOpacity>
                                 <TouchableOpacity style={styles.heroIconBtn} onPress={() => navigation.navigate('ProfileMenu')} activeOpacity={0.85}>
                                     <Ionicons name="menu-outline" size={22} color="#fff" />
                                 </TouchableOpacity>
                             </View>
-
-                        </View>
-
-                        <View style={[styles.profileInfoCard, { backgroundColor: theme.key === 'dark' ? 'rgba(23,33,30,0.96)' : 'rgba(255,255,255,0.96)', borderColor: theme.key === 'dark' ? theme.colors.border : 'rgba(255,255,255,0.85)' }]}>
-                            {editing ? (
-                                <View style={styles.editPanel}>
-                                    <TextInput value={fullName} onChangeText={setFullName} placeholder="Ad soyad" placeholderTextColor="#6B7280" style={styles.editInput} />
-                                    <TextInput value={bio} onChangeText={setBio} placeholder="Kısa bir biyografi" placeholderTextColor="#6B7280" style={[styles.editInput, styles.bioInput]} multiline maxLength={180} />
-                                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.styleList}>
-                                        {TRAVEL_STYLES.map((item) => (
-                                            <TouchableOpacity
-                                                key={item.value}
-                                                style={[styles.styleChip, travelStyle === item.value && styles.styleChipActive]}
-                                                onPress={() => setTravelStyle(item.value)}
-                                                activeOpacity={0.85}
-                                            >
-                                                <Text style={[styles.styleChipTxt, travelStyle === item.value && styles.styleChipTxtActive]}>{item.label}</Text>
-                                            </TouchableOpacity>
-                                        ))}
-                                    </ScrollView>
-                                    <View style={styles.editActions}>
-                                        <TouchableOpacity style={styles.secondaryBtn} onPress={() => setEditing(false)}><Text style={styles.secondaryBtnTxt}>Vazgeç</Text></TouchableOpacity>
-                                        <TouchableOpacity style={styles.primaryBtn} onPress={handleSave}><Text style={styles.primaryBtnTxt}>Kaydet</Text></TouchableOpacity>
-                                    </View>
-                                </View>
-                            ) : (
-                                <View style={styles.identityBlock}>
-                                    <View style={styles.nameRow}>
-                                        <Text style={[styles.profileName, { color: theme.colors.text }]}>{profileName}</Text>
-                                        <TouchableOpacity style={styles.smallEditBtn} onPress={() => setEditing(true)} activeOpacity={0.82}>
-                                            <Ionicons name="create-outline" size={15} color={COLORS.primaryDark} />
-                                        </TouchableOpacity>
-                                    </View>
-                                    <Text style={[styles.profileBio, { color: theme.colors.textSecondary }]}>{bio || 'Kendini, gezi tarzını ve bir sonraki rotanı birkaç cümleyle anlat.'}</Text>
-                                    <View style={styles.badgeRow}>
-                                        <LinearGradient colors={['#DDF2E9', '#F6FAF7']} style={styles.badgePill}>
-                                            <Ionicons name="sparkles-outline" size={13} color={COLORS.primaryDark} />
-                                            <Text style={styles.badgeTxt}>{styleLabel}</Text>
-                                        </LinearGradient>
-                                    </View>
-                                </View>
-                            )}
                         </View>
                     </View>
 
-                    <View style={[styles.statsPanel, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
-                        <View style={styles.statsHeader}>
-                            <Text style={[styles.statsTitle, { color: theme.colors.text }]}>Seyahat özeti</Text>
-                            <Text style={[styles.statsMeta, { color: theme.colors.primary }]}>Türkiye hedefi %{visitedRatio}</Text>
+                    <View style={styles.profileMain}>
+                        <TouchableOpacity style={[styles.avatarWrap, { borderColor: theme.colors.background }]} onPress={() => showMediaOptions('avatar')} activeOpacity={0.86}>
+                            {avatarUri ? (
+                                <SmartImage uri={avatarUri} style={styles.avatarImage} contentFit="cover" />
+                            ) : (
+                                <LinearGradient colors={[theme.colors.primary, '#17372D']} style={styles.avatarFallback}>
+                                    <Text style={styles.avatarInitials}>{getInitials(profileName)}</Text>
+                                </LinearGradient>
+                            )}
+                            <View style={styles.avatarCamera}>
+                                <Ionicons name="camera-outline" size={14} color="#fff" />
+                            </View>
+                        </TouchableOpacity>
+
+                        <Text style={[styles.profileName, { color: theme.colors.text }]}>{profileName}</Text>
+                        <Text style={[styles.profileBio, { color: theme.colors.textSecondary }]}>{bio || 'Kendini, gezi tarzını ve bir sonraki rotanı birkaç cümleyle anlat.'}</Text>
+                        <View style={styles.badgeRow}>
+                            <View style={[styles.badgePill, { backgroundColor: theme.colors.pill }]}> 
+                                <Ionicons name="sparkles-outline" size={13} color={theme.colors.primary} />
+                                <Text style={[styles.badgeTxt, { color: theme.colors.primary }]}>{styleLabel}</Text>
+                            </View>
                         </View>
-                        <View style={[styles.progressTrack, { backgroundColor: theme.colors.pill }]}>
+
+                        <View style={styles.statGrid}>
+                            <InlineStat label="Şehir" value={cityCollection.length} icon="location-outline" theme={theme} />
+                            <InlineStat label="Favori" value={favorites.length} icon="heart-outline" theme={theme} />
+                            <InlineStat label="Plan" value={itineraries.length} icon="map-outline" theme={theme} />
+                            <InlineStat label="Rozet" value={earnedBadges.length} icon="ribbon-outline" theme={theme} />
+                        </View>
+                    </View>
+
+                    {editing && (
+                        <View style={[styles.editPanel, { borderColor: theme.colors.border }]}> 
+                            <TextInput value={fullName} onChangeText={setFullName} placeholder="Ad soyad" placeholderTextColor="#6B7280" style={styles.editInput} />
+                            <TextInput value={bio} onChangeText={setBio} placeholder="Kısa bir biyografi" placeholderTextColor="#6B7280" style={[styles.editInput, styles.bioInput]} multiline maxLength={180} />
+                            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.styleList}>
+                                {TRAVEL_STYLES.map((item) => (
+                                    <TouchableOpacity
+                                        key={item.value}
+                                        style={[styles.styleChip, travelStyle === item.value && styles.styleChipActive]}
+                                        onPress={() => setTravelStyle(item.value)}
+                                        activeOpacity={0.85}
+                                    >
+                                        <Text style={[styles.styleChipTxt, travelStyle === item.value && styles.styleChipTxtActive]}>{item.label}</Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </ScrollView>
+                            <View style={styles.editActions}>
+                                <TouchableOpacity style={styles.secondaryBtn} onPress={() => setEditing(false)}><Text style={styles.secondaryBtnTxt}>Vazgeç</Text></TouchableOpacity>
+                                <TouchableOpacity style={styles.primaryBtn} onPress={handleSave}><Text style={styles.primaryBtnTxt}>Kaydet</Text></TouchableOpacity>
+                            </View>
+                        </View>
+                    )}
+
+                    <View style={styles.progressSection}>
+                        <View style={styles.statsHeader}>
+                            <Text style={[styles.statsTitle, { color: theme.colors.text }]}>Türkiye hedefi</Text>
+                            <Text style={[styles.statsMeta, { color: theme.colors.primary }]}>%{visitedRatio}</Text>
+                        </View>
+                        <View style={[styles.progressTrack, { backgroundColor: theme.colors.pill }]}> 
                             <View style={[styles.progressFill, { width: `${Math.max(8, visitedRatio)}%`, backgroundColor: theme.colors.primary }]} />
                         </View>
                         <Text style={[styles.progressCaption, { color: theme.colors.textSecondary }]}>{cityCollection.length} / 81 şehir görüldü</Text>
-
-                        <View style={styles.statGrid}>
-                            <InlineStat label="Gezilen şehir" value={cityCollection.length} icon="location-outline" theme={theme} />
-                            <InlineStat label="Favori" value={favorites.length} icon="heart-outline" theme={theme} />
-                            <InlineStat label="Plan" value={itineraries.length} icon="map-outline" theme={theme} />
-                            <InlineStat label="Sayfa" value={totalPages} icon="document-text-outline" theme={theme} />
-                        </View>
                     </View>
 
-                    <View style={[styles.sectionCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
-                        <View style={styles.sectionHeader}>
-                            <View>
-                                <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Defterlerin</Text>
-                                <Text style={[styles.sectionSub, { color: theme.colors.textSecondary }]}>Defterlerine tek yerden dön</Text>
-                            </View>
-                            <TouchableOpacity style={styles.inlineBtn} onPress={() => navigation.navigate('Journal')}>
-                                <Text style={styles.inlineBtnTxt}>Aç</Text>
-                            </TouchableOpacity>
-                        </View>
-                        <View style={styles.journalSummary}>
-                            <View style={[styles.journalCount, { backgroundColor: theme.colors.surfaceSoft }]}>
-                                <Text style={[styles.journalValue, { color: theme.colors.text }]}>{books.length}</Text>
-                                <Text style={[styles.journalLabel, { color: theme.colors.textSecondary }]}>defter</Text>
-                            </View>
-                            <View style={[styles.journalCount, { backgroundColor: theme.colors.surfaceSoft }]}>
-                                <Text style={[styles.journalValue, { color: theme.colors.text }]}>{totalPages}</Text>
-                                <Text style={[styles.journalLabel, { color: theme.colors.textSecondary }]}>sayfa</Text>
-                            </View>
-                            <View style={[styles.journalCount, { backgroundColor: theme.colors.surfaceSoft }]}>
-                                <Text style={[styles.journalValue, { color: theme.colors.text }]}>{completedPlans}</Text>
-                                <Text style={[styles.journalLabel, { color: theme.colors.textSecondary }]}>tamamlanan plan</Text>
-                            </View>
-                        </View>
-                    </View>
-
-                    <View style={[styles.sectionCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
+                    <View style={[styles.flatSection, { borderTopColor: theme.colors.border }]}> 
                         <View style={styles.sectionHeader}>
                             <View>
                                 <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Rozetlerin</Text>
-                                <Text style={[styles.sectionSub, { color: theme.colors.textSecondary }]}>Kazandığın madalyalar burada görünür</Text>
+                                <Text style={[styles.sectionSub, { color: theme.colors.textSecondary }]}>Kazandığın modern rozetler</Text>
                             </View>
                             <TouchableOpacity style={styles.inlineBtn} onPress={() => navigation.navigate('Badges')}>
                                 <Text style={styles.inlineBtnTxt}>Tümü</Text>
@@ -340,9 +373,9 @@ const ProfileScreen = ({ navigation }) => {
 const InlineStat = ({ label, value, icon, theme }) => (
     <View style={styles.statItem}>
         <View style={[styles.statIconWrap, { backgroundColor: theme.colors.pill }]}>
-            <Ionicons name={icon} size={16} color={theme.colors.primary} />
+            <Ionicons name={icon} size={15} color={theme.colors.primary} />
         </View>
-        <View style={styles.statText}>
+        <View>
             <Text style={[styles.statValue, { color: theme.colors.text }]}>{value}</Text>
             <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>{label}</Text>
         </View>
@@ -353,23 +386,24 @@ const styles = StyleSheet.create({
     safeArea: { flex: 1, backgroundColor: '#F5F6F1' },
     container: { flex: 1, backgroundColor: '#F5F6F1' },
     content: { paddingBottom: 110 },
-    heroCard: { marginHorizontal: SPACING.md, marginTop: Platform.OS === 'ios' ? SPACING.md : SPACING.sm, borderRadius: 28, overflow: 'hidden', backgroundColor: '#fff' },
-    coverWrap: { height: 230, position: 'relative' },
+    coverWrap: { height: 205, position: 'relative' },
     coverImage: { width: '100%', height: '100%' },
     coverOverlay: { ...StyleSheet.absoluteFillObject },
     heroTopRow: { position: 'absolute', top: 16, left: 16, right: 16, flexDirection: 'row', justifyContent: 'space-between' },
-    heroIconBtn: { width: 42, height: 42, borderRadius: 21, backgroundColor: 'rgba(255,255,255,0.18)', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.28)' },
-
-    profileInfoCard: { marginTop: -48, marginHorizontal: 16, marginBottom: 16, padding: 18, borderRadius: 24, backgroundColor: 'rgba(255,255,255,0.96)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.85)' },
-    identityBlock: { alignItems: 'center' },
-    nameRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+    heroActionGroup: { flexDirection: 'row', gap: 10 },
+    heroIconBtn: { width: 42, height: 42, borderRadius: 21, backgroundColor: 'rgba(15,26,22,0.34)', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.28)' },
+    profileMain: { alignItems: 'center', paddingHorizontal: SPACING.md, paddingBottom: 18, borderBottomWidth: 1, borderBottomColor: 'rgba(143,168,158,0.22)' },
+    avatarWrap: { width: 104, height: 104, borderRadius: 52, borderWidth: 4, marginTop: -52, overflow: 'visible', backgroundColor: '#17372D' },
+    avatarImage: { width: '100%', height: '100%', borderRadius: 52 },
+    avatarFallback: { width: '100%', height: '100%', borderRadius: 52, alignItems: 'center', justifyContent: 'center' },
+    avatarInitials: { fontFamily: FONTS.heading, fontSize: 30, color: '#fff' },
+    avatarCamera: { position: 'absolute', right: -2, bottom: 4, width: 28, height: 28, borderRadius: 14, backgroundColor: COLORS.primaryDark, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: '#fff' },
     profileName: { fontFamily: FONTS.heading, fontSize: 27, color: '#13231C', textAlign: 'center' },
-    smallEditBtn: { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: '#EAF2EC' },
-    profileBio: { marginTop: 10, fontFamily: FONTS.body, fontSize: 14, lineHeight: 20, color: '#33423C', textAlign: 'center' },
+    profileBio: { marginTop: 8, maxWidth: 310, fontFamily: FONTS.body, fontSize: 14, lineHeight: 20, color: '#33423C', textAlign: 'center' },
     badgeRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 8, marginTop: 14 },
     badgePill: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, backgroundColor: '#EAF2EC' },
     badgeTxt: { fontFamily: FONTS.bodySemiBold, fontSize: 12, color: COLORS.primaryDark },
-    editPanel: { gap: 10 },
+    editPanel: { gap: 10, marginHorizontal: SPACING.md, paddingTop: 4, paddingBottom: 18, borderBottomWidth: 1 },
     editInput: { borderRadius: 16, borderWidth: 1, borderColor: '#D6DFD8', backgroundColor: '#FBFCFB', paddingHorizontal: 14, paddingVertical: 11, fontFamily: FONTS.body, fontSize: 14, color: '#13231C' },
     bioInput: { minHeight: 92, textAlignVertical: 'top' },
     styleList: { gap: 8, paddingTop: 2, paddingBottom: 2 },
@@ -382,29 +416,24 @@ const styles = StyleSheet.create({
     secondaryBtnTxt: { fontFamily: FONTS.bodySemiBold, fontSize: 13, color: '#2F3D37' },
     primaryBtn: { flex: 1.3, borderRadius: 14, backgroundColor: '#17372D', paddingVertical: 12, alignItems: 'center' },
     primaryBtnTxt: { fontFamily: FONTS.bodySemiBold, fontSize: 13, color: '#fff' },
-    statsPanel: { marginHorizontal: SPACING.md, marginTop: SPACING.md, borderRadius: 24, padding: 18, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E6ECE7' },
+    progressSection: { paddingHorizontal: SPACING.md, paddingTop: 20, paddingBottom: 18 },
     statsHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12 },
     statsTitle: { fontFamily: FONTS.bodySemiBold, fontSize: 18, color: '#13231C' },
     statsMeta: { fontFamily: FONTS.bodySemiBold, fontSize: 13, color: COLORS.primaryDark },
     progressTrack: { height: 9, borderRadius: 999, backgroundColor: '#E7EEE9', marginTop: 14, overflow: 'hidden' },
     progressFill: { height: '100%', borderRadius: 999, backgroundColor: COLORS.primaryDark },
     progressCaption: { marginTop: 10, fontFamily: FONTS.body, fontSize: 13, color: '#66746E' },
-    statGrid: { marginTop: 18, gap: 12 },
-    statItem: { flexDirection: 'row', alignItems: 'center' },
-    statIconWrap: { width: 38, height: 38, borderRadius: 19, backgroundColor: '#EDF4EF', alignItems: 'center', justifyContent: 'center', marginRight: 12 },
-    statText: { flexDirection: 'row', alignItems: 'baseline', gap: 8 },
-    statValue: { fontFamily: FONTS.heading, fontSize: 24, color: '#13231C' },
-    statLabel: { fontFamily: FONTS.body, fontSize: 13, color: '#66746E' },
-    sectionCard: { marginHorizontal: SPACING.md, marginTop: SPACING.md, borderRadius: 24, padding: 16, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E6ECE7' },
+    statGrid: { width: '100%', marginTop: 18, flexDirection: 'row', justifyContent: 'space-between', gap: 8 },
+    statItem: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 },
+    statIconWrap: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+    statValue: { fontFamily: FONTS.heading, fontSize: 20, color: '#13231C', lineHeight: 23 },
+    statLabel: { marginTop: -1, fontFamily: FONTS.body, fontSize: 11, color: '#66746E' },
+    flatSection: { paddingHorizontal: SPACING.md, paddingTop: 18, paddingBottom: 18, borderTopWidth: 1 },
     sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 },
     sectionTitle: { fontFamily: FONTS.bodySemiBold, fontSize: 18, color: '#13231C' },
     sectionSub: { marginTop: 2, fontFamily: FONTS.body, fontSize: 12, color: '#66746E' },
     inlineBtn: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, backgroundColor: '#EDF4EF' },
     inlineBtnTxt: { fontFamily: FONTS.bodySemiBold, fontSize: 12, color: COLORS.primaryDark },
-    journalSummary: { flexDirection: 'row', justifyContent: 'space-between', gap: 12 },
-    journalCount: { flex: 1, paddingVertical: 10, borderRadius: 18, backgroundColor: '#F7FAF8', alignItems: 'center' },
-    journalValue: { fontFamily: FONTS.heading, fontSize: 24, color: '#13231C' },
-    journalLabel: { marginTop: 4, fontFamily: FONTS.body, fontSize: 12, color: '#66746E', textAlign: 'center' },
     medalRow: { flexDirection: 'row', justifyContent: 'flex-start', gap: 10, flexWrap: 'wrap' },
     medalItem: { width: '23%', alignItems: 'center' },
     medalOuter: { width: 58, height: 58, borderRadius: 29, alignItems: 'center', justifyContent: 'center' },
