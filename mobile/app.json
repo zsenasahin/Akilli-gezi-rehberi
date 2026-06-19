@@ -19,6 +19,7 @@
     "android": {
       "package": "com.zeynepsenaas.smarttravelguide",
       "versionCode": 1,
+      "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"

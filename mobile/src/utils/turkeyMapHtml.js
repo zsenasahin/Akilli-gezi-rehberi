@@ -25,7 +25,7 @@ export function generateTurkeyMapHtml(visitedCityNames = [], wishlistCityNames =
         } else if (wishlistSet.has(name)) {
             color = '#EF4444'; emoji = '♡'; zIndex = 900;
         } else {
-            color = '#0891B2'; emoji = ''; zIndex = 800;
+            color = '#3D7A62'; emoji = ''; zIndex = 800;
         }
 
         const iconHtml = emoji

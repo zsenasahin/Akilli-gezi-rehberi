@@ -67,7 +67,7 @@ const BADGE_DEFINITIONS = [
         label: '100 KM',
         description: 'Toplam 100 km rota tamamla',
         icon: 'speedometer',
-        color: '#0891B2',
+        color: '#3D7A62',
         ring: '#D5F5FF',
         check: (stats) => stats.totalCompletedDistance >= 100,
     },

@@ -19,7 +19,7 @@ import { COLORS } from '../../constants/colors';
 import { FONTS, FONT_SIZES } from '../../constants/typography';
 import { SPACING, BORDER_RADIUS, SCREEN } from '../../constants/layout';
 import { getCityImages } from '../../services/cityImageService';
-import { useAuth, useRequireAuth } from '../../contexts/AuthContext';
+import { useAuth } from '../../contexts/AuthContext';
 import { getCities } from '../../services/cityService';
 import { getProfile } from '../../services/profileService';
 import { HomeScreenSkeleton } from '../../components/common/SkeletonLoader';
@@ -36,9 +36,8 @@ const CITY_CARD_WIDTH = (SCREEN_WIDTH - SPACING.lg * 2 - SPACING.sm) / 2;
 const HERO_IMAGE = 'https://images.unsplash.com/photo-1524231757912-21f4fe3a7200?w=1200&h=900&fit=crop&q=85';
 
 const HomeScreen = ({ navigation }) => {
-    const { user, isGuest } = useAuth();
+    const { user } = useAuth();
     const { theme } = useThemePreference();
-    const requireAuth = useRequireAuth(navigation);
     const [profile, setProfile] = useState(null);
     const [cities, setCities] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -62,11 +61,9 @@ const HomeScreen = ({ navigation }) => {
             const citiesResult = await getCities();
             if (citiesResult.data) setCities(citiesResult.data);
 
-            if (!isGuest) {
+            if (user?.id) {
                 const profileResult = await getProfile(user.id);
                 if (profileResult.data) setProfile(profileResult.data);
-            } else {
-                setProfile(null);
             }
 
             // Etkinlikleri çek (misafir dahil herkes görebilir)
@@ -79,7 +76,7 @@ const HomeScreen = ({ navigation }) => {
         }
         setLoading(false);
         setRefreshing(false);
-    }, [user, isGuest]);
+    }, [user]);
 
     useFocusEffect(
         useCallback(() => {
@@ -186,10 +183,7 @@ const HomeScreen = ({ navigation }) => {
                     {/* ── Hero CTA ── */}
                     <TouchableOpacity
                         style={styles.heroCta}
-                        onPress={() => {
-                            if (!requireAuth('Gezi planı oluşturmak için giriş yapmalısınız.')) return;
-                            navigation.navigate('CreateItinerary', {});
-                        }}
+                        onPress={() => navigation.navigate('CreateItinerary', {})}
                         activeOpacity={0.85}
                     >
                         <Ionicons name="map-outline" size={16} color="#fff" />
@@ -201,26 +195,6 @@ const HomeScreen = ({ navigation }) => {
                 {/* İçerik kartı — beyaz yüzey */}
                 <View style={[styles.contentCard, { backgroundColor: theme.colors.background }]}>
                     {error && <ErrorMessage message={error} onRetry={fetchData} />}
-
-                    {/* Misafir Banner */}
-                    {isGuest && (
-                        <TouchableOpacity
-                            style={styles.guestBanner}
-                            onPress={() => navigation.navigate('AuthModal')}
-                            activeOpacity={0.88}
-                        >
-                            <View style={styles.guestBannerLeft}>
-                                <View style={styles.guestBannerIcon}>
-                                    <Ionicons name="person-circle-outline" size={22} color={COLORS.primary} />
-                                </View>
-                                <View>
-                                    <Text style={styles.guestBannerTitle}>Giriş Yap veya Kaydol</Text>
-                                    <Text style={styles.guestBannerSub}>Planlar, favoriler ve daha fazlası</Text>
-                                </View>
-                            </View>
-                            <Ionicons name="chevron-forward" size={16} color={COLORS.primary} />
-                        </TouchableOpacity>
-                    )}
 
                     {/* ═══ POPÜLER ŞEHİRLER ═══ */}
                     <Animated.View style={[styles.section, {
@@ -249,10 +223,9 @@ const HomeScreen = ({ navigation }) => {
                                         images={images}
                                         index={index}
                                         onPress={() => handleCityPress(city)}
-                                        onPlanPress={() => {
-                                            if (!requireAuth('Gezi planı oluşturmak için giriş yapmalısınız.')) return;
-                                            navigation.navigate('CreateItinerary', { preselectedCity: city });
-                                        }}
+                                        onPlanPress={() =>
+                                            navigation.navigate('CreateItinerary', { preselectedCity: city })
+                                        }
                                     />
                                 );
                             })}
@@ -663,7 +636,7 @@ const styles = StyleSheet.create({
         width: 28,
         height: 28,
         borderRadius: 14,
-        backgroundColor: 'rgba(8,145,178,0.88)',
+        backgroundColor: 'rgba(61, 122, 98, 0.88)',
         justifyContent: 'center',
         alignItems: 'center',
         borderWidth: 1,

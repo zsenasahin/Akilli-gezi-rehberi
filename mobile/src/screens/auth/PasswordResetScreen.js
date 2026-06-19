@@ -3,35 +3,42 @@ import {
   View,
   Text,
   StyleSheet,
-  Dimensions,
-  Image,
   TextInput,
   TouchableOpacity,
-  KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
-  ScrollView,
+  LayoutAnimation,
+  UIManager,
+  Keyboard,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
-import { useFonts, PlayfairDisplay_700Bold } from '@expo-google-fonts/playfair-display';
-import { Inter_400Regular, Inter_600SemiBold, Inter_700Bold } from '@expo-google-fonts/inter';
-import { COLORS, SPACING } from '../../constants/theme';
+import { useFonts, Inter_400Regular, Inter_600SemiBold, Inter_700Bold } from '@expo-google-fonts/inter';
+import { COLORS } from '../../constants/colors';
+import { FONTS, FONT_SIZES } from '../../constants/typography';
+import { SPACING } from '../../constants/layout';
+import { AUTH_IMAGES } from '../../constants/authAssets';
 import { supabase } from '../../config/supabase';
-import GlassmorphismCard from '../../components/common/GlassmorphismCard';
+import AuthFormLayout from '../../components/auth/AuthFormLayout';
 
-const { width, height } = Dimensions.get('window');
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
+
+const STEP_META = {
+  email: { title: 'E-posta adresin', subtitle: 'Sıfırlama kodunu göndereceğimiz adresi gir.' },
+  code: { title: 'Doğrulama kodu', subtitle: 'E-postana gelen 6 haneli kodu yaz.' },
+  password: { title: 'Yeni şifre', subtitle: 'Hesabın için güçlü bir şifre belirle.' },
+  success: { title: 'Tamamlandı', subtitle: 'Yeni şifrenle giriş yapabilirsin.' },
+};
 
 export default function PasswordResetScreen({ navigation, route }) {
   const [fontsLoaded] = useFonts({
-    PlayfairDisplay_700Bold,
     Inter_400Regular,
     Inter_600SemiBold,
     Inter_700Bold,
   });
 
-  const [step, setStep] = useState('email'); // 'email' | 'code' | 'password' | 'success'
+  const [step, setStep] = useState('email');
   const [email, setEmail] = useState(route.params?.email || '');
   const [verificationCode, setVerificationCode] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -40,6 +47,29 @@ export default function PasswordResetScreen({ navigation, route }) {
   const [error, setError] = useState(null);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
+
+  useEffect(() => {
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+
+    const onShow = () => {
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+      setKeyboardVisible(true);
+    };
+    const onHide = () => {
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+      setKeyboardVisible(false);
+    };
+
+    const showSub = Keyboard.addListener(showEvent, onShow);
+    const hideSub = Keyboard.addListener(hideEvent, onHide);
+
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
 
   useEffect(() => {
     if (step === 'success') {
@@ -48,16 +78,15 @@ export default function PasswordResetScreen({ navigation, route }) {
       }, 2000);
       return () => clearTimeout(timer);
     }
-  }, [step]);
+  }, [step, email, navigation]);
 
   if (!fontsLoaded) {
     return null;
   }
 
-  const validateEmail = (email) => {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailRegex.test(email);
-  };
+  const meta = STEP_META[step];
+
+  const validateEmail = (value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 
   const getPasswordStrength = (password) => {
     if (password.length < 8) return 'weak';
@@ -65,23 +94,13 @@ export default function PasswordResetScreen({ navigation, route }) {
     return 'strong';
   };
 
-  const getPasswordStrengthColor = (strength) => {
-    switch (strength) {
-      case 'weak': return '#E74C3C';
-      case 'medium': return '#F39C12';
-      case 'strong': return '#27AE60';
-      default: return '#BDC3C7';
-    }
+  const strengthColors = {
+    weak: COLORS.error,
+    medium: COLORS.warning,
+    strong: COLORS.success,
   };
 
-  const getPasswordStrengthText = (strength) => {
-    switch (strength) {
-      case 'weak': return 'Zayıf';
-      case 'medium': return 'Orta';
-      case 'strong': return 'Güçlü';
-      default: return '';
-    }
-  };
+  const strengthLabels = { weak: 'Zayıf', medium: 'Orta', strong: 'Güçlü' };
 
   const handleSendCode = async () => {
     setError(null);
@@ -99,12 +118,9 @@ export default function PasswordResetScreen({ navigation, route }) {
     setLoading(true);
 
     try {
-      const { error: resetError } = await supabase.auth.resetPasswordForEmail(
-        email.trim(),
-        {
-          redirectTo: 'smarttravelguide://reset-password',
-        }
-      );
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+        redirectTo: 'smarttravelguide://reset-password',
+      });
 
       if (resetError) {
         if (resetError.message.toLowerCase().includes('not found')) {
@@ -118,12 +134,11 @@ export default function PasswordResetScreen({ navigation, route }) {
         setStep('code');
       }
     } catch (err) {
-      if (err.message.toLowerCase().includes('network')) {
-        setError('İnternet bağlantınızı kontrol edin');
-      } else {
-        setError('Bir hata oluştu. Lütfen tekrar deneyin');
-      }
-      console.error('Password reset error:', err);
+      setError(
+        err.message?.toLowerCase().includes('network')
+          ? 'İnternet bağlantınızı kontrol edin'
+          : 'Bir hata oluştu. Lütfen tekrar deneyin'
+      );
     } finally {
       setLoading(false);
     }
@@ -152,8 +167,10 @@ export default function PasswordResetScreen({ navigation, route }) {
       });
 
       if (verifyError) {
-        if (verifyError.message.toLowerCase().includes('invalid') || 
-            verifyError.message.toLowerCase().includes('expired')) {
+        if (
+          verifyError.message.toLowerCase().includes('invalid') ||
+          verifyError.message.toLowerCase().includes('expired')
+        ) {
           setError('Geçersiz veya süresi dolmuş kod');
         } else {
           setError(verifyError.message || 'Kod doğrulanamadı');
@@ -162,12 +179,11 @@ export default function PasswordResetScreen({ navigation, route }) {
         setStep('password');
       }
     } catch (err) {
-      if (err.message.toLowerCase().includes('network')) {
-        setError('İnternet bağlantınızı kontrol edin');
-      } else {
-        setError('Bir hata oluştu. Lütfen tekrar deneyin');
-      }
-      console.error('Code verification error:', err);
+      setError(
+        err.message?.toLowerCase().includes('network')
+          ? 'İnternet bağlantınızı kontrol edin'
+          : 'Bir hata oluştu. Lütfen tekrar deneyin'
+      );
     } finally {
       setLoading(false);
     }
@@ -201,366 +217,263 @@ export default function PasswordResetScreen({ navigation, route }) {
       if (updateError) {
         setError(updateError.message || 'Şifre güncellenemedi');
       } else {
-        // Clear sensitive data
         setVerificationCode('');
         setNewPassword('');
         setConfirmPassword('');
         setStep('success');
       }
     } catch (err) {
-      if (err.message.toLowerCase().includes('network')) {
-        setError('İnternet bağlantınızı kontrol edin');
-      } else {
-        setError('Bir hata oluştu. Lütfen tekrar deneyin');
-      }
-      console.error('Password update error:', err);
+      setError(
+        err.message?.toLowerCase().includes('network')
+          ? 'İnternet bağlantınızı kontrol edin'
+          : 'Bir hata oluştu. Lütfen tekrar deneyin'
+      );
     } finally {
       setLoading(false);
     }
   };
 
-  const handleResendCode = () => {
-    setVerificationCode('');
-    setError(null);
-    handleSendCode();
-  };
+  const strength = getPasswordStrength(newPassword);
 
-  const renderEmailStep = () => (
-    <>
-      <Text style={styles.stepTitle}>E-posta Adresiniz</Text>
-      <Text style={styles.stepDescription}>
-        Şifre sıfırlama kodu göndereceğimiz e-posta adresinizi girin
-      </Text>
-
-      <View style={styles.inputContainer}>
-        <Text style={styles.inputLabel}>E-posta</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="ornek@email.com"
-          placeholderTextColor="#999"
-          value={email}
-          onChangeText={(text) => {
-            setEmail(text);
-            setError(null);
-          }}
-          keyboardType="email-address"
-          autoCapitalize="none"
-          editable={!loading}
-        />
+  const renderError = () =>
+    error ? (
+      <View style={styles.errorBox}>
+        <Ionicons name="alert-circle" size={18} color={COLORS.error} />
+        <Text style={styles.errorText}>{error}</Text>
       </View>
+    ) : null;
 
-      {error && (
-        <View style={styles.errorContainer}>
-          <Ionicons name="alert-circle" size={16} color="#E74C3C" />
-          <Text style={styles.errorText}>{error}</Text>
-        </View>
+  const renderPrimaryButton = (label, onPress) => (
+    <TouchableOpacity
+      style={[styles.primaryButton, loading && styles.buttonDisabled]}
+      onPress={onPress}
+      disabled={loading}
+      activeOpacity={0.85}
+    >
+      {loading ? (
+        <ActivityIndicator color="#FFFFFF" />
+      ) : (
+        <Text style={styles.primaryButtonText}>{label}</Text>
       )}
-
-      <TouchableOpacity
-        style={[styles.primaryButton, loading && styles.buttonDisabled]}
-        onPress={handleSendCode}
-        disabled={loading}
-        activeOpacity={0.8}
-      >
-        {loading ? (
-          <ActivityIndicator color="#FFFFFF" />
-        ) : (
-          <Text style={styles.primaryButtonText}>Kod Gönder</Text>
-        )}
-      </TouchableOpacity>
-    </>
-  );
-
-  const renderCodeStep = () => (
-    <>
-      <Text style={styles.stepTitle}>Doğrulama Kodu</Text>
-      <Text style={styles.stepDescription}>
-        E-postanıza gönderilen 6 haneli kodu girin
-      </Text>
-
-      <View style={styles.inputContainer}>
-        <Text style={styles.inputLabel}>Doğrulama Kodu</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="000000"
-          placeholderTextColor="#999"
-          value={verificationCode}
-          onChangeText={(text) => {
-            setVerificationCode(text);
-            setError(null);
-          }}
-          keyboardType="number-pad"
-          maxLength={6}
-          editable={!loading}
-        />
-      </View>
-
-      {error && (
-        <View style={styles.errorContainer}>
-          <Ionicons name="alert-circle" size={16} color="#E74C3C" />
-          <Text style={styles.errorText}>{error}</Text>
-        </View>
-      )}
-
-      <TouchableOpacity
-        style={[styles.primaryButton, loading && styles.buttonDisabled]}
-        onPress={handleVerifyCode}
-        disabled={loading}
-        activeOpacity={0.8}
-      >
-        {loading ? (
-          <ActivityIndicator color="#FFFFFF" />
-        ) : (
-          <Text style={styles.primaryButtonText}>Kodu Doğrula</Text>
-        )}
-      </TouchableOpacity>
-
-      <TouchableOpacity
-        style={styles.resendLink}
-        onPress={handleResendCode}
-        disabled={loading}
-      >
-        <Text style={styles.resendLinkText}>Kodu Tekrar Gönder</Text>
-      </TouchableOpacity>
-    </>
-  );
-
-  const renderPasswordStep = () => {
-    const strength = getPasswordStrength(newPassword);
-    const strengthColor = getPasswordStrengthColor(strength);
-    const strengthText = getPasswordStrengthText(strength);
-
-    return (
-      <>
-        <Text style={styles.stepTitle}>Yeni Şifre</Text>
-        <Text style={styles.stepDescription}>
-          Hesabınız için yeni bir şifre belirleyin
-        </Text>
-
-        <View style={styles.inputContainer}>
-          <Text style={styles.inputLabel}>Yeni Şifre</Text>
-          <View style={styles.passwordContainer}>
-            <TextInput
-              style={[styles.input, styles.passwordInput]}
-              placeholder="••••••••"
-              placeholderTextColor="#999"
-              value={newPassword}
-              onChangeText={(text) => {
-                setNewPassword(text);
-                setError(null);
-              }}
-              secureTextEntry={!showNewPassword}
-              editable={!loading}
-            />
-            <TouchableOpacity
-              style={styles.eyeButton}
-              onPress={() => setShowNewPassword(!showNewPassword)}
-            >
-              <Ionicons
-                name={showNewPassword ? 'eye-off-outline' : 'eye-outline'}
-                size={20}
-                color="#999"
-              />
-            </TouchableOpacity>
-          </View>
-          {newPassword.length > 0 && (
-            <View style={styles.strengthContainer}>
-              <View style={[styles.strengthBar, { backgroundColor: strengthColor }]} />
-              <Text style={[styles.strengthText, { color: strengthColor }]}>
-                {strengthText}
-              </Text>
-            </View>
-          )}
-        </View>
-
-        <View style={styles.inputContainer}>
-          <Text style={styles.inputLabel}>Şifre Tekrar</Text>
-          <View style={styles.passwordContainer}>
-            <TextInput
-              style={[styles.input, styles.passwordInput]}
-              placeholder="••••••••"
-              placeholderTextColor="#999"
-              value={confirmPassword}
-              onChangeText={(text) => {
-                setConfirmPassword(text);
-                setError(null);
-              }}
-              secureTextEntry={!showConfirmPassword}
-              editable={!loading}
-            />
-            <TouchableOpacity
-              style={styles.eyeButton}
-              onPress={() => setShowConfirmPassword(!showConfirmPassword)}
-            >
-              <Ionicons
-                name={showConfirmPassword ? 'eye-off-outline' : 'eye-outline'}
-                size={20}
-                color="#999"
-              />
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {error && (
-          <View style={styles.errorContainer}>
-            <Ionicons name="alert-circle" size={16} color="#E74C3C" />
-            <Text style={styles.errorText}>{error}</Text>
-          </View>
-        )}
-
-        <TouchableOpacity
-          style={[styles.primaryButton, loading && styles.buttonDisabled]}
-          onPress={handleUpdatePassword}
-          disabled={loading}
-          activeOpacity={0.8}
-        >
-          {loading ? (
-            <ActivityIndicator color="#FFFFFF" />
-          ) : (
-            <Text style={styles.primaryButtonText}>Şifreyi Güncelle</Text>
-          )}
-        </TouchableOpacity>
-      </>
-    );
-  };
-
-  const renderSuccessStep = () => (
-    <View style={styles.successContainer}>
-      <View style={styles.successIconContainer}>
-        <Ionicons name="checkmark-circle" size={80} color="#27AE60" />
-      </View>
-      <Text style={styles.successTitle}>Başarılı!</Text>
-      <Text style={styles.successMessage}>
-        Şifreniz başarıyla güncellendi. Giriş ekranına yönlendiriliyorsunuz...
-      </Text>
-    </View>
+    </TouchableOpacity>
   );
 
   return (
-    <View style={styles.container}>
-      <StatusBar style="light" />
-      
-      {/* Background Image */}
-      <Image
-        source={require('../../../assets/doga.jpg')}
-        style={styles.backgroundImage}
-        resizeMode="cover"
-      />
-
-      {/* Gradient Overlay */}
-      <LinearGradient
-        colors={['rgba(0, 0, 0, 0.3)', 'rgba(0, 0, 0, 0.6)']}
-        style={styles.gradient}
-      />
-
-      {/* Content */}
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.content}
-      >
-        <ScrollView
-          contentContainerStyle={styles.scrollContent}
-          keyboardShouldPersistTaps="handled"
+    <AuthFormLayout
+      imageSource={AUTH_IMAGES.resetHero}
+      keyboardVisible={keyboardVisible}
+    >
+      {step !== 'success' && (
+        <TouchableOpacity
+          style={styles.backRow}
+          onPress={() => navigation.goBack()}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >
-          {/* Back Button */}
-          {step !== 'success' && (
-            <TouchableOpacity
-              style={styles.backButton}
-              onPress={() => navigation.goBack()}
-            >
-              <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
-            </TouchableOpacity>
-          )}
+          <Ionicons name="arrow-back" size={22} color={COLORS.textPrimary} />
+          <Text style={styles.backText}>Geri</Text>
+        </TouchableOpacity>
+      )}
 
-          {/* Main Card */}
-          <GlassmorphismCard style={styles.card}>
-            <Text style={styles.title}>Şifremi Unuttum</Text>
+      <View style={styles.headerBlock}>
+        <Text style={styles.title}>Şifremi Unuttum</Text>
+        <Text style={styles.stepTitle}>{meta.title}</Text>
+        <Text style={styles.stepSubtitle}>{meta.subtitle}</Text>
+      </View>
 
-            {step === 'email' && renderEmailStep()}
-            {step === 'code' && renderCodeStep()}
-            {step === 'password' && renderPasswordStep()}
-            {step === 'success' && renderSuccessStep()}
-          </GlassmorphismCard>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </View>
+      {step === 'email' && (
+        <>
+          <View style={styles.inputContainer}>
+            <Text style={styles.inputLabel}>E-posta</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="ornek@email.com"
+              placeholderTextColor={COLORS.textLight}
+              value={email}
+              onChangeText={(text) => {
+                setEmail(text);
+                setError(null);
+              }}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              editable={!loading}
+            />
+          </View>
+          {renderError()}
+          {renderPrimaryButton('Kod Gönder', handleSendCode)}
+        </>
+      )}
+
+      {step === 'code' && (
+        <>
+          <View style={styles.inputContainer}>
+            <Text style={styles.inputLabel}>Doğrulama Kodu</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="000000"
+              placeholderTextColor={COLORS.textLight}
+              value={verificationCode}
+              onChangeText={(text) => {
+                setVerificationCode(text);
+                setError(null);
+              }}
+              keyboardType="number-pad"
+              maxLength={6}
+              editable={!loading}
+            />
+          </View>
+          {renderError()}
+          {renderPrimaryButton('Kodu Doğrula', handleVerifyCode)}
+          <TouchableOpacity
+            style={styles.linkBtn}
+            onPress={handleSendCode}
+            disabled={loading}
+          >
+            <Text style={styles.linkText}>Kodu tekrar gönder</Text>
+          </TouchableOpacity>
+        </>
+      )}
+
+      {step === 'password' && (
+        <>
+          <View style={styles.inputContainer}>
+            <Text style={styles.inputLabel}>Yeni Şifre</Text>
+            <View style={styles.passwordContainer}>
+              <TextInput
+                style={[styles.input, styles.passwordInput]}
+                placeholder="••••••••"
+                placeholderTextColor={COLORS.textLight}
+                value={newPassword}
+                onChangeText={(text) => {
+                  setNewPassword(text);
+                  setError(null);
+                }}
+                secureTextEntry={!showNewPassword}
+                editable={!loading}
+              />
+              <TouchableOpacity
+                style={styles.eyeButton}
+                onPress={() => setShowNewPassword(!showNewPassword)}
+              >
+                <Ionicons
+                  name={showNewPassword ? 'eye-off-outline' : 'eye-outline'}
+                  size={20}
+                  color={COLORS.textLight}
+                />
+              </TouchableOpacity>
+            </View>
+            {newPassword.length > 0 && (
+              <View style={styles.strengthRow}>
+                <View
+                  style={[
+                    styles.strengthBar,
+                    { backgroundColor: strengthColors[strength] },
+                  ]}
+                />
+                <Text style={[styles.strengthLabel, { color: strengthColors[strength] }]}>
+                  {strengthLabels[strength]}
+                </Text>
+              </View>
+            )}
+          </View>
+
+          <View style={styles.inputContainer}>
+            <Text style={styles.inputLabel}>Şifre Tekrar</Text>
+            <View style={styles.passwordContainer}>
+              <TextInput
+                style={[styles.input, styles.passwordInput]}
+                placeholder="••••••••"
+                placeholderTextColor={COLORS.textLight}
+                value={confirmPassword}
+                onChangeText={(text) => {
+                  setConfirmPassword(text);
+                  setError(null);
+                }}
+                secureTextEntry={!showConfirmPassword}
+                editable={!loading}
+              />
+              <TouchableOpacity
+                style={styles.eyeButton}
+                onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+              >
+                <Ionicons
+                  name={showConfirmPassword ? 'eye-off-outline' : 'eye-outline'}
+                  size={20}
+                  color={COLORS.textLight}
+                />
+              </TouchableOpacity>
+            </View>
+          </View>
+          {renderError()}
+          {renderPrimaryButton('Şifreyi Güncelle', handleUpdatePassword)}
+        </>
+      )}
+
+      {step === 'success' && (
+        <View style={styles.successBlock}>
+          <Ionicons name="checkmark-circle" size={64} color={COLORS.success} />
+          <Text style={styles.successTitle}>Şifren güncellendi</Text>
+          <Text style={styles.successMsg}>Giriş ekranına yönlendiriliyorsun…</Text>
+          <ActivityIndicator color={COLORS.primary} style={{ marginTop: 20 }} />
+        </View>
+      )}
+    </AuthFormLayout>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.backgroundDarkStart,
-  },
-  backgroundImage: {
-    position: 'absolute',
-    width: '100%',
-    height: '100%',
-  },
-  gradient: {
-    position: 'absolute',
-    width: '100%',
-    height: '100%',
-  },
-  content: {
-    flex: 1,
-  },
-  scrollContent: {
-    flexGrow: 1,
-    justifyContent: 'center',
-    padding: SPACING.lg,
-  },
-  backButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    justifyContent: 'center',
+  backRow: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: SPACING.lg,
+    gap: 6,
+    marginBottom: SPACING.md,
+    marginTop: -SPACING.sm,
   },
-  card: {
-    padding: SPACING.xl,
+  backText: {
+    fontFamily: FONTS.bodySemiBold,
+    fontSize: FONT_SIZES.md,
+    color: COLORS.textPrimary,
+  },
+  headerBlock: {
+    marginBottom: SPACING.lg,
   },
   title: {
-    fontFamily: 'PlayfairDisplay_700Bold',
-    fontSize: 28,
-    color: '#2C3E50',
-    textAlign: 'center',
-    marginBottom: SPACING.xl,
+    fontFamily: FONTS.bodyBold,
+    fontSize: FONT_SIZES.xxl,
+    color: COLORS.textPrimary,
+    marginBottom: SPACING.sm,
+    letterSpacing: -0.5,
   },
   stepTitle: {
-    fontFamily: 'Inter_700Bold',
-    fontSize: 18,
-    color: '#2C3E50',
-    marginBottom: SPACING.xs,
+    fontFamily: FONTS.bodySemiBold,
+    fontSize: FONT_SIZES.lg,
+    color: COLORS.textPrimary,
+    marginBottom: 4,
   },
-  stepDescription: {
-    fontFamily: 'Inter_400Regular',
-    fontSize: 14,
-    color: '#7F8C8D',
-    marginBottom: SPACING.lg,
+  stepSubtitle: {
+    fontFamily: FONTS.body,
+    fontSize: FONT_SIZES.sm,
+    color: COLORS.textSecondary,
     lineHeight: 20,
   },
   inputContainer: {
     marginBottom: SPACING.md,
   },
   inputLabel: {
-    fontFamily: 'Inter_600SemiBold',
-    fontSize: 13,
-    color: '#5D6D7E',
+    fontFamily: FONTS.bodySemiBold,
+    fontSize: FONT_SIZES.sm,
+    color: COLORS.textSecondary,
     marginBottom: SPACING.xs,
   },
   input: {
-    fontFamily: 'Inter_400Regular',
-    fontSize: 15,
-    color: '#2C3E50',
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    fontFamily: FONTS.body,
+    fontSize: FONT_SIZES.md,
+    color: COLORS.textPrimary,
+    backgroundColor: COLORS.surfaceAlt,
     borderRadius: 12,
     paddingHorizontal: SPACING.md,
     paddingVertical: 14,
     borderWidth: 1,
-    borderColor: 'rgba(200, 230, 201, 0.5)',
+    borderColor: COLORS.border,
   },
   passwordContainer: {
     position: 'relative',
@@ -574,85 +487,78 @@ const styles = StyleSheet.create({
     top: 14,
     padding: 4,
   },
-  strengthContainer: {
-    marginTop: SPACING.xs,
+  strengthRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: SPACING.sm,
+    gap: 10,
+    marginTop: SPACING.xs,
   },
   strengthBar: {
-    height: 4,
     flex: 1,
+    height: 4,
     borderRadius: 2,
   },
-  strengthText: {
-    fontFamily: 'Inter_600SemiBold',
-    fontSize: 12,
+  strengthLabel: {
+    fontFamily: FONTS.bodySemiBold,
+    fontSize: FONT_SIZES.xs,
   },
-  errorContainer: {
+  errorBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(231, 76, 60, 0.1)',
-    borderRadius: 8,
-    padding: SPACING.sm,
+    gap: 8,
+    backgroundColor: 'rgba(192, 57, 43, 0.08)',
+    borderRadius: 10,
+    padding: 12,
     marginBottom: SPACING.md,
-    gap: SPACING.xs,
+    borderWidth: 1,
+    borderColor: 'rgba(192, 57, 43, 0.2)',
   },
   errorText: {
     flex: 1,
-    fontFamily: 'Inter_400Regular',
-    fontSize: 13,
-    color: '#E74C3C',
+    fontFamily: FONTS.body,
+    fontSize: FONT_SIZES.sm,
+    color: COLORS.error,
   },
   primaryButton: {
-    backgroundColor: '#2C3E50',
+    backgroundColor: COLORS.primary,
     borderRadius: 12,
     paddingVertical: 16,
     alignItems: 'center',
-    marginTop: SPACING.sm,
-    shadowColor: '#2C3E50',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 6,
+    marginTop: SPACING.xs,
+    marginBottom: SPACING.sm,
   },
   primaryButtonText: {
-    fontFamily: 'Inter_600SemiBold',
-    fontSize: 16,
+    fontFamily: FONTS.bodyBold,
+    fontSize: FONT_SIZES.md,
     color: '#FFFFFF',
   },
   buttonDisabled: {
     opacity: 0.6,
   },
-  resendLink: {
+  linkBtn: {
     alignSelf: 'center',
-    marginTop: SPACING.md,
-    padding: SPACING.sm,
+    paddingVertical: SPACING.sm,
   },
-  resendLinkText: {
-    fontFamily: 'Inter_600SemiBold',
-    fontSize: 14,
-    color: '#2C3E50',
-    textDecorationLine: 'underline',
+  linkText: {
+    fontFamily: FONTS.bodySemiBold,
+    fontSize: FONT_SIZES.sm,
+    color: COLORS.primary,
   },
-  successContainer: {
+  successBlock: {
     alignItems: 'center',
     paddingVertical: SPACING.xl,
   },
-  successIconContainer: {
-    marginBottom: SPACING.lg,
-  },
   successTitle: {
-    fontFamily: 'Inter_700Bold',
-    fontSize: 24,
-    color: '#27AE60',
-    marginBottom: SPACING.sm,
+    fontFamily: FONTS.bodyBold,
+    fontSize: FONT_SIZES.xl,
+    color: COLORS.textPrimary,
+    marginTop: SPACING.md,
+    marginBottom: SPACING.xs,
   },
-  successMessage: {
-    fontFamily: 'Inter_400Regular',
-    fontSize: 15,
-    color: '#5D6D7E',
+  successMsg: {
+    fontFamily: FONTS.body,
+    fontSize: FONT_SIZES.md,
+    color: COLORS.textSecondary,
     textAlign: 'center',
-    lineHeight: 22,
   },
 });

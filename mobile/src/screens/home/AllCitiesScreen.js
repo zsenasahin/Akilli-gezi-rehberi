@@ -17,7 +17,6 @@ import { COLORS } from '../../constants/colors';
 import { FONTS, FONT_SIZES } from '../../constants/typography';
 import { SPACING, BORDER_RADIUS } from '../../constants/layout';
 import { getCityImages } from '../../services/cityImageService';
-import { useRequireAuth } from '../../contexts/AuthContext';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const CITY_CARD_WIDTH = (SCREEN_WIDTH - SPACING.lg * 2 - SPACING.sm) / 2;
@@ -25,7 +24,7 @@ const CITY_CARD_WIDTH = (SCREEN_WIDTH - SPACING.lg * 2 - SPACING.sm) / 2;
 const REGION_COLORS = {
     'Tümü': COLORS.primary,
     'Marmara': '#6366F1',
-    'Ege': '#0891B2',
+    'Ege': COLORS.primary,
     'Akdeniz': '#F59E0B',
     'İç Anadolu': '#84CC16',
     'Karadeniz': '#10B981',
@@ -36,7 +35,6 @@ const REGION_COLORS = {
 export default function AllCitiesScreen({ navigation, route }) {
     const { cities = [] } = route.params || {};
     const insets = useSafeAreaInsets();
-    const requireAuth = useRequireAuth(navigation);
 
     const [searchQuery, setSearchQuery] = useState('');
     const [activeRegion, setActiveRegion] = useState('Tümü');
@@ -152,7 +150,6 @@ export default function AllCitiesScreen({ navigation, route }) {
                                     images={images}
                                     onPress={() => navigation.navigate('CityDetail', { city })}
                                     onPlanPress={() => {
-                                        if (!requireAuth('Gezi planı oluşturmak için giriş yapmalısınız.')) return;
                                         navigation.navigate('CreateItinerary', { preselectedCity: city });
                                     }}
                                 />
@@ -338,7 +335,7 @@ const styles = StyleSheet.create({
         width: 28,
         height: 28,
         borderRadius: 14,
-        backgroundColor: 'rgba(8,145,178,0.88)',
+        backgroundColor: 'rgba(61, 122, 98, 0.88)',
         justifyContent: 'center',
         alignItems: 'center',
         borderWidth: 1,

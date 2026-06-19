@@ -1205,7 +1205,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row', alignItems: 'center', gap: 4,
         paddingHorizontal: 12, paddingVertical: 8,
         borderRadius: 12,
-        backgroundColor: 'rgba(8,145,178,0.85)',
+        backgroundColor: 'rgba(61, 122, 98, 0.85)',
     },
     heroMapText: {
         fontFamily: 'Inter_600SemiBold', fontSize: 12, color: '#fff',

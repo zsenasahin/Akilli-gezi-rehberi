@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useAuth } from '../contexts/AuthContext';
@@ -6,20 +6,36 @@ import AuthNavigator from './AuthNavigator';
 import MainNavigator from './MainNavigator';
 import LoadingSpinner from '../components/common/LoadingSpinner';
 import OnboardingScreen from '../screens/onboarding/OnboardingScreen';
+import { hasCompletedOnboarding } from '../utils/onboardingStorage';
 
 const RootStack = createNativeStackNavigator();
 
-/**
- * AppNavigator
- *
- * - Giriş yapılmışsa doğrudan ana uygulama açılır.
- * - Giriş yapılmamışsa onboarding ekranı gösterilir.
- * - Onboarding sonrası kullanıcı auth akışına geçer.
- */
 const AppNavigator = () => {
     const { isLoading, session } = useAuth();
+    const [onboardingReady, setOnboardingReady] = useState(false);
+    const [skipOnboarding, setSkipOnboarding] = useState(false);
 
-    if (isLoading) {
+    useEffect(() => {
+        let mounted = true;
+        hasCompletedOnboarding()
+            .then((done) => {
+                if (mounted) {
+                    setSkipOnboarding(done);
+                    setOnboardingReady(true);
+                }
+            })
+            .catch(() => {
+                if (mounted) {
+                    setSkipOnboarding(false);
+                    setOnboardingReady(true);
+                }
+            });
+        return () => {
+            mounted = false;
+        };
+    }, []);
+
+    if (isLoading || !onboardingReady) {
         return <LoadingSpinner message="Uygulama yükleniyor..." />;
     }
 
@@ -50,6 +66,12 @@ const AppNavigator = () => {
             <RootStack.Navigator screenOptions={{ headerShown: false }}>
                 {session ? (
                     <RootStack.Screen name="App" component={MainNavigator} />
+                ) : skipOnboarding ? (
+                    <RootStack.Screen
+                        name="Auth"
+                        component={AuthNavigator}
+                        options={{ animation: 'fade' }}
+                    />
                 ) : (
                     <>
                         <RootStack.Screen
@@ -60,9 +82,7 @@ const AppNavigator = () => {
                         <RootStack.Screen
                             name="Auth"
                             component={AuthNavigator}
-                            options={{
-                                animation: 'slide_from_bottom',
-                            }}
+                            options={{ animation: 'slide_from_bottom' }}
                         />
                     </>
                 )}

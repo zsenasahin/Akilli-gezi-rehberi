@@ -449,6 +449,27 @@ const ItineraryDetailScreen = ({ route, navigation }) => {
                             <Ionicons name="car" size={18} color="#fff" />
                             <Text style={styles.overviewMainBtnText}>Google Maps'te Aç</Text>
                         </TouchableOpacity>
+
+                        {routeItems.length > 0 && (
+                            <TouchableOpacity
+                                style={[styles.overviewGhostBtn, { marginTop: SPACING.sm }]}
+                                onPress={() => {
+                                    navigation.navigate('MapScreen', {
+                                        city: itinerary.cities,
+                                        places: routeItems.map((item, index) => ({
+                                            id: String(item.id || index),
+                                            name: item.places?.name || `Durak ${index + 1}`,
+                                            lat: item.places.lat,
+                                            lng: item.places.lng,
+                                        })),
+                                    });
+                                }}
+                                activeOpacity={0.85}
+                            >
+                                <Ionicons name="map-outline" size={18} color={COLORS.primary} />
+                                <Text style={styles.overviewGhostBtnText}>Uygulama haritası</Text>
+                            </TouchableOpacity>
+                        )}
                     </View>
                 </View>
 
