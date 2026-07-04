@@ -18,7 +18,12 @@ export const formatCurrency = (amount) => {
  * @returns {string} e.g. "2 saat" or "1.5 saat"
  */
 export const formatDuration = (hours) => {
-    if (!hours) return '—';
+    if (!hours || hours <= 0) return '—';
+    if (hours < 1) {
+        const minutes = Math.round(hours * 60);
+        return `${minutes} dakika`;
+    }
+    if (hours % 1 === 0) return `${hours} saat`;
     return `${hours} saat`;
 };
 

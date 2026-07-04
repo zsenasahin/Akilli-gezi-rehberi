@@ -33,6 +33,13 @@ import ErrorMessage from '../../components/common/ErrorMessage';
 import { useThemePreference } from '../../contexts/ThemeContext';
 import ConfettiOverlay from '../../components/common/ConfettiOverlay';
 
+function formatDurationText(hours) {
+    if (!hours || hours <= 0) return '1s';
+    if (hours < 1) return `${Math.round(hours * 60)}dk`;
+    if (hours % 1 === 0) return `${hours}s`;
+    return `${hours}s`;
+}
+
 const ItineraryDetailScreen = ({ route, navigation }) => {
     const { itineraryId } = route.params;
     const insets = useSafeAreaInsets();
@@ -521,7 +528,7 @@ const ItineraryDetailScreen = ({ route, navigation }) => {
                                         </TouchableOpacity>
 
                                         <Text style={styles.itemMeta}>
-                                            {item.places?.category} · {item.places?.avg_duration}s ·{' '}
+                                            {item.places?.category} · {formatDurationText(item.places?.avg_duration)} ·{' '}
                                             {item.places?.entry_fee > 0 ? `₺${item.places.entry_fee}` : 'Ücretsiz'}
                                         </Text>
 

@@ -5,6 +5,9 @@
  */
 
 import { cache, TTL } from './cacheService';
+import { batchGeocodeForCity, countMissingCoords } from './geocodingService';
+import { estimateDuration, estimateClosingHour } from '../algorithms/smartDuration';
+import { getCityCenter } from '../constants/cities';
 import yerlerData from '../data/turkiye_gezilecek_yerler.json';
 import detayData from '../data/turkiye_gezilecek_yerler_detay.json';
 
@@ -66,10 +69,14 @@ function normalizePlace(yer, idx) {
 
     const slug = yer.Url?.split('/').pop() || `place-${idx}`;
 
+    const placeName = toTitleCase(yer.Baslik || '');
+    const smartDuration = estimateDuration(yer.Baslik || '', category);
+    const closingHour = estimateClosingHour(yer.Baslik || '', category);
+
     return {
         id: slug,
         osm_id: slug,
-        name: toTitleCase(yer.Baslik || ''),
+        name: placeName,
         category,
         emoji: getEmojiFromCategory(category),
         image_url: imageUrl,
@@ -79,9 +86,10 @@ function normalizePlace(yer, idx) {
         gallery: yer.fotograflar?.length ? yer.fotograflar : (imageUrl ? [imageUrl] : []),
         lat: null,
         lng: null,
-        avg_duration: 1,
+        avg_duration: smartDuration,
+        closing_hour: closingHour,
         entry_fee: 0,
-        popularity_score: 50,
+        popularity_score: yer.KayitSayisi ?? 50,
         source: 'kulturportali',
         kulturportali_url: yer.Url ? `${BASE_IMAGE_URL}${yer.Url}` : null,
         website: yer.Url ? `${BASE_IMAGE_URL}${yer.Url}` : null,
@@ -114,8 +122,8 @@ function findCityData(cityName) {
 // ─── Ana Manager ──────────────────────────────────────────────────────────────
 
 export async function loadCityPlaces(city, onProgress) {
-    // Cache key'e 'v2' ekle — eski cache'i geçersiz kıl
-    const CACHE_KEY = `kp_places_v2_${city.name}`;
+    // Cache key'e 'v3' ekle — smart duration & geocoding cache
+    const CACHE_KEY = `kp_places_v3_${city.name}`;
 
     const cached = await cache.get(CACHE_KEY);
     if (cached?.length) {
@@ -128,7 +136,28 @@ export async function loadCityPlaces(city, onProgress) {
     const ilData = findCityData(city.name);
     if (!ilData?.yerler?.length) return [];
 
-    const normalized = ilData.yerler.map((y, i) => normalizePlace(y, i));
+    // 1. Normalize (akıllı süre + kapanış saati tahmini)
+    let normalized = ilData.yerler.map((y, i) => normalizePlace(y, i));
+
+    // 2. Geocoding — koordinatları çözümle
+    const missingCount = countMissingCoords(normalized);
+    if (missingCount > 0) {
+        const cityCenter = getCityCenter(city.name);
+        onProgress?.(`Konumlar çözümleniyor (${missingCount} yer)...`, 0, missingCount);
+        try {
+            normalized = await batchGeocodeForCity(
+                normalized,
+                city.name,
+                cityCenter,
+                (current, total, geocoded) => {
+                    onProgress?.(`Konum çözümleniyor: ${current}/${total}`, current, total);
+                }
+            );
+        } catch (err) {
+            console.warn('[PlaceDataManager] Geocoding hatası, devam ediliyor:', err.message);
+            // Geocoding başarısız olsa bile koordinatsız verilerle devam et
+        }
+    }
 
     await cache.set(CACHE_KEY, normalized, TTL.WEEK);
     onProgress?.('Tamamlandı', 1, 1);
@@ -140,5 +169,7 @@ export async function loadPlaceDetail(place) {
 }
 
 export async function refreshCity(cityName) {
-    await cache.invalidate(`kp_places_v2_${cityName}`);
+    await cache.invalidate(`kp_places_v3_${cityName}`);
+    await cache.invalidate(`kp_places_v2_${cityName}`); // eski cache'i de temizle
+    await cache.invalidate(`geocode_coords_v2_${cityName}`);
 }

@@ -1,327 +1,21 @@
 /**
- * itineraryGenerator.js — Geliştirilmiş akıllı gezi planlama algoritması v2
+ * itineraryGenerator.js — Akıllı gezi planlama algoritması (v3 — Geliştirilmiş Rota)
  *
- * Yenilikler v2:
- *  1. Kategori dengesi — her güne farklı kategorilerden yer dağıtımı
- *  2. Coğrafi clustering — yakın yerleri aynı güne koy
- *  3. Giriş ücreti bazlı bütçe hesabı
- *  4. Zirve/düşük saatlere göre öneri sıralaması (sabah müzeler, öğle yemek, akşam aktivite)
- *  5. İlk yer her günde konaklama noktasına en yakın olacak şekilde optimizasyon
+ * Gelişmiş özellikler:
+ * - Duration-aware clustering (süreye duyarlı günlere ayırma)
+ * - Gerçek koordinat bazlı TSP (2-Opt) rota optimizasyonu
+ * - Kapanış saati duyarlı zaman çizelgesi
+ * - Gerçek mesafe ve süre hesaplamaları (hardcoded değil)
+ * - Güne sığmayan yerlerin otomatik yeniden dağıtımı
  */
 
-import { haversineDistance } from '../utils/haversine';
+import { balancePlacesIntoDays } from '../algorithms/clustering';
+import { optimizeRoute } from '../algorithms/tsp';
+import { generateTimeline } from '../algorithms/timeline';
+import { haversineDistance } from '../algorithms/haversine';
+import { estimateDuration, estimateClosingHour } from '../algorithms/smartDuration';
 
-// ─── Sabitler ────────────────────────────────────────────────────────────────
-const MAX_HOURS_PER_DAY = 7;    // 09:00 → 16:00 mantıklı seyahat penceresi
-const TRAVEL_SPEED_KMH = 4;    // Yürüyüş ~ 4 km/s
-const VISIT_BUFFER_H = 0.25; // Her ziyaret arası 15 dk buffer
-
-// Kategorilerin günün hangi saat diliminde visitlanması tercih edilir
-// (0=sabah, 1=öğle, 2=öğleden sonra, 3=akşam)
-const CATEGORY_SLOT = {
-    'tarihi': 0, museum: 0, 'müze': 0,
-    'dini': 0,
-    'doğa': 1, nature: 1,
-    'park': 1,
-    'restoran': 2, restaurant: 2, 'yemek': 2,
-    'kafe': 2, cafe: 2,
-    'alışveriş': 3, shopping: 3,
-    'eğlence': 3, entertainment: 3,
-    'gece': 3,
-};
-
-// ─── Yardımcı: Yürüyüş süresi ─────────────────────────────────────────────
-const travelHours = (km) => km / TRAVEL_SPEED_KMH;
-
-// ─── Yardımcı: Coğrafi merkez (centroid) ──────────────────────────────────
-const centroid = (places) => {
-    if (!places.length) return { lat: 0, lng: 0 };
-    const lat = places.reduce((s, p) => s + p.lat, 0) / places.length;
-    const lng = places.reduce((s, p) => s + p.lng, 0) / places.length;
-    return { lat, lng };
-};
-
-// ─── K-Means Clustering ───────────────────────────────────────────────────
-/**
- * Yerleri k coğrafi kümeye böler.
- * Her küme bir "günlük alan" temsil eder.
- */
-const kMeansClusters = (places, k, maxIter = 20) => {
-    if (places.length <= k) {
-        return places.map((p, i) => ({ cluster: i, ...p }));
-    }
-
-    // Başlangıç merkezi: eşit aralıklı seç
-    let centers = [];
-    const step = Math.floor(places.length / k);
-    for (let i = 0; i < k; i++) {
-        centers.push({ lat: places[i * step].lat, lng: places[i * step].lng });
-    }
-
-    let assignments = new Array(places.length).fill(0);
-
-    for (let iter = 0; iter < maxIter; iter++) {
-        let changed = false;
-
-        // Her yeri en yakın merkeze ata
-        for (let i = 0; i < places.length; i++) {
-            let minDist = Infinity, minK = 0;
-            for (let j = 0; j < k; j++) {
-                const d = haversineDistance(places[i].lat, places[i].lng, centers[j].lat, centers[j].lng);
-                if (d < minDist) { minDist = d; minK = j; }
-            }
-            if (assignments[i] !== minK) { assignments[i] = minK; changed = true; }
-        }
-
-        if (!changed) break;
-
-        // Merkezleri güncelle
-        for (let j = 0; j < k; j++) {
-            const clusterPlaces = places.filter((_, i) => assignments[i] === j);
-            if (clusterPlaces.length > 0) {
-                centers[j] = centroid(clusterPlaces);
-            }
-        }
-    }
-
-    return places.map((p, i) => ({ ...p, cluster: assignments[i] }));
-};
-
-// ─── Nearest Neighbor (tek grup içi sıralama) ─────────────────────────────
-const nearestNeighborOrder = (places, start = null) => {
-    if (places.length <= 1) return [...places];
-    const remaining = [...places];
-    const ordered = [];
-    let curr = start || { lat: remaining[0].lat, lng: remaining[0].lng };
-
-    while (remaining.length > 0) {
-        let minIdx = 0, minDist = Infinity;
-        for (let i = 0; i < remaining.length; i++) {
-            const d = haversineDistance(curr.lat, curr.lng, remaining[i].lat, remaining[i].lng);
-            if (d < minDist) { minDist = d; minIdx = i; }
-        }
-        const p = remaining.splice(minIdx, 1)[0];
-        ordered.push({ ...p, _distFromPrev: minDist });
-        curr = { lat: p.lat, lng: p.lng };
-    }
-    return ordered;
-};
-
-// ─── Kategori skoru: çeşitlilik için ──────────────────────────────────────
-/**
- * Bir güne eklenmemiş kategorileri tercih eder.
- * Yüksek skor = bu yer bu günün kategorilerini çeşitlendirir.
- */
-const diversityScore = (place, dayCategories) => {
-    const cat = (place.category || '').toLowerCase();
-    if (!dayCategories.has(cat)) return 1.0;  // Yeni kategori → üst prefer
-    return 0.3;  // Zaten var → daha düşük öncelik
-};
-
-// ─── Ana Algoritma ──────────────────────────────────────────────────────────
-/**
- * Geliştirilmiş gezi planı oluşturur.
- *
- * @param {Array}  places          – Şehrin tüm yerleri (lat/lng zorunlu)
- * @param {number} days            – Gezi günü sayısı
- * @param {object} options
- * @param {{ lat, lng }} [options.startLocation]  – Konaklama koordinatı
- * @param {number} [options.maxHoursPerDay]        – Günlük max saat (default 7)
- * @param {boolean} [options.balanceCategories]    – Kategori dengesi (default true)
- * @returns {{ plan, totalHours, totalDistance, totalBudget, items, stats }}
- */
-export const generateItinerary = (places, days, options = {}) => {
-    console.log('🚀 generateItinerary başladı:', { placesCount: places.length, days });
-    
-    const {
-        startLocation = null,
-        maxHoursPerDay = MAX_HOURS_PER_DAY,
-        balanceCategories = true,
-    } = options;
-
-    // Koordinatsız yerleri filtrele — koordinat yoksa şehir merkezini fallback olarak kullan
-    const validPlaces = places.map(p => {
-        if (p.lat != null && p.lng != null) return p;
-        // Koordinat yoksa options'dan cityCenter al, yoksa İstanbul
-        const fallbackLat = options.cityLat ?? 41.0082;
-        const fallbackLng = options.cityLng ?? 28.9784;
-        return { ...p, lat: fallbackLat + (Math.random() - 0.5) * 0.05, lng: fallbackLng + (Math.random() - 0.5) * 0.05 };
-    });
-    console.log('✅ Geçerli yerler:', validPlaces.length);
-
-    if (validPlaces.length === 0 || days <= 0) {
-        console.log('⚠️ Geçersiz parametreler, boş sonuç dönüyor');
-        return emptyResult(days);
-    }
-
-    // Kaç yer kullanılacak: günlük ortalama 3-5 yer
-    const targetPerDay = Math.min(5, Math.max(2, Math.ceil(validPlaces.length / days)));
-    const maxPlaces = Math.min(validPlaces.length, days * targetPerDay);
-    const effectiveDays = Math.min(days, validPlaces.length);
-
-    // Popülerlik skoru yoksa varsayılan uygula
-    const scored = validPlaces.map(p => ({
-        ...p,
-        popularity_score: p.popularity_score ?? 50,
-        avg_duration: p.avg_duration ?? 1,
-        entry_fee: p.entry_fee ?? 0,
-    }));
-
-    // En yüksek popülerliği seç (quota'ya göre)
-    const topPlaces = [...scored]
-        .sort((a, b) => b.popularity_score - a.popularity_score)
-        .slice(0, maxPlaces);
-
-    // ── Coğrafi kümeleme: k = gün sayısı ──────────────────────────────────
-    console.log('🗺️ Kümeleme başlıyor:', { topPlacesCount: topPlaces.length, effectiveDays });
-    const clustered = kMeansClusters(topPlaces, effectiveDays);
-    console.log('✅ Kümeleme tamamlandı');
-
-    // Kümeleri gruplara ayır
-    const clusterGroups = {};
-    for (let i = 0; i < effectiveDays; i++) clusterGroups[i] = [];
-    clustered.forEach(p => {
-        if (clusterGroups[p.cluster] !== undefined) {
-            clusterGroups[p.cluster].push(p);
-        }
-    });
-
-    // Boş kalan kümelere yeniden dağıt (k-means dengesizliği)
-    const nonEmpty = Object.values(clusterGroups).filter(g => g.length > 0);
-    if (nonEmpty.length < effectiveDays) {
-        // Tüm yerleri tekrar dengeli dağıt
-        const allSorted = [...topPlaces].sort((a, b) => b.popularity_score - a.popularity_score);
-        for (let i = 0; i < effectiveDays; i++) clusterGroups[i] = [];
-        allSorted.forEach((p, i) => clusterGroups[i % effectiveDays].push(p));
-    }
-
-    // ── Her günü optimize et ──────────────────────────────────────────────
-    const plan = [];
-    let dayNum = 1;
-
-    for (let ci = 0; ci < effectiveDays; ci++) {
-        const candidates = clusterGroups[ci];
-        if (candidates.length === 0) {
-            plan.push({ day: dayNum++, places: [], totalHours: 0, totalDistance: 0, budget: 0 });
-            continue;
-        }
-
-        // Kategori dengeli seçim
-        let selected = [];
-        const dayCategories = new Set();
-
-        if (balanceCategories) {
-            // Önce kategori çeşitliliği sağla
-            const byCategory = {};
-            candidates.forEach(p => {
-                const cat = (p.category || 'diğer').toLowerCase();
-                if (!byCategory[cat]) byCategory[cat] = [];
-                byCategory[cat].push(p);
-            });
-
-            // Her kategoriden en popüleri al
-            Object.values(byCategory).forEach(catPlaces => {
-                const best = catPlaces.sort((a, b) => b.popularity_score - a.popularity_score)[0];
-                selected.push(best);
-            });
-
-            // Kota dolmadıysa popülerlik sırasına göre tamamla
-            const usedIds = new Set(selected.map(p => p.id));
-            const remaining = candidates.filter(p => !usedIds.has(p.id));
-            const remaining_sorted = remaining.sort((a, b) => b.popularity_score - a.popularity_score);
-
-            let budget = 0;
-            for (const p of selected) {
-                budget += (p.avg_duration ?? 1) + VISIT_BUFFER_H;
-                dayCategories.add((p.category || '').toLowerCase());
-            }
-            for (const p of remaining_sorted) {
-                if (budget >= maxHoursPerDay) break;
-                budget += (p.avg_duration ?? 1) + VISIT_BUFFER_H;
-                if (budget <= maxHoursPerDay + 1) selected.push(p);
-            }
-        } else {
-            selected = [...candidates].sort((a, b) => b.popularity_score - a.popularity_score);
-        }
-
-        // Nearest-neighbor ile o günün rotasını optimize et
-        const start = startLocation;
-        const ordered = nearestNeighborOrder(selected, start);
-
-        // Günlük süre ve bütçe hesapla
-        let dayHours = 0, dayDist = 0, dayBudget = 0;
-        const fittedPlaces = [];
-        for (const p of ordered) {
-            const travel = travelHours(p._distFromPrev ?? 0);
-            const visit = (p.avg_duration ?? 1) + VISIT_BUFFER_H;
-            if (dayHours + travel + visit > maxHoursPerDay + 1 && fittedPlaces.length > 0) break;
-            dayHours += travel + visit;
-            dayDist += p._distFromPrev ?? 0;
-            dayBudget += p.entry_fee ?? 0;
-            fittedPlaces.push(p);
-        }
-
-        plan.push({
-            day: dayNum++,
-            places: fittedPlaces,
-            totalHours: Math.round(dayHours * 10) / 10,
-            totalDistance: Math.round(dayDist * 100) / 100,
-            budget: dayBudget,
-        });
-    }
-
-    // Kalan günler için boş gün ekle
-    while (plan.length < days) {
-        plan.push({ day: plan.length + 1, places: [], totalHours: 0, totalDistance: 0, budget: 0 });
-    }
-
-    // items (DB formatı) — sadece numeric ID'li (Supabase) yerleri kaydet
-    const items = plan.flatMap(dayPlan =>
-        dayPlan.places
-            .filter(p => p.id != null && !isNaN(Number(p.id)))
-            .map((p, idx) => ({
-                place_id: Number(p.id),
-                day_number: dayPlan.day,
-                order_index: idx,
-            }))
-    );
-
-    const totalHours = plan.reduce((s, d) => s + d.totalHours, 0);
-    const totalDistance = plan.reduce((s, d) => s + d.totalDistance, 0);
-    const totalBudget = plan.reduce((s, d) => s + d.budget, 0);
-
-    // İstatistikler
-    const stats = {
-        totalPlaces: items.length,
-        avgPlacesPerDay: Math.round((items.length / Math.max(days, 1)) * 10) / 10,
-        uniqueCategories: [...new Set(plan.flatMap(d => d.places.map(p => p.category)).filter(Boolean))],
-        totalBudget,
-        totalDistance: Math.round(totalDistance * 10) / 10,
-    };
-
-    console.log('✅ Plan oluşturuldu:', { totalPlaces: items.length, totalHours, totalBudget });
-    return { plan, totalHours: Math.round(totalHours * 10) / 10, totalDistance: stats.totalDistance, totalBudget, items, stats };
-};
-
-const emptyResult = (days) => ({
-    plan: Array.from({ length: days }, (_, i) => ({ day: i + 1, places: [], totalHours: 0, totalDistance: 0, budget: 0 })),
-    totalHours: 0, totalDistance: 0, totalBudget: 0, items: [], stats: { totalPlaces: 0, avgPlacesPerDay: 0, uniqueCategories: [], totalBudget: 0, totalDistance: 0 },
-});
-
-// ─── Bütçe Hesaplayıcı ────────────────────────────────────────────────────
-/**
- * Tam gezi bütçesi tahmini.
- *
- * @param {object} params
- * @param {number} params.entryFees        – Toplam giriş ücretleri (₺)
- * @param {number} params.distanceKm       – Toplam mesafe (km)
- * @param {number} params.days             – Gün sayısı
- * @param {boolean} params.hasTransport    – Özel araç var mı?
- * @param {number} [params.fuelPrice]      – Yakıt fiyatı (₺/L)
- * @param {number} [params.consumption]    – Tüketim (L/100km)
- * @param {number} [params.restaurantPerDay] – Günlük yemek tahmini (₺)
- * @returns {{ entryFees, transport, food, total, breakdown }}
- */
+// ─── Yardımcı: Bütçe Hesaplayıcı ────────────────────────────────────────────────────
 export const estimateTotalBudget = ({
     entryFees = 0,
     distanceKm = 0,
@@ -333,7 +27,7 @@ export const estimateTotalBudget = ({
 }) => {
     const transport = hasTransport
         ? Math.round(((distanceKm * consumption) / 100) * fuelPrice)
-        : Math.round(distanceKm * 2); // toplu taşıma tahmini (₺/km ≈ 2)
+        : Math.round(distanceKm * 2);
 
     const food = restaurantPerDay * days;
     const total = entryFees + transport + food;
@@ -351,32 +45,257 @@ export const estimateTotalBudget = ({
     };
 };
 
-// ─── Alternatif Yer Öner ──────────────────────────────────────────────────
 /**
- * Mevcut planda olmayan, aynı kategoriden en popüler yeri önerir.
- * Mesafe bilgisi varsa yakın olanı tercih eder.
+ * Geliştirilmiş gezi planı oluşturur. (v3 — Akıllı Rota)
+ *
+ * Akış:
+ * 1. Verileri normalize et (koordinat, süre, kapanış saati)
+ * 2. Günlük süre bütçesine göre yer sayısını ayarla
+ * 3. Duration-aware K-Means ile günlere ayır
+ * 4. Her gün için TSP (2-Opt) ile optimal rota oluştur
+ * 5. Kapanış saati duyarlı zaman çizelgesi üret
+ * 6. Güne sığmayan yerleri yeniden dağıt
  */
-export const suggestAlternative = (allCityPlaces, usedPlaceIds, preferCategory = null, nearLat = null, nearLng = null) => {
-    const available = allCityPlaces.filter(p => !usedPlaceIds.includes(p.id));
-    if (available.length === 0) return null;
+export const generateItinerary = (places, days, options = {}) => {
+    console.log('🚀 generateItinerary (v3) başladı:', { days, placesCount: places.length });
 
-    let pool = preferCategory
-        ? available.filter(p => p.category === preferCategory)
-        : available;
+    const fallbackLat = options.cityLat ?? 41.0082;
+    const fallbackLng = options.cityLng ?? 28.9784;
 
-    if (pool.length === 0) pool = available;
+    // ═══════════════════════════════════════════════════════════════════
+    // 1. VERİ NORMALIZASYONU
+    // ═══════════════════════════════════════════════════════════════════
 
-    // Mesafe bilgisi varsa yakını tercih et
-    if (nearLat && nearLng) {
-        return pool
-            .map(p => ({ ...p, _dist: haversineDistance(nearLat, nearLng, p.lat, p.lng) }))
-            .sort((a, b) => {
-                // Karma skor: popülerlik + yakınlık
-                const scoreA = (a.popularity_score ?? 50) - a._dist * 5;
-                const scoreB = (b.popularity_score ?? 50) - b._dist * 5;
-                return scoreB - scoreA;
-            })[0];
+    const formattedPlaces = places.map(p => {
+        // Koordinat: gerçek varsa kullan, yoksa şehir merkezi (rastgele DEĞİL)
+        const lat = (p.lat != null && !isNaN(p.lat)) ? p.lat : fallbackLat;
+        const lng = (p.lng != null && !isNaN(p.lng)) ? p.lng : fallbackLng;
+
+        // Süre: placeDataManager'dan gelen akıllı süre, yoksa tahmin et
+        const avgDuration = p.avg_duration ?? estimateDuration(p.name || '', p.category);
+        const durationMinutes = Math.round(avgDuration * 60);
+
+        // Kapanış saati
+        const closingHour = p.closing_hour ?? estimateClosingHour(p.name || '', p.category);
+
+        return {
+            ...p,
+            latitude: lat,
+            longitude: lng,
+            duration_minutes: durationMinutes,
+            closing_hour: closingHour,
+        };
+    });
+
+    if (formattedPlaces.length === 0 || days <= 0) {
+        return emptyResult(days);
     }
 
-    return pool.sort((a, b) => (b.popularity_score ?? 0) - (a.popularity_score ?? 0))[0];
+    // ═══════════════════════════════════════════════════════════════════
+    // 2. GÜNLÜK KAPASİTE HESABI VE FİLTRELEME
+    // ═══════════════════════════════════════════════════════════════════
+
+    // Günlük net gezi bütçesi: 09:00-20:00 = 660 dakika
+    // Yerler arası ortalama ulaşım: ~25 dk
+    const DAY_BUDGET_MINUTES = 660;
+    const AVG_TRAVEL_MINUTES = 25;
+
+    // Toplam süreye bakarak kaç yer sığacağını hesapla
+    const totalPlaceDuration = formattedPlaces.reduce((s, p) => s + p.duration_minutes, 0);
+    const totalAvailableMinutes = days * DAY_BUDGET_MINUTES;
+
+    let placesToCluster = formattedPlaces;
+
+    if (totalPlaceDuration > totalAvailableMinutes) {
+        // Süre bütçesine sığmıyor — en popüler yerleri seç
+        // Sığacak kadar yer seçmek için süre bazlı greedy seçim
+        const sorted = [...formattedPlaces]
+            .sort((a, b) => (b.popularity_score ?? 50) - (a.popularity_score ?? 50));
+
+        let usedMinutes = 0;
+        placesToCluster = [];
+
+        for (const place of sorted) {
+            const placeTotal = place.duration_minutes + AVG_TRAVEL_MINUTES;
+            if (usedMinutes + placeTotal <= totalAvailableMinutes) {
+                placesToCluster.push(place);
+                usedMinutes += placeTotal;
+            }
+        }
+
+        console.log(`⏱ Süre bütçesine göre ${placesToCluster.length}/${formattedPlaces.length} yer seçildi`);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    // 3. CLUSTERING + TSP + TIMELINE
+    // ═══════════════════════════════════════════════════════════════════
+
+    const startLocation = options.startLocation ?? { latitude: fallbackLat, longitude: fallbackLng };
+
+    // 3a. Duration-aware K-Means Clustering
+    const dayClusters = balancePlacesIntoDays(placesToCluster, days);
+
+    const plan = [];
+    let grandTotalDistance = 0;
+    let grandTotalDuration = 0;
+    let grandTotalBudget = 0;
+    const allOverflowPlaces = [];
+
+    // 3b. Her gün için rota ve zaman çizelgesi
+    for (const cluster of dayClusters) {
+        if (cluster.places.length === 0) {
+            plan.push({
+                day: cluster.dayIndex,
+                places: [],
+                totalHours: 0,
+                totalDistance: 0,
+                budget: 0,
+                endTime: '09:00',
+            });
+            continue;
+        }
+
+        // TSP ile optimal rota
+        const optimized = optimizeRoute(startLocation, cluster.places, options.returnToHotel ?? false);
+
+        // Zaman çizelgesi (kapanış saati + günlük sınır duyarlı)
+        const timelineResult = generateTimeline(optimized, "09:00", 15, 20);
+
+        // Bütçe
+        let dayBudget = 0;
+        optimized.forEach(p => dayBudget += (p.entry_fee ?? 0));
+
+        // Güne sığmayan yerler
+        if (timelineResult.overflowPlaces.length > 0) {
+            allOverflowPlaces.push(...timelineResult.overflowPlaces);
+            console.log(`⚠️ Gün ${cluster.dayIndex}: ${timelineResult.overflowPlaces.length} yer sığmadı`);
+        }
+
+        // UI formatı
+        const uiPlaces = timelineResult.stops.map(p => ({
+            ...p,
+            lat: p.latitude,
+            lng: p.longitude,
+            _travelMinutes: p.travelMinutesFromPrev || 0,
+        }));
+
+        const dayHours = Math.round((timelineResult.totalDurationMinutes / 60) * 10) / 10;
+        const dayDistKm = Math.round(timelineResult.totalDistanceKm * 10) / 10;
+
+        plan.push({
+            day: cluster.dayIndex,
+            places: uiPlaces,
+            totalHours: dayHours,
+            totalDistance: dayDistKm,
+            budget: dayBudget,
+            endTime: timelineResult.endTime,
+        });
+
+        grandTotalDistance += timelineResult.totalDistanceKm;
+        grandTotalDuration += timelineResult.totalDurationMinutes;
+        grandTotalBudget += dayBudget;
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    // 4. OVERFLOW YERLERİN YENİDEN DAĞITIMI
+    // ═══════════════════════════════════════════════════════════════════
+
+    if (allOverflowPlaces.length > 0) {
+        // En boş günlere sığmayan yerleri dağıt
+        for (const overflowPlace of allOverflowPlaces) {
+            // En az yere sahip günü bul
+            const leastLoadedDay = plan.reduce((min, day) =>
+                day.places.length < min.places.length ? day : min
+            , plan[0]);
+
+            // O günün sonuna ekle (basit yaklaşım)
+            leastLoadedDay.places.push({
+                ...overflowPlace,
+                lat: overflowPlace.latitude,
+                lng: overflowPlace.longitude,
+                arrivalTime: leastLoadedDay.endTime || '18:00',
+                departureTime: '20:00',
+                _overflow: true,
+            });
+        }
+        console.log(`♻️ ${allOverflowPlaces.length} taşan yer boş günlere dağıtıldı`);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    // 5. SONUÇ
+    // ═══════════════════════════════════════════════════════════════════
+
+    // DB formatı (items)
+    const items = plan.flatMap(dayPlan =>
+        dayPlan.places
+            .filter(p => p.id != null && !isNaN(Number(p.id)))
+            .map((p, idx) => ({
+                place_id: Number(p.id),
+                day_number: dayPlan.day,
+                order_index: idx,
+            }))
+    );
+
+    const totalHours = Math.round((grandTotalDuration / 60) * 10) / 10;
+    const totalDistanceRound = Math.round(grandTotalDistance * 10) / 10;
+
+    const stats = {
+        totalPlaces: plan.reduce((s, d) => s + d.places.length, 0),
+        avgPlacesPerDay: Math.round((plan.reduce((s, d) => s + d.places.length, 0) / Math.max(days, 1)) * 10) / 10,
+        uniqueCategories: [...new Set(plan.flatMap(d => d.places.map(p => p.category)).filter(Boolean))],
+        totalBudget: grandTotalBudget,
+        totalDistance: totalDistanceRound,
+        totalHours,
+        dayBreakdown: plan.map(d => ({
+            day: d.day,
+            placeCount: d.places.length,
+            hours: d.totalHours,
+            distanceKm: d.totalDistance,
+            endTime: d.endTime,
+        })),
+    };
+
+    console.log('✅ Plan oluşturuldu (v3):', JSON.stringify(stats.dayBreakdown));
+    return { plan, totalHours, totalDistance: totalDistanceRound, totalBudget: grandTotalBudget, items, stats };
+};
+
+const emptyResult = (days) => ({
+    plan: Array.from({ length: days }, (_, i) => ({ day: i + 1, places: [], totalHours: 0, totalDistance: 0, budget: 0 })),
+    totalHours: 0, totalDistance: 0, totalBudget: 0, items: [], stats: { totalPlaces: 0, avgPlacesPerDay: 0, uniqueCategories: [], totalBudget: 0, totalDistance: 0 },
+});
+
+/**
+ * Mevcut bir yer yerine alternatif önerir.
+ * Kategori uyumu ve mesafe yakınlığına göre en iyi adayı seçer.
+ */
+export const suggestAlternative = (allPlaces, usedPlaceIds, category, lat, lng) => {
+    if (!allPlaces?.length) return null;
+
+    const candidates = allPlaces.filter(p =>
+        !usedPlaceIds.includes(p.id) &&
+        !usedPlaceIds.includes(String(p.id))
+    );
+
+    if (candidates.length === 0) return null;
+
+    // Aynı kategoriden tercih et, yoksa hepsine bak
+    const sameCategory = candidates.filter(p => p.category === category);
+    const pool = sameCategory.length > 0 ? sameCategory : candidates;
+
+    // Konum varsa en yakını seç
+    if (lat && lng) {
+        const ref = { latitude: lat, longitude: lng };
+        const scored = pool
+            .filter(p => p.lat && p.lng)
+            .map(p => ({
+                ...p,
+                _dist: haversineDistance(ref, { latitude: p.lat, longitude: p.lng }),
+            }))
+            .sort((a, b) => a._dist - b._dist);
+
+        if (scored.length > 0) return scored[0];
+    }
+
+    // Konum yoksa popülerliğe göre
+    return pool.sort((a, b) => (b.popularity_score ?? 50) - (a.popularity_score ?? 50))[0] || null;
 };

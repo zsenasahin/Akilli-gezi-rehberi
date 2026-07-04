@@ -135,7 +135,7 @@ export default function PlaceSelectionCard({ place, selected, onPress }) {
                     <View style={styles.meta}>
                         <View style={styles.metaItem}>
                             <Ionicons name="time-outline" size={12} color="rgba(255,255,255,0.8)" />
-                            <Text style={styles.metaText}>{place.avg_duration}s</Text>
+                            <Text style={styles.metaText}>{place.avg_duration < 1 ? `${Math.round(place.avg_duration * 60)}dk` : `${place.avg_duration}s`}</Text>
                         </View>
                         {place.entry_fee > 0 ? (
                             <View style={styles.metaItem}>
@@ -195,7 +195,7 @@ export default function PlaceSelectionCard({ place, selected, onPress }) {
                                 </View>
                                 <View style={styles.modalMetaItem}>
                                     <Ionicons name="time-outline" size={16} color={COLORS.primary} />
-                                    <Text style={styles.modalMetaText}>{place.avg_duration} saat</Text>
+                                    <Text style={styles.modalMetaText}>{place.avg_duration < 1 ? `${Math.round(place.avg_duration * 60)} dakika` : `${place.avg_duration} saat`}</Text>
                                 </View>
                                 <View style={styles.modalMetaItem}>
                                     <Ionicons name="star" size={16} color="#FCD34D" />

@@ -19,6 +19,7 @@ import { loadCityPlaces } from '../../services/placeDataManager';
 import { getMockHotels, getHotelSuggestions } from '../../services/hotelService';
 import PlaceSelectionCard from '../../components/itinerary/PlaceSelectionCard';
 import ErrorMessage from '../../components/common/ErrorMessage';
+import HotelSearch from '../../components/itinerary/HotelSearch';
 
 const CATEGORY_COLORS = {
     'tarihi': '#8B5CF6',
@@ -728,6 +729,14 @@ function StepAccommodation({
                     </View>
 
                     {/* Otel Listesi */}
+                    {accommodationType === 'own' && (
+                        <View style={{ marginTop: 10 }}>
+                            <HotelSearch onSelectLocation={(loc) => {
+                                // Seçilen adresi state'e atayabilirsiniz.
+                                // alert(loc.name + " seçildi");
+                            }} />
+                        </View>
+                    )}
                     {accommodationType === 'hotel' && (
                         <View style={styles.hotelList}>
                             {loadingHotels ? (
