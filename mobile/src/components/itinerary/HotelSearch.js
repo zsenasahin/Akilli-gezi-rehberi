@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, FlatList, ActivityIndicator, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { searchLocation, GeocodeResult } from '../../services/geocoding';
+import { searchLocation } from '../../services/geocoding';
 import { COLORS } from '../../constants/colors';
 
 export default function HotelSearch({ onSelectLocation }) {
@@ -10,12 +10,20 @@ export default function HotelSearch({ onSelectLocation }) {
   const [loading, setLoading] = useState(false);
 
   const handleSearch = async () => {
-    if (query.trim().length < 3) return;
+    if (query.trim().length < 3) {
+      setResults([]);
+      return;
+    }
     setLoading(true);
     const data = await searchLocation(query);
     setResults(data);
     setLoading(false);
   };
+
+  useEffect(() => {
+    const timeout = setTimeout(handleSearch, 500);
+    return () => clearTimeout(timeout);
+  }, [query]);
 
   const handleSelect = (item) => {
     setQuery(item.name);
@@ -27,7 +35,8 @@ export default function HotelSearch({ onSelectLocation }) {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.label}>Kendi Otelinizi veya Konumunuzu Arayın</Text>
+      <Text style={styles.label}>Adres veya otel ara</Text>
+      <Text style={styles.helpText}>Arama sonuçlarından bir konum seçebilir ya da aşağıdan haritayı kullanabilirsiniz.</Text>
       
       <View style={styles.searchBox}>
         <Ionicons name="search" size={20} color={COLORS.textLight} style={styles.icon} />
@@ -35,7 +44,10 @@ export default function HotelSearch({ onSelectLocation }) {
           style={styles.input}
           placeholder="Örn: Hilton Taksim, İstanbul"
           value={query}
-          onChangeText={setQuery}
+          onChangeText={(value) => {
+            setQuery(value);
+            if (!value.trim()) setResults([]);
+          }}
           onSubmitEditing={handleSearch}
           returnKeyType="search"
         />
@@ -73,6 +85,12 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: COLORS.textSecondary,
     marginBottom: 8,
+  },
+  helpText: {
+    fontSize: 12,
+    lineHeight: 17,
+    color: COLORS.textLight,
+    marginBottom: 10,
   },
   searchBox: {
     flexDirection: 'row',

@@ -7,6 +7,8 @@ import {
 import { Calendar } from 'react-native-calendars';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import { COLORS } from '../../constants/colors';
 import { FONT_SIZES, FONTS } from '../../constants/typography';
 import { SPACING, BORDER_RADIUS } from '../../constants/layout';
@@ -16,10 +18,11 @@ import { getCities } from '../../data/repositories/cityRepository';
 import { createItinerary } from '../../data/repositories/itineraryRepository';
 import { generateItinerary } from '../../domain/itineraryGenerator';
 import { loadCityPlaces } from '../../services/placeDataManager';
-import { getMockHotels, getHotelSuggestions } from '../../services/hotelService';
+import { getHotelSuggestions } from '../../services/hotelService';
 import PlaceSelectionCard from '../../components/itinerary/PlaceSelectionCard';
 import ErrorMessage from '../../components/common/ErrorMessage';
 import HotelSearch from '../../components/itinerary/HotelSearch';
+import { consumePendingLocation } from '../../services/locationSelectionStore';
 
 const CATEGORY_COLORS = {
     'tarihi': '#8B5CF6',
@@ -47,6 +50,7 @@ function formatDate(date) {
 
 export default function CreateItineraryScreen({ navigation, route }) {
     const { user } = useAuth();
+    const insets = useSafeAreaInsets();
 
     const [step, setStep] = useState(0);
 
@@ -70,6 +74,7 @@ export default function CreateItineraryScreen({ navigation, route }) {
     const [accommodationType, setAccommodationType] = useState('hotel'); // 'hotel' | 'own'
     const [hotels, setHotels] = useState([]);
     const [selectedHotel, setSelectedHotel] = useState(null);
+    const [selectedOwnLocation, setSelectedOwnLocation] = useState(null);
     const [loadingHotels, setLoadingHotels] = useState(false);
 
     // UI
@@ -85,6 +90,14 @@ export default function CreateItineraryScreen({ navigation, route }) {
             setStep(1); // Direkt yer seçimine geç
         }
     }, [route?.params?.preselectedCity]);
+
+    useFocusEffect(useCallback(() => {
+        const pickedLocation = consumePendingLocation();
+        if (pickedLocation) {
+            setSelectedOwnLocation(pickedLocation);
+            setAccommodationType('own');
+        }
+    }, []));
 
     useEffect(() => {
         loadCities();
@@ -224,7 +237,15 @@ export default function CreateItineraryScreen({ navigation, route }) {
             setError('Lütfen tarih aralığı seçin.');
             return;
         }
-        if (step < 3) {
+        if (step === 3 && hasAccommodation && accommodationType === 'hotel' && !selectedHotel) {
+            setError('Devam etmek için bir otel seçin veya konaklamayı günübirlik olarak işaretleyin.');
+            return;
+        }
+        if (step === 3 && hasAccommodation && accommodationType === 'own' && !selectedOwnLocation) {
+            setError('Devam etmek için kendi konumunuzu arayın veya haritadan seçin.');
+            return;
+        }
+        if (step < 4) {
             // Tek gün seçildiyse endDate = startDate (step 2'den çıkarken)
             if (step === 2 && startDate && !endDate) {
                 setEndDate(startDate);
@@ -256,9 +277,20 @@ export default function CreateItineraryScreen({ navigation, route }) {
 
         setLoading(true);
         const cityCenter = getCityCenter(selectedCity.name);
+        const accommodation = hasAccommodation
+            ? (accommodationType === 'own' ? selectedOwnLocation : selectedHotel)
+            : null;
+        const startLocation = accommodation?.latitude != null
+            ? { latitude: accommodation.latitude, longitude: accommodation.longitude }
+            : accommodation?.lat != null
+                ? { latitude: accommodation.lat, longitude: accommodation.lng }
+                : undefined;
         const result = generateItinerary(placesToUse, effectiveDays, {
             cityLat: cityCenter.lat,
             cityLng: cityCenter.lng,
+            startLocation,
+            returnToHotel: Boolean(startLocation),
+            selectionMode: autoSelect ? 'auto' : 'manual',
         });
         const { data: saved, error: saveError } = await createItinerary({
             userId: user.id,
@@ -267,6 +299,8 @@ export default function CreateItineraryScreen({ navigation, route }) {
             startDate: startDate,
             hasAccommodation,
             hasTransport: false,
+            startLocationLat: startLocation?.latitude ?? null,
+            startLocationLng: startLocation?.longitude ?? null,
             items: result.items,
             plan: result.plan,
         });
@@ -286,8 +320,7 @@ export default function CreateItineraryScreen({ navigation, route }) {
             style={styles.container}
             behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
-            {/* Step Indicator */}
-            <StepIndicator step={step} />
+            <WizardHeader step={step} topInset={insets.top} onBack={() => step === 0 ? navigation.goBack() : handleBack()} />
 
             {/* Error */}
             {error ? <ErrorMessage message={error} style={styles.errorBox} /> : null}
@@ -297,7 +330,8 @@ export default function CreateItineraryScreen({ navigation, route }) {
                 style={styles.content}
                 contentContainerStyle={styles.contentContainer}
                 keyboardShouldPersistTaps="handled"
-                showsVerticalScrollIndicator={false}
+                showsVerticalScrollIndicator
+                indicatorStyle="default"
             >
                 {loading && step !== 3 ? (
                     <ActivityIndicator size="large" color={COLORS.primary} style={{ marginTop: 40 }} />
@@ -337,11 +371,26 @@ export default function CreateItineraryScreen({ navigation, route }) {
                                 hotels={hotels}
                                 selectedHotel={selectedHotel}
                                 onSelectHotel={setSelectedHotel}
+                                selectedOwnLocation={selectedOwnLocation}
+                                onSelectOwnLocation={setSelectedOwnLocation}
+                                navigation={navigation}
                                 loadingHotels={loadingHotels}
                                 selectedCity={selectedCity}
                                 days={days}
                                 startDate={startDate}
                                 endDate={endDate}
+                            />
+                        )}
+                        {step === 4 && (
+                            <StepReview
+                                selectedCity={selectedCity}
+                                days={days}
+                                startDate={startDate}
+                                endDate={endDate || startDate}
+                                selectedPlaces={autoSelect ? places : selectedPlaces}
+                                autoSelect={autoSelect}
+                                hasAccommodation={hasAccommodation}
+                                accommodation={accommodationType === 'own' ? selectedOwnLocation : selectedHotel}
                             />
                         )}
                     </>
@@ -366,14 +415,14 @@ export default function CreateItineraryScreen({ navigation, route }) {
                         end={{ x: 1, y: 0 }}
                         style={styles.nextBtn}
                     >
-                        {loading && step === 3 ? (
+                        {loading && step >= 3 ? (
                             <ActivityIndicator size="small" color="#fff" />
                         ) : (
                             <>
                                 <Text style={styles.nextBtnText}>
-                                    {step === 3 ? 'Plan Oluştur' : 'İleri'}
+                                    {step === 4 ? 'Planı Oluştur' : step === 3 ? 'Özeti Gör' : 'İleri'}
                                 </Text>
-                                {step < 3 && (
+                                {step < 4 && (
                                     <Ionicons name="chevron-forward" size={18} color="#fff" style={{ marginLeft: 4 }} />
                                 )}
                             </>
@@ -386,6 +435,23 @@ export default function CreateItineraryScreen({ navigation, route }) {
 }
 
 // ─── Sub-components ──────────────────────────────────────────────────────────
+
+function WizardHeader({ step, onBack, topInset }) {
+    const isReview = step === 4;
+    return (
+        <View style={[styles.wizardHeader, { paddingTop: topInset + SPACING.xs }]}>
+            <TouchableOpacity style={styles.wizardBackButton} onPress={onBack} accessibilityRole="button" accessibilityLabel="Geri">
+                <Ionicons name="chevron-back" size={22} color={COLORS.textPrimary} />
+            </TouchableOpacity>
+            <View style={styles.wizardHeaderBody}>
+                <Text style={styles.wizardEyebrow}>{isReview ? 'SON ADIM' : `ADIM ${step + 1} / 4`}</Text>
+                <Text style={styles.wizardTitle}>{isReview ? 'Planını kontrol et' : 'Gezi planla'}</Text>
+            </View>
+            {isReview ? <View style={styles.reviewHeaderIcon}><Ionicons name="checkmark" size={16} color="#fff" /></View> : <View style={styles.wizardHeaderSpacer} />}
+            {!isReview && <StepIndicator step={step} />}
+        </View>
+    );
+}
 
 function StepIndicator({ step }) {
     return (
@@ -418,6 +484,46 @@ function StepIndicator({ step }) {
                     </View>
                 );
             })}
+        </View>
+    );
+}
+
+function StepReview({ selectedCity, days, startDate, endDate, selectedPlaces, autoSelect, hasAccommodation, accommodation }) {
+    const tripDate = startDate && endDate ? `${formatDateShort(startDate)} – ${formatDateShort(endDate)}` : 'Tarih seçilmedi';
+    return (
+        <View>
+            <Text style={styles.stepTitle}>Hazırsınız</Text>
+            <Text style={styles.stepSubtitle}>Planınızı son kez gözden geçirin. Oluşturduğunuzda rota size özel hazırlanacak.</Text>
+            <View style={styles.reviewHero}>
+                <View style={styles.reviewHeroIcon}><Ionicons name="map" size={26} color="#fff" /></View>
+                <View style={{ flex: 1 }}>
+                    <Text style={styles.reviewHeroCity}>{selectedCity?.name || 'Şehir'}</Text>
+                    <Text style={styles.reviewHeroMeta}>{days || 1} gün · {selectedPlaces.length} durak</Text>
+                </View>
+            </View>
+            <View style={styles.summaryCard}>
+                <Text style={styles.summaryTitle}>Plan özeti</Text>
+                <View style={styles.summaryDivider} />
+                <ReviewRow icon="calendar-outline" label="Tarihler" value={tripDate} />
+                <ReviewRow icon="compass-outline" label="Yer seçimi" value={autoSelect ? 'Popüler yerler otomatik seçilecek' : `${selectedPlaces.length} yer seçildi`} />
+                <ReviewRow icon="bed-outline" label="Konaklama" value={!hasAccommodation ? 'Günübirlik gezi' : accommodation?.name || 'Konaklama seçilmedi'} last />
+            </View>
+            <View style={styles.reviewNotice}>
+                <Ionicons name="sparkles-outline" size={18} color={COLORS.primary} />
+                <Text style={styles.reviewNoticeText}>Rota; seçtiğiniz duraklar, tarihler ve varsa konaklama konumuna göre optimize edilir.</Text>
+            </View>
+        </View>
+    );
+}
+
+function ReviewRow({ icon, label, value, last }) {
+    return (
+        <View style={[styles.reviewRow, last && { marginBottom: 0 }]}>
+            <View style={styles.reviewRowIcon}><Ionicons name={icon} size={17} color={COLORS.primary} /></View>
+            <View style={styles.reviewRowText}>
+                <Text style={styles.reviewRowLabel}>{label}</Text>
+                <Text style={styles.reviewRowValue}>{value}</Text>
+            </View>
         </View>
     );
 }
@@ -472,15 +578,15 @@ function StepPlaces({ places, selectedPlaces, autoSelect, onToggleAuto, onToggle
 
     return (
         <View>
-            <Text style={styles.stepTitle}>Gezilecek Yerler</Text>
-            <Text style={styles.stepSubtitle}>
-                {autoSelect ? 'En popüler yerler otomatik seçilecek' : 'Görmek istediğiniz yerleri seçin'}
-            </Text>
+            <View style={styles.placesIntro}>
+                <Ionicons name="sparkles-outline" size={17} color={COLORS.primary} />
+                <Text style={styles.placesIntroText}>{autoSelect ? 'Popüler duraklar rota sürenize göre dengelenecek.' : 'Görmek istediğiniz durakları seçin.'}</Text>
+            </View>
 
-            <View style={styles.toggleCard}>
+            <View style={[styles.toggleCard, styles.toggleCardCompact]}>
                 <View style={styles.toggleCardLeft}>
-                    <View style={styles.iconCircle}>
-                        <Ionicons name="flash" size={24} color={COLORS.primary} />
+                    <View style={[styles.iconCircle, styles.iconCircleCompact]}>
+                        <Ionicons name="flash" size={20} color={COLORS.primary} />
                     </View>
                     <View style={styles.toggleCardText}>
                         <Text style={styles.toggleCardTitle}>Otomatik Seçim</Text>
@@ -641,11 +747,12 @@ function formatDateShort(dateString) {
 function StepAccommodation({ 
     hasAccommodation, onToggle, accommodationType, onChangeType,
     hotels, selectedHotel, onSelectHotel, loadingHotels,
-    selectedCity, days, startDate, endDate 
+    selectedCity, selectedOwnLocation, onSelectOwnLocation, navigation
 }) {
-    const openGoogleMaps = () => {
-        const cityCenter = selectedCity ? getCityCenter(selectedCity.name) : { lat: 41.0082, lng: 28.9784 };
-        Linking.openURL(`https://www.google.com/maps/search/hotels/@${cityCenter.lat},${cityCenter.lng},14z`);
+    const changeAccommodationType = (type) => {
+        onChangeType(type);
+        if (type === 'hotel') onSelectOwnLocation(null);
+        if (type === 'own') onSelectHotel(null);
     };
 
     return (
@@ -683,7 +790,7 @@ function StepAccommodation({
                                 styles.typeButton,
                                 accommodationType === 'hotel' && styles.typeButtonActive
                             ]}
-                            onPress={() => onChangeType('hotel')}
+                            onPress={() => changeAccommodationType('hotel')}
                         >
                             <Ionicons 
                                 name="business" 
@@ -703,7 +810,7 @@ function StepAccommodation({
                                 styles.typeButton,
                                 accommodationType === 'own' && styles.typeButtonActive
                             ]}
-                            onPress={() => onChangeType('own')}
+                            onPress={() => changeAccommodationType('own')}
                         >
                             <Ionicons 
                                 name="location" 
@@ -721,11 +828,20 @@ function StepAccommodation({
 
                     {/* Otel Listesi */}
                     {accommodationType === 'own' && (
-                        <View style={{ marginTop: 10 }}>
-                            <HotelSearch onSelectLocation={(loc) => {
-                                // Seçilen adresi state'e atayabilirsiniz.
-                                // alert(loc.name + " seçildi");
-                            }} />
+                        <View style={styles.ownLocationSection}>
+                            <HotelSearch onSelectLocation={onSelectOwnLocation} />
+                            {selectedOwnLocation && (
+                                <View style={styles.selectedLocationCard}>
+                                    <View style={styles.selectedLocationIcon}><Ionicons name="location" size={19} color="#fff" /></View>
+                                    <View style={{ flex: 1 }}>
+                                        <Text style={styles.selectedLocationName} numberOfLines={1}>{selectedOwnLocation.name}</Text>
+                                        <Text style={styles.selectedLocationAddress} numberOfLines={2}>{selectedOwnLocation.address || 'Haritadan seçilen konum'}</Text>
+                                    </View>
+                                    <TouchableOpacity onPress={() => onSelectOwnLocation(null)} accessibilityRole="button" accessibilityLabel="Seçilen konumu kaldır">
+                                        <Ionicons name="close-circle" size={23} color={COLORS.textLight} />
+                                    </TouchableOpacity>
+                                </View>
+                            )}
                         </View>
                     )}
                     {accommodationType === 'hotel' && (
@@ -749,7 +865,7 @@ function StepAccommodation({
                                                     if (hotel.isMapsLink) {
                                                         Linking.openURL(hotel.mapsUrl);
                                                     } else {
-                                                        onSelectHotel(hotel);
+                                                        onSelectHotel(isSelected ? null : hotel);
                                                     }
                                                 }}
                                                 activeOpacity={0.7}
@@ -827,11 +943,15 @@ function StepAccommodation({
                         </View>
                     )}
 
-                    {/* Google Maps Butonu */}
+                    {/* Uygulama içi harita seçici */}
                     {accommodationType === 'own' && (
                         <TouchableOpacity 
                             style={styles.mapSelectButton}
-                            onPress={openGoogleMaps}
+                            onPress={() => navigation.navigate('MapScreen', {
+                                city: selectedCity,
+                                selectionMode: true,
+                                onLocationSelect: onSelectOwnLocation,
+                            })}
                             activeOpacity={0.7}
                         >
                             <LinearGradient
@@ -844,10 +964,10 @@ function StepAccommodation({
                                     <Ionicons name="location" size={28} color="#fff" />
                                     <View style={styles.mapSelectTextContainer}>
                                         <Text style={styles.mapSelectTitle}>
-                                            Google Maps'te Seç
+                                            Haritadan Konum Seç
                                         </Text>
                                         <Text style={styles.mapSelectSubtitle}>
-                                            Konaklama yerinizi haritada işaretleyin
+                                            Haritaya dokunun, konumu doğrulayın ve planınıza ekleyin
                                         </Text>
                                     </View>
                                     <Ionicons name="chevron-forward" size={24} color="rgba(255,255,255,0.8)" />
@@ -858,32 +978,6 @@ function StepAccommodation({
                 </View>
             )}
 
-            {/* Summary card */}
-            {startDate && endDate && (
-                <View style={styles.summaryCard}>
-                    <View style={styles.summaryHeader}>
-                        <Ionicons name="document-text" size={20} color={COLORS.primary} />
-                        <Text style={styles.summaryTitle}>Plan Özeti</Text>
-                    </View>
-                    <View style={styles.summaryDivider} />
-                    <View style={styles.summaryRow}>
-                        <Ionicons name="location" size={18} color={COLORS.primary} />
-                        <Text style={styles.summaryText}>{selectedCity?.name || '—'}</Text>
-                    </View>
-                    <View style={styles.summaryRow}>
-                        <Ionicons name="calendar" size={18} color={COLORS.primary} />
-                        <Text style={styles.summaryText}>
-                            {days} gün · {formatDateShort(startDate)} - {formatDateShort(endDate)}
-                        </Text>
-                    </View>
-                    {hasAccommodation && selectedHotel && (
-                        <View style={styles.summaryRow}>
-                            <Ionicons name="bed" size={18} color={COLORS.primary} />
-                            <Text style={styles.summaryText}>{selectedHotel.name}</Text>
-                        </View>
-                    )}
-                </View>
-            )}
         </View>
     );
 }
@@ -896,6 +990,34 @@ const styles = StyleSheet.create({
         flex: 1,
         backgroundColor: COLORS.background,
     },
+
+    // Compact wizard header: the native stack header is intentionally hidden so
+    // the progress state and page title do not consume two separate rows.
+    wizardHeader: {
+        backgroundColor: COLORS.surface,
+        borderBottomWidth: 1,
+        borderBottomColor: COLORS.border,
+        paddingHorizontal: SPACING.md,
+        paddingTop: SPACING.sm,
+        paddingBottom: SPACING.sm,
+        flexDirection: 'row',
+        alignItems: 'center',
+        flexWrap: 'wrap',
+        gap: SPACING.sm,
+    },
+    wizardBackButton: {
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        backgroundColor: COLORS.surfaceAlt,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    wizardHeaderBody: { flex: 1 },
+    wizardEyebrow: { fontFamily: FONTS.bodyBold, fontSize: 10, letterSpacing: 0.8, color: COLORS.primary },
+    wizardTitle: { fontFamily: FONTS.heading, fontSize: FONT_SIZES.lg, color: COLORS.textPrimary, marginTop: 1 },
+    wizardHeaderSpacer: { width: 36 },
+    reviewHeaderIcon: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.primary },
 
     // Header
     header: {
@@ -925,19 +1047,17 @@ const styles = StyleSheet.create({
     stepIndicator: {
         flexDirection: 'row',
         alignItems: 'center',
-        justifyContent: 'center',
-        paddingVertical: SPACING.md,
-        paddingHorizontal: SPACING.md,
-        backgroundColor: COLORS.surface,
+        width: '100%',
+        paddingTop: SPACING.xs,
     },
     stepItem: {
         flexDirection: 'row',
         alignItems: 'center',
     },
     stepDot: {
-        width: 24,
-        height: 24,
-        borderRadius: 12,
+        width: 18,
+        height: 18,
+        borderRadius: 9,
         borderWidth: 2,
         borderColor: COLORS.border,
         alignItems: 'center',
@@ -965,15 +1085,16 @@ const styles = StyleSheet.create({
         fontFamily: FONTS.body,
         fontSize: FONT_SIZES.xs,
         color: COLORS.textLight,
-        marginLeft: 4,
-        marginRight: 4,
+        marginLeft: 3,
+        marginRight: 3,
     },
     stepLabelActive: {
         color: COLORS.primary,
         fontFamily: FONTS.bodyMedium,
     },
     stepLine: {
-        width: 20,
+        flex: 1,
+        maxWidth: 34,
         height: 2,
         backgroundColor: COLORS.border,
         marginHorizontal: 2,
@@ -988,7 +1109,7 @@ const styles = StyleSheet.create({
     },
     contentContainer: {
         padding: SPACING.md,
-        paddingBottom: SPACING.xxl,
+        paddingBottom: SPACING.xl,
     },
     errorBox: {
         marginHorizontal: SPACING.md,
@@ -1065,6 +1186,11 @@ const styles = StyleSheet.create({
     },
 
     // Auto row
+    placesIntro: {
+        flexDirection: 'row', alignItems: 'center', gap: SPACING.sm,
+        marginBottom: SPACING.md, paddingHorizontal: SPACING.xs,
+    },
+    placesIntroText: { flex: 1, fontFamily: FONTS.body, fontSize: FONT_SIZES.sm, color: COLORS.textSecondary, lineHeight: 19 },
     autoRow: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -1174,7 +1300,6 @@ const styles = StyleSheet.create({
     placeGrid: {
         flexDirection: 'row',
         flexWrap: 'wrap',
-        justifyContent: 'space-between',
         gap: SPACING.sm,
     },
     placeRow: {
@@ -1479,6 +1604,7 @@ const styles = StyleSheet.create({
         shadowRadius: 8,
         elevation: 3,
     },
+    toggleCardCompact: { padding: SPACING.md, marginBottom: SPACING.sm },
     toggleCardLeft: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -1493,6 +1619,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
     },
+    iconCircleCompact: { width: 40, height: 40, borderRadius: 20 },
     toggleCardText: {
         flex: 1,
     },
@@ -1510,6 +1637,19 @@ const styles = StyleSheet.create({
     accommodationSection: {
         marginTop: SPACING.md,
     },
+    ownLocationSection: { marginTop: SPACING.xs },
+    selectedLocationCard: {
+        flexDirection: 'row', alignItems: 'center', gap: SPACING.sm,
+        backgroundColor: COLORS.primaryMuted, borderRadius: BORDER_RADIUS.lg,
+        borderWidth: 1, borderColor: COLORS.primaryLight,
+        padding: SPACING.md, marginBottom: SPACING.md,
+    },
+    selectedLocationIcon: {
+        width: 36, height: 36, borderRadius: 18, backgroundColor: COLORS.primary,
+        alignItems: 'center', justifyContent: 'center',
+    },
+    selectedLocationName: { fontFamily: FONTS.bodyBold, fontSize: FONT_SIZES.sm, color: COLORS.textPrimary, marginBottom: 2 },
+    selectedLocationAddress: { fontFamily: FONTS.body, fontSize: FONT_SIZES.xs, color: COLORS.textSecondary, lineHeight: 16 },
     accommodationTypeSelector: {
         flexDirection: 'row',
         gap: SPACING.sm,
@@ -1783,6 +1923,21 @@ const styles = StyleSheet.create({
         color: COLORS.textSecondary,
         flex: 1,
     },
+    reviewHero: {
+        flexDirection: 'row', alignItems: 'center', gap: SPACING.md,
+        padding: SPACING.lg, borderRadius: BORDER_RADIUS.xl,
+        backgroundColor: COLORS.primary, marginBottom: SPACING.md,
+    },
+    reviewHeroIcon: { width: 52, height: 52, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.16)' },
+    reviewHeroCity: { fontFamily: FONTS.heading, fontSize: FONT_SIZES.xl, color: '#fff', marginBottom: 3 },
+    reviewHeroMeta: { fontFamily: FONTS.bodyMedium, fontSize: FONT_SIZES.sm, color: 'rgba(255,255,255,0.85)' },
+    reviewRow: { flexDirection: 'row', alignItems: 'flex-start', gap: SPACING.md, marginBottom: SPACING.md },
+    reviewRowIcon: { width: 34, height: 34, borderRadius: 11, backgroundColor: COLORS.primaryMuted, alignItems: 'center', justifyContent: 'center' },
+    reviewRowText: { flex: 1 },
+    reviewRowLabel: { fontFamily: FONTS.bodyMedium, fontSize: FONT_SIZES.xs, color: COLORS.textLight, marginBottom: 2 },
+    reviewRowValue: { fontFamily: FONTS.bodySemiBold, fontSize: FONT_SIZES.sm, color: COLORS.textPrimary, lineHeight: 19 },
+    reviewNotice: { flexDirection: 'row', alignItems: 'flex-start', gap: SPACING.sm, backgroundColor: COLORS.primaryMuted, borderRadius: BORDER_RADIUS.lg, padding: SPACING.md, marginTop: SPACING.md },
+    reviewNoticeText: { flex: 1, fontFamily: FONTS.body, fontSize: FONT_SIZES.sm, color: COLORS.textSecondary, lineHeight: 20 },
 
     // Date picker styles
     datePickersContainer: {

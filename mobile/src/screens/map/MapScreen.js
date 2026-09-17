@@ -11,6 +11,7 @@ import { FONT_SIZES, FONTS } from '../../constants/typography';
 import { SPACING, BORDER_RADIUS } from '../../constants/layout';
 import { getCityCenter } from '../../constants/cities';
 import { generateLeafletHtml } from '../../utils/leafletHtml';
+import { setPendingLocation } from '../../services/locationSelectionStore';
 
 /**
  * MapScreen — Sadece harita görüntüleme modu.
@@ -21,9 +22,10 @@ import { generateLeafletHtml } from '../../utils/leafletHtml';
  *   focusLng     – gösterilecek konumun boylamı
  *   viewItem     – { name } gösterilecek yer adı
  *   places       – (opsiyonel) haritada işaretlenecek yer listesi
+ *   selectionMode – konaklama için dokunarak konum seçme modu
  */
 const MapScreen = ({ route, navigation }) => {
-    const { city, focusLat, focusLng, viewItem, places } = route.params || {};
+    const { city, focusLat, focusLng, viewItem, places, selectionMode } = route.params || {};
     const cityName = city?.name || 'İstanbul';
     const cityCenter = getCityCenter(cityName);
     const webViewRef = useRef(null);
@@ -48,15 +50,26 @@ const MapScreen = ({ route, navigation }) => {
                             lng: focusLng,
                         }],
                     });
-                } else {
+                } else if (!selectionMode) {
                     sendCommand({ action: 'flyTo', lat: cityCenter.lat, lng: cityCenter.lng, zoom: 13 });
                     if (places && places.length > 0) {
                         sendCommand({ action: 'setPlaces', places });
                     }
                 }
+            } else if (selectionMode && msg.type === 'locationPick') {
+                const { lat, lng } = msg.data || {};
+                if (Number.isFinite(lat) && Number.isFinite(lng)) {
+                    setPendingLocation({
+                        name: 'Haritadan seçilen konum',
+                        address: `${lat.toFixed(5)}, ${lng.toFixed(5)}`,
+                        latitude: lat,
+                        longitude: lng,
+                    });
+                    navigation.goBack();
+                }
             }
         } catch { /* ignore */ }
-    }, [focusLat, focusLng, viewItem, cityCenter, places, sendCommand]);
+    }, [focusLat, focusLng, viewItem, cityCenter, places, sendCommand, selectionMode, navigation]);
 
     // ─── Google Maps Deep Link ────────────────────────────────────────────────
     const openInGoogleMaps = useCallback(() => {
@@ -98,12 +111,12 @@ const MapScreen = ({ route, navigation }) => {
                     <Ionicons name="arrow-back" size={22} color={COLORS.textPrimary} />
                 </TouchableOpacity>
                 <Text style={styles.headerTitle} numberOfLines={1}>
-                    {viewItem?.name || cityName}
+                    {selectionMode ? 'Konum seç' : viewItem?.name || cityName}
                 </Text>
-                <TouchableOpacity style={styles.googleMapsBtn} onPress={openInGoogleMaps} activeOpacity={0.85}>
+                {!selectionMode && <TouchableOpacity style={styles.googleMapsBtn} onPress={openInGoogleMaps} activeOpacity={0.85}>
                     <Ionicons name="navigate" size={15} color="#fff" />
                     <Text style={styles.googleMapsBtnText}>Yol Tarifi</Text>
-                </TouchableOpacity>
+                </TouchableOpacity>}
             </View>
 
             {/* Harita */}
@@ -123,16 +136,23 @@ const MapScreen = ({ route, navigation }) => {
                 )}
             />
 
+            {selectionMode && (
+                <View pointerEvents="none" style={styles.selectionHint}>
+                    <Ionicons name="hand-left-outline" size={18} color="#fff" />
+                    <Text style={styles.selectionHintText}>Konaklama konumunuzu seçmek için haritaya dokunun</Text>
+                </View>
+            )}
+
             {/* Alt bilgi / Google Maps linki */}
             <View style={[styles.infoBar, { paddingBottom: Math.max(insets.bottom, 10) }]}>
                 <Ionicons name="location" size={16} color={COLORS.primary} />
                 <Text style={styles.infoText} numberOfLines={1}>
-                    {viewItem?.name || cityName}
+                    {selectionMode ? 'Haritaya dokunarak konum seçin' : viewItem?.name || cityName}
                 </Text>
-                <TouchableOpacity onPress={openInGoogleMaps} style={styles.infoMapsBtn}>
+                {!selectionMode && <TouchableOpacity onPress={openInGoogleMaps} style={styles.infoMapsBtn}>
                     <Ionicons name="logo-google" size={12} color={COLORS.primary} />
                     <Text style={styles.infoMapsBtnText}>Maps'te Aç</Text>
-                </TouchableOpacity>
+                </TouchableOpacity>}
             </View>
         </View>
     );
@@ -166,6 +186,13 @@ const styles = StyleSheet.create({
         fontSize: FONT_SIZES.xs, fontFamily: 'Inter_600SemiBold', color: '#fff',
     },
     map: { flex: 1 },
+    selectionHint: {
+        position: 'absolute', top: 76, left: SPACING.md, right: SPACING.md,
+        flexDirection: 'row', alignItems: 'center', gap: SPACING.sm,
+        backgroundColor: 'rgba(15, 26, 22, 0.88)', borderRadius: BORDER_RADIUS.lg,
+        paddingHorizontal: SPACING.md, paddingVertical: 11,
+    },
+    selectionHintText: { flex: 1, fontSize: FONT_SIZES.sm, fontFamily: 'Inter_600SemiBold', color: '#fff' },
     mapLoading: {
         ...StyleSheet.absoluteFillObject,
         justifyContent: 'center', alignItems: 'center',

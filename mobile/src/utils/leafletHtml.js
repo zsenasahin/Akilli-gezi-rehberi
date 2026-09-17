@@ -122,6 +122,14 @@ export function generateLeafletHtml(initialCenter = { lat: 41.0082, lng: 28.9784
             }
         });
 
+        // A single tap is used by the in-app accommodation picker. Other map
+        // consumers simply ignore this message, so existing map interactions stay intact.
+        map.on('click', function(e) {
+            if (e.latlng) {
+                sendToRN('locationPick', { lat: e.latlng.lat, lng: e.latlng.lng });
+            }
+        });
+
         // ─── COMMUNICATION WITH REACT NATIVE ───
         function sendToRN(type, data) {
             window.ReactNativeWebView.postMessage(JSON.stringify({ type: type, data: data }));

@@ -39,7 +39,7 @@ const stackScreenOptions = {
 const HomeStackNavigator = () => (
     <HomeStack.Navigator screenOptions={stackScreenOptions}>
         <HomeStack.Screen name="HomeMain" component={HomeScreen} options={{ headerShown: false }} />
-        <HomeStack.Screen name="CreateItinerary" component={CreateItineraryScreen} options={{ title: 'Gezi Planla' }} />
+        <HomeStack.Screen name="CreateItinerary" component={CreateItineraryScreen} options={{ headerShown: false }} />
         <HomeStack.Screen name="MapScreen" component={MapScreen} options={{ headerShown: false }} />
         <HomeStack.Screen name="CityDetail" component={CityDetailScreen} options={{ headerShown: false }} />
         <HomeStack.Screen name="AllCities" component={AllCitiesScreen} options={{ headerShown: false }} />

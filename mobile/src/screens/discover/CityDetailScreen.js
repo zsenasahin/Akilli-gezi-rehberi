@@ -418,7 +418,12 @@ const CityDetailScreen = ({ route, navigation }) => {
                         </TouchableOpacity>
                     </View>
 
-                    <ScrollView showsVerticalScrollIndicator={false} bounces={false}>
+                    <ScrollView
+                        style={styles.detailScroll}
+                        contentContainerStyle={styles.detailScrollContent}
+                        showsVerticalScrollIndicator
+                        bounces={false}
+                    >
                         {/* Başlık */}
                         <View style={styles.detailHeader}>
                             <Text style={styles.detailEmoji}>{item.emoji || '📍'}</Text>
@@ -897,7 +902,7 @@ const CityDetailScreen = ({ route, navigation }) => {
             </Animated.View>
 
             <Animated.ScrollView
-                showsVerticalScrollIndicator={false}
+                showsVerticalScrollIndicator
                 onScroll={Animated.event(
                     [{ nativeEvent: { contentOffset: { y: scrollY } } }],
                     { useNativeDriver: true }
@@ -1078,7 +1083,12 @@ const CityDetailScreen = ({ route, navigation }) => {
                             </View>
                         </View>
 
-                        <ScrollView showsVerticalScrollIndicator={false} bounces={false}>
+                        <ScrollView
+                            style={styles.detailScroll}
+                            contentContainerStyle={styles.detailScrollContent}
+                            showsVerticalScrollIndicator
+                            bounces={false}
+                        >
                             {/* Başlık */}
                             <View style={styles.yemekModalHeader}>
                                 <Text style={styles.yemekModalName}>
@@ -1503,8 +1513,8 @@ const styles = StyleSheet.create({
         backgroundColor: COLORS.surface,
         borderTopLeftRadius: BORDER_RADIUS.xl,
         borderTopRightRadius: BORDER_RADIUS.xl,
-        maxHeight: SCREEN_H * 0.75,
-        paddingBottom: SPACING.xxl,
+        height: SCREEN_H * 0.78,
+        overflow: 'hidden',
     },
     detailClose: {
         position: 'absolute', top: SPACING.sm, right: SPACING.sm, zIndex: 10,
@@ -1524,6 +1534,8 @@ const styles = StyleSheet.create({
         width: '100%',
         height: '100%',
     },
+    detailScroll: { flex: 1 },
+    detailScrollContent: { paddingBottom: SPACING.xxl },
     photoSourceBadge: {
         position: 'absolute',
         bottom: SPACING.sm,

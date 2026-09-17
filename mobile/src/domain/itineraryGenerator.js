@@ -91,25 +91,37 @@ export const generateItinerary = (places, days, options = {}) => {
         return emptyResult(days);
     }
 
+    // Bir rota, şehirdeki bütün noktaların listesi değildir. Özellikle otomatik
+    // seçimde her güne en fazla dört gerçek ziyaret durağı koyuyoruz. Kafe ve
+    // restoranlar rota durağı olarak kullanılmaz; bunlar daha sonra ayrı öğün
+    // önerisi akışında ele alınmalıdır. Böylece Starbucks gibi bir kafe "akşam
+    // yemeği" olarak görünmez ve plan gerçekten uygulanabilir kalır.
+    const selectionMode = options.selectionMode || 'manual';
+    const tripPlaces = selectRealisticTripPlaces(formattedPlaces, days, selectionMode);
+
+    if (tripPlaces.length === 0) {
+        return emptyResult(days);
+    }
+
     // ═══════════════════════════════════════════════════════════════════
     // 2. GÜNLÜK KAPASİTE HESABI VE FİLTRELEME
     // ═══════════════════════════════════════════════════════════════════
 
     // Günlük net gezi bütçesi: 09:00-20:00 = 660 dakika
     // Yerler arası ortalama ulaşım: ~25 dk
-    const DAY_BUDGET_MINUTES = 660;
+    const DAY_BUDGET_MINUTES = 540; // ziyaret + şehir içi ulaşım; öğün/dinlenme payı hariç
     const AVG_TRAVEL_MINUTES = 25;
 
     // Toplam süreye bakarak kaç yer sığacağını hesapla
     const totalPlaceDuration = formattedPlaces.reduce((s, p) => s + p.duration_minutes, 0);
     const totalAvailableMinutes = days * DAY_BUDGET_MINUTES;
 
-    let placesToCluster = formattedPlaces;
+    let placesToCluster = tripPlaces;
 
     if (totalPlaceDuration > totalAvailableMinutes) {
         // Süre bütçesine sığmıyor — en popüler yerleri seç
         // Sığacak kadar yer seçmek için süre bazlı greedy seçim
-        const sorted = [...formattedPlaces]
+        const sorted = [...tripPlaces]
             .sort((a, b) => (b.popularity_score ?? 50) - (a.popularity_score ?? 50));
 
         let usedMinutes = 0;
@@ -123,7 +135,7 @@ export const generateItinerary = (places, days, options = {}) => {
             }
         }
 
-        console.log(`⏱ Süre bütçesine göre ${placesToCluster.length}/${formattedPlaces.length} yer seçildi`);
+        console.log(`⏱ Süre bütçesine göre ${placesToCluster.length}/${tripPlaces.length} yer seçildi`);
     }
 
     // ═══════════════════════════════════════════════════════════════════
@@ -159,7 +171,10 @@ export const generateItinerary = (places, days, options = {}) => {
         const optimized = optimizeRoute(startLocation, cluster.places, options.returnToHotel ?? false);
 
         // Zaman çizelgesi (kapanış saati + günlük sınır duyarlı)
-        const timelineResult = generateTimeline(optimized, "09:00", 15, 20);
+        // 18:30 sonrası boş kalır: ulaşımlar, dinlenme ve öğünler için doğal
+        // bir pay bırakılır. Bu, günü kağıt üzerinde mümkün ama gerçekte
+        // yetişmeyen bir program olmaktan çıkarır.
+        const timelineResult = generateTimeline(optimized, "09:00", 15, 18.5);
 
         // Bütçe
         let dayBudget = 0;
@@ -196,29 +211,10 @@ export const generateItinerary = (places, days, options = {}) => {
         grandTotalBudget += dayBudget;
     }
 
-    // ═══════════════════════════════════════════════════════════════════
-    // 4. OVERFLOW YERLERİN YENİDEN DAĞITIMI
-    // ═══════════════════════════════════════════════════════════════════
-
+    // Taşan durakları gün sonuna zorla eklemiyoruz. Önceki davranış, günün
+    // kapasitesini aşmasına rağmen tüm seçilen yerleri plana sokuyordu.
     if (allOverflowPlaces.length > 0) {
-        // En boş günlere sığmayan yerleri dağıt
-        for (const overflowPlace of allOverflowPlaces) {
-            // En az yere sahip günü bul
-            const leastLoadedDay = plan.reduce((min, day) =>
-                day.places.length < min.places.length ? day : min
-            , plan[0]);
-
-            // O günün sonuna ekle (basit yaklaşım)
-            leastLoadedDay.places.push({
-                ...overflowPlace,
-                lat: overflowPlace.latitude,
-                lng: overflowPlace.longitude,
-                arrivalTime: leastLoadedDay.endTime || '18:00',
-                departureTime: '20:00',
-                _overflow: true,
-            });
-        }
-        console.log(`♻️ ${allOverflowPlaces.length} taşan yer boş günlere dağıtıldı`);
+        console.log(`⏱ ${allOverflowPlaces.length} durak zaman sınırı nedeniyle sonraki plana bırakıldı`);
     }
 
     // ═══════════════════════════════════════════════════════════════════
@@ -258,6 +254,48 @@ export const generateItinerary = (places, days, options = {}) => {
     console.log('✅ Plan oluşturuldu (v3):', JSON.stringify(stats.dayBreakdown));
     return { plan, totalHours, totalDistance: totalDistanceRound, totalBudget: grandTotalBudget, items, stats };
 };
+
+function selectRealisticTripPlaces(places, days, selectionMode) {
+    const maxStops = Math.max(days * 4, days);
+    const normalized = (value = '') => String(value).toLocaleLowerCase('tr-TR');
+    const isMealVenue = (place) => {
+        const category = normalized(place.category);
+        const name = normalized(place.name);
+        return ['restoran', 'restaurant', 'kafe', 'cafe', 'coffee', 'fast_food', 'fast food'].includes(category)
+            || /starbucks|coffee|kahve|cafe|kafe|burger|pizza|döner|doner|restaurant|restoran/.test(name);
+    };
+
+    const visitable = places.filter(place => !isMealVenue(place));
+    // Bir şehirde yalnızca yeme-içme verisi varsa boş plan döndürmek yerine
+    // en popüler birkaç sonucu koruyoruz; normal şehir verisinde bunlar rota
+    // dışındadır.
+    const pool = visitable.length > 0 ? visitable : places;
+    if (selectionMode === 'manual' && pool.length <= maxStops) return pool;
+
+    const categoryUse = new Map();
+    const ranked = [...pool].sort((a, b) => {
+        const popularity = (b.popularity_score ?? 50) - (a.popularity_score ?? 50);
+        if (popularity !== 0) return popularity;
+        return (a.duration_minutes ?? 60) - (b.duration_minutes ?? 60);
+    });
+    const chosen = [];
+
+    // Aynı tip küçük noktalarla tekdüze bir günü doldurmak yerine kategori
+    // çeşitliliğini korur; ikinci turda gerekirse kalan yüksek puanlı yerleri ekler.
+    for (const place of ranked) {
+        const category = normalized(place.category) || 'diğer';
+        if ((categoryUse.get(category) || 0) >= 2) continue;
+        chosen.push(place);
+        categoryUse.set(category, (categoryUse.get(category) || 0) + 1);
+        if (chosen.length === maxStops) return chosen;
+    }
+    for (const place of ranked) {
+        if (chosen.some(item => item.id === place.id)) continue;
+        chosen.push(place);
+        if (chosen.length === maxStops) break;
+    }
+    return chosen;
+}
 
 const emptyResult = (days) => ({
     plan: Array.from({ length: days }, (_, i) => ({ day: i + 1, places: [], totalHours: 0, totalDistance: 0, budget: 0 })),

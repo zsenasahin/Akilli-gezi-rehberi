@@ -10,7 +10,9 @@ import { getPlaceImage } from '../../constants/placeImages';
 import { GEMINI_API_KEY } from '../../config/secrets';
 
 const { width } = Dimensions.get('window');
-const CARD_WIDTH = (width - SPACING.lg * 3) / 2;
+// Plan ekranındaki yatay padding (16 + 16) ve kart aralığı (8) hesaba katılır.
+// Böylece kartların ortasında kalan gereksiz geniş boşluk oluşmaz.
+const CARD_WIDTH = (width - SPACING.md * 2 - SPACING.sm) / 2;
 
 const getCategoryIcon = (category) => {
     const map = {
@@ -157,11 +159,13 @@ function PlaceSelectionCard({ place, selected, onPress }) {
                 animationType="fade"
                 onRequestClose={() => setShowModal(false)}
             >
-                <TouchableOpacity
-                    style={styles.modalOverlay}
-                    activeOpacity={1}
-                    onPress={() => setShowModal(false)}
-                >
+                <View style={styles.modalOverlay}>
+                    <TouchableOpacity
+                        style={styles.modalBackdrop}
+                        activeOpacity={1}
+                        onPress={() => setShowModal(false)}
+                        accessibilityLabel="Detayı kapat"
+                    />
                     <View
                         style={styles.modalContent}
                         onStartShouldSetResponder={() => true}
@@ -185,7 +189,13 @@ function PlaceSelectionCard({ place, selected, onPress }) {
                             <Ionicons name="close-circle" size={32} color="#fff" />
                         </TouchableOpacity>
 
-                        <ScrollView style={styles.modalInfo}>
+                        <ScrollView
+                            style={styles.modalInfo}
+                            contentContainerStyle={styles.modalInfoContent}
+                            showsVerticalScrollIndicator
+                            nestedScrollEnabled
+                            keyboardShouldPersistTaps="handled"
+                        >
                             <Text style={styles.modalTitle}>{place.name}</Text>
                             
                             <View style={styles.modalMeta}>
@@ -252,7 +262,7 @@ function PlaceSelectionCard({ place, selected, onPress }) {
                             </TouchableOpacity>
                         </ScrollView>
                     </View>
-                </TouchableOpacity>
+                </View>
             </Modal>
         </View>
     );
@@ -263,10 +273,10 @@ export default memo(PlaceSelectionCard);
 const styles = StyleSheet.create({
     card: {
         width: CARD_WIDTH,
-        height: 180,
+        height: 168,
         borderRadius: BORDER_RADIUS.lg,
         overflow: 'hidden',
-        marginBottom: SPACING.sm,
+        marginBottom: 0,
         backgroundColor: COLORS.surface,
         // borderWidth her zaman 2 — rengi dinamik olarak ayarlanıyor (transparent / #10B981)
         // Bu sayede layout reflow olmaz ve resim kaybolmaz
@@ -380,11 +390,12 @@ const styles = StyleSheet.create({
         backgroundColor: 'rgba(0,0,0,0.8)',
         justifyContent: 'flex-end',
     },
+    modalBackdrop: { ...StyleSheet.absoluteFillObject },
     modalContent: {
         backgroundColor: COLORS.surface,
         borderTopLeftRadius: 24,
         borderTopRightRadius: 24,
-        maxHeight: '85%',
+        height: '85%',
         overflow: 'hidden',
     },
     modalImage: {
@@ -405,7 +416,11 @@ const styles = StyleSheet.create({
         zIndex: 10,
     },
     modalInfo: {
+        flex: 1,
+    },
+    modalInfoContent: {
         padding: SPACING.lg,
+        paddingBottom: SPACING.xxl,
     },
     modalTitle: {
         fontFamily: FONTS.heading,

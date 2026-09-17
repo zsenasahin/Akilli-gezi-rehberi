@@ -15,8 +15,8 @@ export interface DayCluster {
 
 // ─── Sabitler ─────────────────────────────────────────────────────────────────
 const DAY_START_HOUR = 9;             // 09:00
-const DAY_END_HOUR = 20;              // 20:00 (varsayılan bitiş)
-const MAX_DAY_MINUTES = (DAY_END_HOUR - DAY_START_HOUR) * 60; // 660 dakika
+const DAY_END_HOUR = 18;              // Günün kalanını yemek/dinlenme için bırak
+const MAX_DAY_MINUTES = (DAY_END_HOUR - DAY_START_HOUR) * 60; // 540 dakika
 const AVG_TRAVEL_MINUTES = 25;        // Yerler arası ortalama ulaşım süresi
 const BALANCE_TOLERANCE = 0.25;       // ±%25 tolerans
 const MAX_REBALANCE_ITER = 50;        // Maksimum dengeleme iterasyonu
