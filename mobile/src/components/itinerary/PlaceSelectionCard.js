@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, memo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Modal, ScrollView, Dimensions, ActivityIndicator } from 'react-native';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
@@ -7,7 +7,7 @@ import { COLORS } from '../../constants/colors';
 import { FONTS, FONT_SIZES } from '../../constants/typography';
 import { SPACING, BORDER_RADIUS } from '../../constants/layout';
 import { getPlaceImage } from '../../constants/placeImages';
-// import { GEMINI_API_KEY } from '../../config/secrets'; // Artık kullanılmıyor
+import { GEMINI_API_KEY } from '../../config/secrets';
 
 const { width } = Dimensions.get('window');
 const CARD_WIDTH = (width - SPACING.lg * 3) / 2;
@@ -27,70 +27,64 @@ const getCategoryIcon = (category) => {
     return map[category] || 'location';
 };
 
-export default function PlaceSelectionCard({ place, selected, onPress }) {
+function PlaceSelectionCard({ place, selected, onPress }) {
     const [showModal, setShowModal] = useState(false);
     const [aiDescription, setAiDescription] = useState('');
     const [loadingDescription, setLoadingDescription] = useState(false);
-    const imageUrl = getPlaceImage(place.name, place.image_url, place.category);
+    // useMemo: imageUrl her render'da yeniden hesaplanmasın — aynı URL kalır, resim kaybolmaz
+    const imageUrl = useMemo(
+        () => getPlaceImage(place.name, place.image_url, place.category),
+        [place.name, place.image_url, place.category]
+    );
 
-    // Wikipedia API ile açıklama getir
     const fetchAIDescription = async () => {
-        if (aiDescription) return; // Zaten varsa tekrar çekme
+        if (aiDescription) return;
         
         setLoadingDescription(true);
         try {
-            // Önce sayfa var mı kontrol et
-            const searchUrl = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(place.name)}`;
-            
-            const response = await fetch(searchUrl);
-            
-            if (!response.ok) {
-                // Türkçe Wikipedia dene
-                const trSearchUrl = `https://tr.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(place.name)}`;
-                const trResponse = await fetch(trSearchUrl);
+            if (GEMINI_API_KEY) {
+                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        contents: [{ parts: [{ text: `${place.name} hakkında 2-3 cümlelik kısa, ilgi çekici ve turistik bir bilgi ver. Sadece bilgiyi ver.` }] }]
+                    })
+                });
                 
-                if (!trResponse.ok) {
-                    throw new Error('Wikipedia sayfası bulunamadı');
+                const data = await response.json();
+                if (data.candidates && data.candidates[0] && data.candidates[0].content) {
+                    setAiDescription(data.candidates[0].content.parts[0].text.trim());
+                    return;
                 }
-                
-                const trData = await trResponse.json();
-                const description = trData.extract || trData.description || 'Bu gezi yeri hakkında detaylı bilgi bulunamadı.';
-                setAiDescription(description.length > 200 ? description.substring(0, 200) + '...' : description);
-                return;
             }
-            
-            const data = await response.json();
-            const description = data.extract || data.description || 'Bu gezi yeri hakkında detaylı bilgi bulunamadı.';
-            
-            // Açıklamayı kısalt ve Türkçe'ye çevirmeyi dene
-            let shortDescription = description.length > 200 ? description.substring(0, 200) + '...' : description;
-            
-            // Basit Türkçe çeviri önerisi (gerçek uygulamada translation API kullanılabilir)
-            if (shortDescription.includes('is a') || shortDescription.includes('was')) {
-                shortDescription = shortDescription.replace(/is a/g, 'bir').replace(/was/g, 'idi').replace(/museum/g, 'müze').replace(/church/g, 'kilise').replace(/mosque/g, 'cami');
-            }
-            
-            setAiDescription(shortDescription);
+            // Fallback (Kültür portalı veya varsayılan)
+            setAiDescription('Bu gezi yeri hakkında detaylı bilgi bulunamadı.');
         } catch (error) {
-            console.error('Wikipedia API hatası:', error.message);
-            // Fallback açıklama
-            setAiDescription('Bu gezi yeri, şehrin önemli turistik noktalarından biridir. Ziyaretçiler için çeşitli aktiviteler sunmaktadır.');
+            console.error('Gemini API hatası:', error.message);
+            setAiDescription('Bu gezi yeri, şehrin önemli turistik noktalarından biridir.');
         } finally {
             setLoadingDescription(false);
         }
     };
 
-    // Modal açıldığında açıklama getir
+    // Modal açıldığında açıklama getir — DB'den place.description varsa API'ye gerek yok
     useEffect(() => {
         if (showModal && !aiDescription) {
-            fetchAIDescription();
+            if (place.description && place.description.trim().length > 20) {
+                setAiDescription(place.description.trim());
+            } else {
+                fetchAIDescription();
+            }
         }
     }, [showModal]);
 
     return (
-        <>
+        <View>
             <TouchableOpacity
-                style={[styles.card, selected && styles.cardSelected]}
+                style={[
+                    styles.card,
+                    { borderColor: selected ? '#10B981' : 'transparent' },
+                ]}
                 onPress={onPress}
                 onLongPress={() => setShowModal(true)}
                 activeOpacity={0.7}
@@ -99,7 +93,8 @@ export default function PlaceSelectionCard({ place, selected, onPress }) {
                     source={{ uri: imageUrl }}
                     style={styles.image}
                     contentFit="cover"
-                    transition={300}
+                    cachePolicy="memory-disk"
+                    transition={200}
                 />
                 <LinearGradient
                     colors={['transparent', 'rgba(0,0,0,0.6)']}
@@ -167,11 +162,16 @@ export default function PlaceSelectionCard({ place, selected, onPress }) {
                     activeOpacity={1}
                     onPress={() => setShowModal(false)}
                 >
-                    <View style={styles.modalContent}>
+                    <View
+                        style={styles.modalContent}
+                        onStartShouldSetResponder={() => true}
+                    >
                         <Image
                             source={{ uri: imageUrl }}
                             style={styles.modalImage}
                             contentFit="cover"
+                            cachePolicy="memory-disk"
+                            transition={300}
                         />
                         <LinearGradient
                             colors={['transparent', 'rgba(0,0,0,0.8)']}
@@ -254,9 +254,11 @@ export default function PlaceSelectionCard({ place, selected, onPress }) {
                     </View>
                 </TouchableOpacity>
             </Modal>
-        </>
+        </View>
     );
 }
+
+export default memo(PlaceSelectionCard);
 
 const styles = StyleSheet.create({
     card: {
@@ -266,6 +268,10 @@ const styles = StyleSheet.create({
         overflow: 'hidden',
         marginBottom: SPACING.sm,
         backgroundColor: COLORS.surface,
+        // borderWidth her zaman 2 — rengi dinamik olarak ayarlanıyor (transparent / #10B981)
+        // Bu sayede layout reflow olmaz ve resim kaybolmaz
+        borderWidth: 2,
+        borderColor: 'transparent',
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.1,
@@ -273,8 +279,8 @@ const styles = StyleSheet.create({
         elevation: 3,
     },
     cardSelected: {
-        borderWidth: 2,
-        borderColor: '#10B981',
+        // borderWidth buraya taşınmadı — her zaman card stilinde borderWidth: 2 var
+        // sadece rengi değişiyor (transparent → yeşil), layout reflow olmaz
     },
     image: {
         width: '100%',

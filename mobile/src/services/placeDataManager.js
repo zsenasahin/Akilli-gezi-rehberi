@@ -11,6 +11,14 @@ import { getCityCenter } from '../constants/cities';
 import yerlerData from '../data/turkiye_gezilecek_yerler.json';
 import detayData from '../data/turkiye_gezilecek_yerler_detay.json';
 
+// Kültür Portalı'nın kendi haritasından çekilmiş doğru koordinatlar
+let placeCoordinates = {};
+try {
+    placeCoordinates = require('../data/place_coordinates.json');
+} catch (e) {
+    console.warn('[PlaceDataManager] place_coordinates.json bulunamadı, geocoding kullanılacak');
+}
+
 const BASE_IMAGE_URL = 'https://www.kulturportali.gov.tr';
 
 // ─── Kategori tahmini ─────────────────────────────────────────────────────────
@@ -73,6 +81,12 @@ function normalizePlace(yer, idx) {
     const smartDuration = estimateDuration(yer.Baslik || '', category);
     const closingHour = estimateClosingHour(yer.Baslik || '', category);
 
+    // Koordinat: önce place_coordinates.json'dan bak (Kültür Portalı'nın kendi haritasından)
+    const urlPath = yer.Url || '';
+    const portalCoords = placeCoordinates[urlPath];
+    const lat = portalCoords?.lat ?? null;
+    const lng = portalCoords?.lng ?? null;
+
     return {
         id: slug,
         osm_id: slug,
@@ -84,8 +98,8 @@ function normalizePlace(yer, idx) {
         short_description: yer.aciklama || null,
         description: yer.aciklama || null,
         gallery: yer.fotograflar?.length ? yer.fotograflar : (imageUrl ? [imageUrl] : []),
-        lat: null,
-        lng: null,
+        lat,
+        lng,
         avg_duration: smartDuration,
         closing_hour: closingHour,
         entry_fee: 0,

@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
     Alert,
     Animated,
@@ -69,6 +70,15 @@ const ProfileScreen = ({ navigation }) => {
     const [cityCollection, setCityCollection] = useState([]);
     const [badges, setBadges] = useState([]);
 
+    const AVATAR_CACHE_KEY = `avatar_url_${user?.id}`;
+
+    // Sayfa yüklenir yüklenmez önbelleğten avatar'i göster (ağ geç olsa bile)
+    useEffect(() => {
+        AsyncStorage.getItem(AVATAR_CACHE_KEY).then(cached => {
+            if (cached) setAvatarUri(cached);
+        });
+    }, [AVATAR_CACHE_KEY]);
+
     useEffect(() => {
         Animated.timing(fadeAnim, {
             toValue: 1,
@@ -94,7 +104,13 @@ const ProfileScreen = ({ navigation }) => {
         setTravelStyle(normalizeStyle(nextProfile?.travel_style));
         setBio(nextProfile?.bio || '');
         setCoverUri(nextProfile?.cover_url || null);
-        setAvatarUri(nextProfile?.avatar_url || null);
+
+        // Avatar: DB'deki URL varsa önce onu al ve önbelleğe yaz
+        const dbAvatar = nextProfile?.avatar_url || null;
+        if (dbAvatar) {
+            setAvatarUri(dbAvatar);
+            AsyncStorage.setItem(`avatar_url_${user?.id}`, dbAvatar).catch(() => {});
+        }
 
         const cityMap = nextItineraries.reduce((acc, itinerary) => {
             const cityName = itinerary?.cities?.name;
@@ -146,6 +162,7 @@ const ProfileScreen = ({ navigation }) => {
 
         const { data, error } = await uploadProfileMedia(user.id, asset, kind);
         if (error) {
+            console.error('[Profile] Upload hatası:', error);
             Alert.alert('Yükleme Hatası', error.message || 'Görsel yüklenemedi.');
             fetchData();
             return;
@@ -153,15 +170,23 @@ const ProfileScreen = ({ navigation }) => {
 
         const column = kind === 'avatar' ? 'avatar_url' : 'cover_url';
         const publicUrl = data.publicUrl;
+        console.log('[Profile] Yükleme başarılı:', publicUrl);
+
         const { error: updateError } = await updateProfile(user.id, { [column]: publicUrl });
         if (updateError) {
+            console.error('[Profile] DB güncelleme hatası:', updateError);
             Alert.alert('Hata', updateError.message || 'Profil görseli kaydedilemedi.');
             fetchData();
             return;
         }
 
-        if (kind === 'avatar') setAvatarUri(publicUrl);
-        else setCoverUri(publicUrl);
+        if (kind === 'avatar') {
+            setAvatarUri(publicUrl);
+            // AsyncStorage'a kaydet — sayfa yenilenince anında gösterilir
+            await AsyncStorage.setItem(AVATAR_CACHE_KEY, publicUrl);
+        } else {
+            setCoverUri(publicUrl);
+        }
     };
 
     const removeProfileMedia = async (kind) => {

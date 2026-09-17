@@ -16,14 +16,14 @@ export const FONTS = {
 };
 
 export const FONT_SIZES = {
-    xs: 11,
-    sm: 13,
-    md: 15,
-    lg: 17,
-    xl: 22,
-    xxl: 28,
-    hero: 36,
-    display: 44,
+    xs: 10,
+    sm: 12,
+    md: 14,
+    lg: 15,
+    xl: 19,
+    xxl: 23,
+    hero: 28,
+    display: 32,
 };
 
 export const FONT_WEIGHTS = {

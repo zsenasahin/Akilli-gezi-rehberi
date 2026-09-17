@@ -286,15 +286,6 @@ export default function CreateItineraryScreen({ navigation, route }) {
             style={styles.container}
             behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
-            {/* Header */}
-            <View style={styles.header}>
-                <TouchableOpacity onPress={() => navigation.goBack()} style={styles.closeBtn}>
-                    <Ionicons name="close" size={24} color={COLORS.textPrimary} />
-                </TouchableOpacity>
-                <Text style={styles.headerTitle}>Yeni Plan</Text>
-                <View style={{ width: 40 }} />
-            </View>
-
             {/* Step Indicator */}
             <StepIndicator step={step} />
 
@@ -1583,7 +1574,7 @@ const styles = StyleSheet.create({
     },
     hotelCardSelected: {
         borderColor: COLORS.primary,
-        backgroundColor: COLORS.primaryMuted,
+        backgroundColor: COLORS.surface,
         shadowColor: COLORS.primary,
         shadowOpacity: 0.15,
         shadowRadius: 8,

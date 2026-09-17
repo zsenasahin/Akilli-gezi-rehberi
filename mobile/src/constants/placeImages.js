@@ -85,9 +85,33 @@ const PLACE_IMAGES = {
 
 // Default fallback image
 const DEFAULT_PLACE_IMAGE = 'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?w=600&h=450&fit=crop&q=80';
+
+// Sabit fallback havuzu — source.unsplash.com yerine kullanılır.
+// source.unsplash.com her seferinde farklı resim yönlendirmesi yapıyor
+// bu da yeniden render'larda resmin beyaz görünmesine yol açıyordu.
+const FALLBACK_POOL = [
+    'https://images.unsplash.com/photo-1524231757912-21f4fe3a7200?w=600&h=450&fit=crop&q=80',
+    'https://images.unsplash.com/photo-1541432901042-2d8bd64b4a9b?w=600&h=450&fit=crop&q=80',
+    'https://images.unsplash.com/photo-1527838832700-5059252407fa?w=600&h=450&fit=crop&q=80',
+    'https://images.unsplash.com/photo-1512453979798-5ea266f8880c?w=600&h=450&fit=crop&q=80',
+    'https://images.unsplash.com/photo-1563492065599-3520f775eeed?w=600&h=450&fit=crop&q=80',
+    'https://images.unsplash.com/photo-1538149391965-b9e1ab65e18f?w=600&h=450&fit=crop&q=80',
+    'https://images.unsplash.com/photo-1548013146-72479768bada?w=600&h=450&fit=crop&q=80',
+    'https://images.unsplash.com/photo-1571896349842-33c89424de2d?w=600&h=450&fit=crop&q=80',
+];
+
+// Yer adından deterministik (her zaman aynı) bir index üretir.
+function stableHashIndex(str, max) {
+    let hash = 0;
+    for (let i = 0; i < (str || '').length; i++) {
+        hash = (hash * 31 + str.charCodeAt(i)) & 0xffffffff;
+    }
+    return Math.abs(hash) % max;
+}
+
 const buildPlaceFallback = (placeName, category) => {
-    const query = encodeURIComponent(`${placeName || category || 'travel place'} turkey`);
-    return `https://source.unsplash.com/600x450/?${query}`;
+    const idx = stableHashIndex(placeName || category || 'place', FALLBACK_POOL.length);
+    return FALLBACK_POOL[idx];
 };
 
 /**

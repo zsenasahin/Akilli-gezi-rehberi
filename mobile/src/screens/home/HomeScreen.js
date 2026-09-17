@@ -389,7 +389,7 @@ const CityCard = React.memo(({ city, images, index, onPress, onPlanPress }) => {
                 activeOpacity={1}
             >
                 <SmartImage
-                    uri={images.card}
+                    uri={city.image_url || images.card}
                     fallbackUri="https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?w=400&h=300&fit=crop&q=80"
                     style={styles.cityCardImage}
                     contentFit="cover"
