@@ -20,6 +20,11 @@ const MAX_DAY_MINUTES = (DAY_END_HOUR - DAY_START_HOUR) * 60; // 540 dakika
 const AVG_TRAVEL_MINUTES = 25;        // Yerler arası ortalama ulaşım süresi
 const BALANCE_TOLERANCE = 0.25;       // ±%25 tolerans
 const MAX_REBALANCE_ITER = 50;        // Maksimum dengeleme iterasyonu
+// Süreyi eşitlemek uğruna aynı semtteki durakları farklı günlere dağıtmak,
+// pratikte en pahalı hatadır. Bu değer kasıtlı olarak küçük tutulur: daha uzak
+// bir durağın başka bir güne taşınması ancak o günün kümesine gerçekten yakınsa
+// mümkündür.
+const GEO_REBALANCE_SLACK = 1.35;
 
 /**
  * Bir cluster'ın toplam ziyaret süresini hesaplar (ulaşım dahil).
@@ -182,7 +187,10 @@ export function balancePlacesIntoDays(places: Place[], totalDays: number): DayCl
     const timeDiff = heaviest.totalDurationMinutes - lightest.totalDurationMinutes;
     if (timeDiff < 30 && !overBudget) break; // 30 dakikadan az fark varsa bırak
 
-    // En ağır cluster'dan, en hafif cluster'ın merkezine en yakın yeri bul
+    // En ağır cluster'dan, en hafif cluster'ın merkezine en yakın yeri bul.
+    // Ancak sadece süre dengesi için coğrafi kümeyi parçalama. Örneğin aynı
+    // sahildeki üç durak bir gün olarak kalmalı; tek başına uzaktaki iki durak
+    // diğer günleri oluşturmalıdır.
     if (heaviest.places.length <= 1) break; // Tek yer varsa taşıyamayız
 
     const lightCenter: Coordinates = {
@@ -211,6 +219,18 @@ export function balancePlacesIntoDays(places: Place[], totalDays: number): DayCl
         distToLight = haversineDistance(place, lightCenter);
       }
 
+      const remainingInHeavy = heaviest.places.filter((_, index) => index !== i);
+      const nearestInHeavy = remainingInHeavy.length
+        ? Math.min(...remainingInHeavy.map(other => haversineDistance(place, other)))
+        : Infinity;
+      // Boş gün oluştururken yalnızca kümenin uçtaki gerçek outlier'ı taşınır.
+      // Dolu bir güne taşımada ise aday, hedef güne kendi mevcut komşularından
+      // belirgin biçimde daha uzak olmamalıdır.
+      const geographicallyCompatible = lightest.places.length === 0
+        ? distToLight >= nearestInHeavy
+        : distToLight <= nearestInHeavy * GEO_REBALANCE_SLACK;
+      if (!geographicallyCompatible) continue;
+
       // Yakın yerler ve büyük süreler daha iyi adaylar
       const proximityScore = 1 / (distToLight + 0.1);
       const durationScore = placeDuration / MAX_DAY_MINUTES;
@@ -234,6 +254,13 @@ export function balancePlacesIntoDays(places: Place[], totalDays: number): DayCl
     lightest.totalDurationMinutes = clusterDuration(lightest.places);
   }
 
+  // Coğrafi kümeler bazen tek bir semtteki durakların neredeyse tamamını aynı
+  // güne atar (ör. 8 / 1 / 1). Kullanıcı üç gün seçtiğinde bu, rota kısa olsa
+  // bile kullanılabilir bir plan değildir. Manuel seçilen duraklar günler
+  // arasında mümkün olduğunca eşit sayıda dağıtılmalıdır; rota sırası daha
+  // sonra her gün için TSP ile tekrar optimize edilir.
+  rebalanceStopCounts(clusters);
+
   // ═══════════════════════════════════════════════════════════════════
   // PHASE 3: Sort Places Within Each Day by Closing Hour
   // ═══════════════════════════════════════════════════════════════════
@@ -249,4 +276,48 @@ export function balancePlacesIntoDays(places: Place[], totalDays: number): DayCl
   }
 
   return clusters;
+}
+
+function rebalanceStopCounts(clusters: DayCluster[]): void {
+  const totalStops = clusters.reduce((total, cluster) => total + cluster.places.length, 0);
+  if (totalStops < clusters.length) return;
+
+  // n durak, d gün => günler arasındaki sayı farkı en fazla bir olmalı.
+  const maxPerDay = Math.ceil(totalStops / clusters.length);
+  const minPerDay = Math.floor(totalStops / clusters.length);
+
+  for (let iteration = 0; iteration < totalStops; iteration++) {
+    const source = [...clusters].sort((a, b) => b.places.length - a.places.length)[0];
+    const target = [...clusters].sort((a, b) => a.places.length - b.places.length)[0];
+    if (!source || !target || source.places.length <= maxPerDay || target.places.length >= minPerDay) break;
+
+    const sourceCenter: Coordinates = {
+      latitude: source.places.reduce((sum, place) => sum + place.latitude, 0) / source.places.length,
+      longitude: source.places.reduce((sum, place) => sum + place.longitude, 0) / source.places.length,
+    };
+    const targetCenter: Coordinates | null = target.places.length
+      ? {
+        latitude: target.places.reduce((sum, place) => sum + place.latitude, 0) / target.places.length,
+        longitude: target.places.reduce((sum, place) => sum + place.longitude, 0) / target.places.length,
+      }
+      : null;
+
+    // Kaynak kümenin dış sınırındaki ve mümkünse hedef kümeye daha yakın olan
+    // durağı taşı. Böylece sayısal denge için gereksiz rota zigzagı azaltılır.
+    let moveIndex = 0;
+    let bestScore = -Infinity;
+    source.places.forEach((place, index) => {
+      const distanceFromSource = haversineDistance(place, sourceCenter);
+      const distanceToTarget = targetCenter ? haversineDistance(place, targetCenter) : 0;
+      const score = distanceFromSource - distanceToTarget * 0.35;
+      if (score > bestScore) {
+        bestScore = score;
+        moveIndex = index;
+      }
+    });
+
+    target.places.push(source.places.splice(moveIndex, 1)[0]);
+    source.totalDurationMinutes = clusterDuration(source.places);
+    target.totalDurationMinutes = clusterDuration(target.places);
+  }
 }

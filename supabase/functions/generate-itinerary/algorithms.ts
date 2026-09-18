@@ -69,6 +69,8 @@ interface DurationRule {
 }
 
 const DURATION_RULES: DurationRule[] = [
+  { keywords: ['piknik', 'mesire', 'mesire yeri', 'rekreasyon alanı'], hours: 4.5, closingHour: 21 },
+  { keywords: ['kamp alanı', 'kamping'],                    hours: 4.0, closingHour: 21 },
   { keywords: ['antik kent', 'ören yeri', 'arkeolojik'],   hours: 3.0, closingHour: 19 },
   { keywords: ['açık hava müzesi'],                         hours: 3.0, closingHour: 17 },
   { keywords: ['milli park', 'millî park', 'tabiat parkı'], hours: 3.0, closingHour: 20 },
@@ -146,6 +148,7 @@ const MAX_DAY_MINUTES = (DAY_END_HOUR - DAY_START_HOUR) * 60;
 const AVG_TRAVEL_MINUTES = 25;
 const BALANCE_TOLERANCE = 0.25;
 const MAX_REBALANCE_ITER = 50;
+const GEO_REBALANCE_SLACK = 1.35;
 
 function clusterDuration(places: Place[]): number {
   if (places.length === 0) return 0;
@@ -231,6 +234,14 @@ export function balancePlacesIntoDays(places: Place[], totalDays: number): DayCl
                                  longitude: heaviest.places.reduce((s, x) => s + x.longitude, 0) / heaviest.places.length })
         : haversineDistance(p, lightCenter);
       const prox = 1 / (dist + 0.1);
+      const remainingInHeavy = heaviest.places.filter((_, index) => index !== i);
+      const nearestInHeavy = remainingInHeavy.length
+        ? Math.min(...remainingInHeavy.map(other => haversineDistance(p, other)))
+        : Infinity;
+      const geographicallyCompatible = lightest.places.length === 0
+        ? dist >= nearestInHeavy
+        : dist <= nearestInHeavy * GEO_REBALANCE_SLACK;
+      if (!geographicallyCompatible) continue;
       const dur = (p.duration_minutes || 60) / MAX_DAY_MINUTES;
       const score = prox * 0.6 + dur * 0.4;
       if (score > bestScore) { bestScore = score; bestIdx = i; }

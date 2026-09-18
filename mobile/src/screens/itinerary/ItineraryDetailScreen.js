@@ -85,13 +85,15 @@ const ItineraryDetailScreen = ({ route, navigation }) => {
         }
 
         try {
+            const daysInOrder = Object.entries(groups)
+                .sort(([firstDay], [secondDay]) => Number(firstDay) - Number(secondDay));
             const mealEntries = await Promise.all(
-                Object.entries(groups).map(async ([day, dayItems]) => {
+                daysInOrder.map(async ([day, dayItems], dayIndex) => {
                     const usedIds = dayItems.map(i => String(i.place_id));
                     const orderedPlaces = [...dayItems]
                         .sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0))
                         .map(i => i.places);
-                    const meal = await getMealSuggestions(data.city_id, cityName, usedIds, orderedPlaces);
+                    const meal = await getMealSuggestions(data.city_id, cityName, usedIds, orderedPlaces, dayIndex);
                     return [day, meal];
                 })
             );
@@ -580,6 +582,25 @@ const ItineraryDetailScreen = ({ route, navigation }) => {
                                             place={meal.lunch}
                                             onAdd={() => {
                                                 addItineraryItem(itinerary.id, meal.lunch.id, group.day, idx + 1);
+                                                fetchData();
+                                            }}
+                                            isCompleted={isCompleted}
+                                        />
+                                    );
+                                })()}
+
+                                {/* Şehrin mutfağından kısa bir mola — yakın gerçek kafe ile */}
+                                {(() => {
+                                    const meal = mealSuggestions[group.day];
+                                    if (!meal?.localBreak || idx !== meal.breakAfterIndex) return null;
+                                    return (
+                                        <InlineMealCard
+                                            key={`local-break-${group.day}`}
+                                            emoji="🍨"
+                                            label={meal.localBreak.categoryLabel || 'Yöresel lezzet molası'}
+                                            place={meal.localBreak}
+                                            onAdd={() => {
+                                                addItineraryItem(itinerary.id, meal.localBreak.id, group.day, idx + 1);
                                                 fetchData();
                                             }}
                                             isCompleted={isCompleted}

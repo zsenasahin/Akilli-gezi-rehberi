@@ -28,6 +28,10 @@ interface DurationRule {
 
 const DURATION_RULES: DurationRule[] = [
   // ─── Uzun ziyaretler (3+ saat) ─────────────────────────────
+  // Piknik ve mesire alanları "bir durak daha" değildir: ulaşım, yerleşme ve
+  // gün batımına kadar kalma davranışı yüzünden yarım günlük planlanırlar.
+  { keywords: ['piknik', 'mesire', 'mesire yeri', 'rekreasyon alanı'], hours: 4.5, closingHour: 21 },
+  { keywords: ['kamp alanı', 'kamping'], hours: 4.0, closingHour: 21 },
   { keywords: ['antik kent', 'ören yeri', 'arkeolojik'],   hours: 3.0, closingHour: 19 },
   { keywords: ['açık hava müzesi'],                         hours: 3.0, closingHour: 17 },
   { keywords: ['milli park', 'millî park', 'tabiat parkı'], hours: 3.0, closingHour: 20 },

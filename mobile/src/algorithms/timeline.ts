@@ -1,3 +1,4 @@
+import { Coordinates } from './haversine';
 import { Place } from './clustering';
 
 export interface TimelineStop extends Place {
@@ -32,7 +33,8 @@ export function generateTimeline(
   route: Place[],
   startTime: string = "09:00",
   avgSpeedKmph: number = 15,
-  dayEndHour: number = 20
+  dayEndHour: number = 20,
+  startLocation?: Coordinates,
 ): TimelineResult {
   if (route.length === 0) {
     return { stops: [], overflowPlaces: [], totalDurationMinutes: 0, totalDistanceKm: 0, endTime: startTime };
@@ -49,19 +51,27 @@ export function generateTimeline(
     const place = route[i];
     const duration = place.duration_minutes || 60;
 
+    // Piknik/mesire gibi uzun açık-hava duraklarını sabahın ilk saatine
+    // sıkıştırma. Bekleme, günün toplam süresine dürüstçe dahil edilir.
+    const preferredStartHour = (place as any).preferred_start_hour;
+    if (preferredStartHour && currentMinutes < preferredStartHour * 60) {
+      currentMinutes = preferredStartHour * 60;
+    }
+
     // Ulaşım süresi hesapla
     let travelMins = 0;
     let travelDistKm = 0;
-    if (i > 0) {
-      const prevPlace = route[i - 1];
-      travelDistKm = haversineDistance(prevPlace, place);
-      totalDistanceKm += travelDistKm;
+    if (i > 0 || startLocation) {
+      // İlk durağın yolunu da konaklama/başlangıç konumundan hesapla. Önceki
+      // yaklaşım ilk durağa ulaşıma 0 dakika yazdığı için hem rota kartında hem
+      // günün zaman hesabında başlangıç konumu görünmez kalıyordu.
+      const previousLocation = i === 0 ? startLocation : route[i - 1];
+      travelDistKm = haversineDistance(previousLocation, place);
       // Şehir içi mesafeyi 1.4x ile çarp (kuş uçuşu → gerçek yol oranı)
       const realDistKm = travelDistKm * 1.4;
       travelMins = Math.ceil((realDistKm / avgSpeedKmph) * 60);
       // Minimum 5 dakika ulaşım
       travelMins = Math.max(travelMins, 5);
-      currentMinutes += travelMins;
     }
 
     // Kapanış saati kontrolü
@@ -71,15 +81,19 @@ export function generateTimeline(
       effectiveEndLimit = Math.min(dayEndMinutes, closingHour * 60);
     }
 
-    // Ziyaretin bitiş saati
-    const visitEndMinutes = currentMinutes + duration;
-
     // Güne sığıyor mu kontrol et
     // Eğer ziyaretin BAŞLANGIÇ saati kapanışı geçiyorsa → overflow
-    if (currentMinutes >= effectiveEndLimit) {
+    const arrivalMinutes = currentMinutes + travelMins;
+    if (arrivalMinutes >= effectiveEndLimit) {
       overflowPlaces.push(place);
       continue;
     }
+
+    currentMinutes = arrivalMinutes;
+    totalDistanceKm += travelDistKm;
+
+    // Ziyaretin bitiş saati
+    const visitEndMinutes = currentMinutes + duration;
 
     // Eğer ziyaret kapanış saatinden sonra bitecekse ama başlangıcı uygunsa,
     // süreyi kısalt (yer kapanana kadar kal)
@@ -97,7 +111,7 @@ export function generateTimeline(
       arrivalTime,
       departureTime,
       isOverflow: false,
-      travelMinutesFromPrev: i === 0 ? 0 : travelMins,
+      travelMinutesFromPrev: travelMins,
     });
   }
 

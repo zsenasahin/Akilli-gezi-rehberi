@@ -1,6 +1,7 @@
 import { supabase } from '../../config/supabase';
 import { getCityCenter } from '../../constants/cities';
 import { getCityPOIs } from '../api/overpassApi';
+import localCuisine from '../turkiye_mutfak.json';
 
 /**
  * PlaceRepository – gezilecek yer işlemleri.
@@ -46,15 +47,17 @@ function haversine(lat1, lng1, lat2, lng2) {
  * @param {string} cityName
  * @param {string[]} usedPlaceIds
  * @param {Array} [orderedPlaces] - Günün sıralı yerleri
+ * @param {number} [dayIndex] - Plan içindeki sıfırdan başlayan gün indeksi
  * @returns {Promise<{ lunch, dinner, lunchAfterIndex, dinnerAfterIndex }>}
  */
-export const getMealSuggestions = async (cityId, cityName = '', usedPlaceIds = [], orderedPlaces = []) => {
+export const getMealSuggestions = async (cityId, cityName = '', usedPlaceIds = [], orderedPlaces = [], dayIndex = 0) => {
     const lunchAfterIndex = orderedPlaces.length > 1
         ? Math.floor(orderedPlaces.length / 2) - 1
         : 0;
     const dinnerAfterIndex = Math.max(0, orderedPlaces.length - 1);
 
-    const empty = { lunch: null, dinner: null, lunchAfterIndex, dinnerAfterIndex };
+    const breakAfterIndex = orderedPlaces.length > 2 ? 0 : lunchAfterIndex;
+    const empty = { lunch: null, dinner: null, localBreak: null, lunchAfterIndex, dinnerAfterIndex, breakAfterIndex };
 
     try {
         const center = getCityCenter(cityName);
@@ -71,6 +74,10 @@ export const getMealSuggestions = async (cityId, cityName = '', usedPlaceIds = [
         ].filter(p => p.name && p.lat && p.lng);
 
         if (allEateries.length === 0) return empty;
+
+        // Aynı şehirdeki çok günlük planlarda aynı yöresel lezzeti her güne
+        // yazmak yerine, öne çıkan lezzetleri gün sırasına göre döndürüyoruz.
+        const localSpecialty = pickLocalSpecialty(cityName, dayIndex);
 
         // Öğle: günün ortasındaki iki yer arasına en yakın
         let lunchPivotLat = center.lat;
@@ -115,9 +122,66 @@ export const getMealSuggestions = async (cityId, cityName = '', usedPlaceIds = [
             type: 'restaurant',
         } : null;
 
-        return { lunch, dinner, lunchAfterIndex, dinnerAfterIndex };
+        // Yöresel tatlı/içecek için, rotanın başındaki durağa yakın gerçek bir
+        // kafe öner. Veri seti işletmenin o ürünü kesin sattığını söylemediği
+        // için bunu "mola önerisi" olarak sunuyoruz; yanlış vaat etmiyoruz.
+        const firstPlace = orderedPlaces[0];
+        const cafeCandidates = allEateries.filter(p => p.category === 'cafe' || p.type === 'cafe');
+        const localBreakPool = cafeCandidates.length ? cafeCandidates : allEateries;
+        const nearestLocalBreak = localSpecialty && localBreakPool.length
+            ? [...localBreakPool].sort((a, b) =>
+                haversine(firstPlace?.lat ?? center.lat, firstPlace?.lng ?? center.lng, a.lat, a.lng)
+                - haversine(firstPlace?.lat ?? center.lat, firstPlace?.lng ?? center.lng, b.lat, b.lng)
+            )[0]
+            : null;
+        const localBreak = nearestLocalBreak ? {
+            ...nearestLocalBreak,
+            id: String(nearestLocalBreak.id),
+            type: 'cafe',
+            localSpecialty,
+            categoryLabel: `${localSpecialty} molası`,
+            cuisine: `Yöresel öneri: ${localSpecialty}`,
+        } : null;
+
+        return { lunch, dinner, localBreak, lunchAfterIndex, dinnerAfterIndex, breakAfterIndex };
     } catch (err) {
         console.warn('getMealSuggestions error:', err.message);
         return empty;
     }
 };
+
+// Kültür Portalı listesinin sırası popülerlik sırası değil. Bu nedenle, doğrulanmış
+// öne çıkanlar varsa önce onlar kullanılır; kalan şehirlerde veri kümesindeki
+// farklı yemekler sırayla seçilir.
+const CITY_FEATURED_SPECIALTIES = {
+    Muğla: ['Çökertme Kebabı', 'Muğla Köftesi', 'Samsı', 'Kabaki Pesteli'],
+};
+
+function normalizeSpecialtyName(value) {
+    return String(value || '')
+        .toLocaleLowerCase('tr-TR')
+        .replace(/[^a-zçğıöşü0-9]/g, '');
+}
+
+function pickLocalSpecialty(cityName, dayIndex = 0) {
+    const normalized = String(cityName).toLocaleLowerCase('tr-TR');
+    const key = Object.keys(localCuisine).find(name => name.toLocaleLowerCase('tr-TR') === normalized);
+    const dishes = key ? localCuisine[key]?.yemekler || [] : [];
+    if (!dishes.length) return null;
+
+    const byNormalizedName = new Map(
+        dishes.map(item => [normalizeSpecialtyName(item.Baslik), item.Baslik?.trim()])
+    );
+    const featured = (CITY_FEATURED_SPECIALTIES[key] || [])
+        .map(name => byNormalizedName.get(normalizeSpecialtyName(name)))
+        .filter(Boolean);
+
+    // Öncelik listesinden sonra tatlı/içecek ve diğer yerel lezzetleri ekle.
+    // Set, aynı yemeğin döngüde ikinci kez görünmesini engeller.
+    const snacks = dishes
+        .filter(item => /dondurma|tatlı|helva|şerbet|kahve|lokum|reçel/.test(String(item.Baslik).toLocaleLowerCase('tr-TR')))
+        .map(item => item.Baslik?.trim());
+    const candidates = [...new Set([...featured, ...snacks, ...dishes.map(item => item.Baslik?.trim())].filter(Boolean))];
+
+    return candidates[Math.abs(dayIndex) % candidates.length] || null;
+}

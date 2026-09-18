@@ -84,6 +84,10 @@ export const generateItinerary = (places, days, options = {}) => {
             longitude: lng,
             duration_minutes: durationMinutes,
             closing_hour: closingHour,
+            // Uzun açık-hava molaları öğleden sonra daha gerçekçidir. Timeline
+            // bu bilgiyi kullanarak bu durağı erkenden tüketmek yerine güne
+            // yerleştirir.
+            preferred_start_hour: isLeisureStop(p.name || '') ? 14 : undefined,
         };
     });
 
@@ -145,7 +149,12 @@ export const generateItinerary = (places, days, options = {}) => {
     const startLocation = options.startLocation ?? { latitude: fallbackLat, longitude: fallbackLng };
 
     // 3a. Duration-aware K-Means Clustering
-    const dayClusters = balancePlacesIntoDays(placesToCluster, days);
+    const dayClusters = balancePlacesIntoDays(placesToCluster, days)
+        // K-Means'in küme indeksleri coğrafi bir anlam taşımaz. Gün 1'in
+        // konaklama noktasına en yakın bölgeden başlaması için kümeleri yeniden
+        // numaralandırıyoruz; her kümenin iç sırası ayrıca TSP ile belirlenir.
+        .sort((first, second) => nearestClusterDistance(first.places, startLocation) - nearestClusterDistance(second.places, startLocation))
+        .map((cluster, index) => ({ ...cluster, dayIndex: index + 1 }));
 
     const plan = [];
     let grandTotalDistance = 0;
@@ -169,12 +178,23 @@ export const generateItinerary = (places, days, options = {}) => {
 
         // TSP ile optimal rota
         const optimized = optimizeRoute(startLocation, cluster.places, options.returnToHotel ?? false);
+        // Rota mesafesi TSP ile bulunur; ama piknik/mesire gibi uzun duraklar
+        // sabah müze ziyaretlerinin önüne geçmez.
+        const scheduledRoute = [...optimized].sort((a, b) =>
+            Number(Boolean(a.preferred_start_hour)) - Number(Boolean(b.preferred_start_hour))
+        );
 
         // Zaman çizelgesi (kapanış saati + günlük sınır duyarlı)
         // 18:30 sonrası boş kalır: ulaşımlar, dinlenme ve öğünler için doğal
         // bir pay bırakılır. Bu, günü kağıt üzerinde mümkün ama gerçekte
         // yetişmeyen bir program olmaktan çıkarır.
-        const timelineResult = generateTimeline(optimized, "09:00", 15, 18.5);
+        const timelineResult = generateTimeline(
+            scheduledRoute,
+            "09:00",
+            15,
+            18.5,
+            startLocation,
+        );
 
         // Bütçe
         let dayBudget = 0;
@@ -254,6 +274,16 @@ export const generateItinerary = (places, days, options = {}) => {
     console.log('✅ Plan oluşturuldu (v3):', JSON.stringify(stats.dayBreakdown));
     return { plan, totalHours, totalDistance: totalDistanceRound, totalBudget: grandTotalBudget, items, stats };
 };
+
+function isLeisureStop(name) {
+    const normalized = String(name).toLocaleLowerCase('tr-TR');
+    return /piknik|mesire|mesire yeri|rekreasyon alanı|kamp alanı|kamping/.test(normalized);
+}
+
+function nearestClusterDistance(places, startLocation) {
+    if (!places.length) return Infinity;
+    return Math.min(...places.map(place => haversineDistance(startLocation, place)));
+}
 
 function selectRealisticTripPlaces(places, days, selectionMode) {
     const maxStops = Math.max(days * 4, days);

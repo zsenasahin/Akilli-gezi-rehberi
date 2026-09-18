@@ -5,6 +5,7 @@
  */
 
 import { cache, TTL } from './cacheService';
+import { supabase } from '../config/supabase';
 import { batchGeocodeForCity, countMissingCoords } from './geocodingService';
 import { estimateDuration, estimateClosingHour } from '../algorithms/smartDuration';
 import { getCityCenter } from '../constants/cities';
@@ -136,8 +137,9 @@ function findCityData(cityName) {
 // ─── Ana Manager ──────────────────────────────────────────────────────────────
 
 export async function loadCityPlaces(city, onProgress) {
-    // Cache key'e 'v3' ekle — smart duration & geocoding cache
-    const CACHE_KEY = `kp_places_v3_${city.name}`;
+    // Süre kuralları güncellendiğinde eski 1 saatlik tahminleri kullanmamak için
+    // sürümlü cache anahtarı kullanıyoruz.
+    const CACHE_KEY = `published_places_v1_${city.id ?? city.name}`;
 
     const cached = await cache.get(CACHE_KEY);
     if (cached?.length) {
@@ -146,6 +148,36 @@ export async function loadCityPlaces(city, onProgress) {
     }
 
     onProgress?.('Yerler yükleniyor...', 0, 1);
+
+    // Yayın verisi Supabase'te varsa onu kullan. Statik Kültür Portalı dosyası
+    // yalnızca ilk içerik aktarımı tamamlanana veya çevrimdışı kalınana kadar
+    // güvenli geri dönüş kaynağıdır.
+    if (city.id != null) {
+        try {
+            const { data, error } = await supabase
+                .from('places')
+                .select('id, name, category, image_url, short_description, description, gallery, lat, lng, avg_duration, entry_fee, popularity_score, opening_hours, source_url')
+                .eq('city_id', city.id)
+                .eq('is_active', true)
+                .order('popularity_score', { ascending: false });
+            if (!error && data?.length) {
+                const published = data.map(place => ({
+                    ...place,
+                    imageUrl: place.image_url,
+                    description: place.description || place.short_description,
+                    gallery: Array.isArray(place.gallery) ? place.gallery : [],
+                    avg_duration: place.avg_duration || null,
+                    source: 'database',
+                }));
+                await cache.set(CACHE_KEY, published, TTL.WEEK);
+                onProgress?.('Tamamlandı', 1, 1);
+                return published;
+            }
+            if (error) console.warn('[PlaceDataManager] DB yerleri okunamadı:', error.message);
+        } catch (error) {
+            console.warn('[PlaceDataManager] DB yerleri okunamadı:', error.message);
+        }
+    }
 
     const ilData = findCityData(city.name);
     if (!ilData?.yerler?.length) return [];

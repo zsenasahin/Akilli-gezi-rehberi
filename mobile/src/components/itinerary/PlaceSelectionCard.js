@@ -166,10 +166,7 @@ function PlaceSelectionCard({ place, selected, onPress }) {
                         onPress={() => setShowModal(false)}
                         accessibilityLabel="Detayı kapat"
                     />
-                    <View
-                        style={styles.modalContent}
-                        onStartShouldSetResponder={() => true}
-                    >
+                    <View style={styles.modalContent}>
                         <Image
                             source={{ uri: imageUrl }}
                             style={styles.modalImage}
@@ -193,6 +190,7 @@ function PlaceSelectionCard({ place, selected, onPress }) {
                             style={styles.modalInfo}
                             contentContainerStyle={styles.modalInfoContent}
                             showsVerticalScrollIndicator
+                            scrollEnabled
                             nestedScrollEnabled
                             keyboardShouldPersistTaps="handled"
                         >
@@ -396,6 +394,7 @@ const styles = StyleSheet.create({
         borderTopLeftRadius: 24,
         borderTopRightRadius: 24,
         height: '85%',
+        minHeight: 0,
         overflow: 'hidden',
     },
     modalImage: {
@@ -420,7 +419,8 @@ const styles = StyleSheet.create({
     },
     modalInfoContent: {
         padding: SPACING.lg,
-        paddingBottom: SPACING.xxl,
+        paddingBottom: SPACING.xxl * 2,
+        flexGrow: 1,
     },
     modalTitle: {
         fontFamily: FONTS.heading,
