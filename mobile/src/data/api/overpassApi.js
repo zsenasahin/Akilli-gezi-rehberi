@@ -151,6 +151,11 @@ function parseElement(el) {
     };
 }
 
+// Aynı anahtarla eşzamanlı gelen istekler (ör. çok günlük planda her gün için
+// yemek önerisi) tek bir ağ çağrısını paylaşır. Ücretsiz Overpass sunucuları
+// kısa sürede tekrarlanan sorgularda rate-limit uygular.
+const inFlightRequests = new Map();
+
 /**
  * Belirli kategorideki POI'ları getirir.
  * @param {number} lat
@@ -167,7 +172,15 @@ export async function getCityPOIs(lat, lng, category = 'all', radius = 2000) {
     const roundedLat = Math.round(lat * 100) / 100;
     const roundedLng = Math.round(lng * 100) / 100;
     const CACHE_KEY = `pois_${category}_${roundedLat}_${roundedLng}_${radius}`;
-    
+
+    if (inFlightRequests.has(CACHE_KEY)) return inFlightRequests.get(CACHE_KEY);
+    const request = fetchCityPOIs(lat, lng, category, radius, CACHE_KEY)
+        .finally(() => inFlightRequests.delete(CACHE_KEY));
+    inFlightRequests.set(CACHE_KEY, request);
+    return request;
+}
+
+async function fetchCityPOIs(lat, lng, category, radius, CACHE_KEY) {
     try {
         const cached = await cache.get(CACHE_KEY);
         if (cached) return { data: cached, error: null, fromCache: true };
@@ -220,3 +233,45 @@ export const getNearbyHotels = (lat, lng, r = 2000) => getCityPOIs(lat, lng, 'ho
 export const getNearbyAttractions = (lat, lng, r = 3000) => getCityPOIs(lat, lng, 'attraction', r);
 export const getNearbyATMs = (lat, lng, r = 1000) => getCityPOIs(lat, lng, 'atm', r);
 export const getNearbyPharmacies = (lat, lng, r = 1000) => getCityPOIs(lat, lng, 'pharmacy', r);
+
+/**
+ * Yemek ve tatlı önerileri için yeme-içme noktaları.
+ *
+ * `getCityPOIs`'ten farkı: restoranların yanında pastane, tatlıcı ve
+ * dondurmacıları da getirir ve puanlama için ham etiketleri (`tags`) korur.
+ * TomTom fonksiyonu mutfak türünü döndürmediği için doğrudan Overpass kullanılır.
+ */
+export async function getFoodPOIs(lat, lng, radius = 900) {
+    if (lat == null || lng == null) return { data: [], error: 'Geçersiz koordinatlar' };
+    const roundedLat = Math.round(lat * 500) / 500;
+    const roundedLng = Math.round(lng * 500) / 500;
+    const CACHE_KEY = `food_pois_v1_${roundedLat}_${roundedLng}_${radius}`;
+    if (inFlightRequests.has(CACHE_KEY)) return inFlightRequests.get(CACHE_KEY);
+
+    const request = (async () => {
+        try {
+            const cached = await cache.get(CACHE_KEY);
+            if (cached) return { data: cached, error: null, fromCache: true };
+
+            const around = `(around:${radius},${lat},${lng})`;
+            const query = `[out:json][timeout:15];(`
+                + `nwr["amenity"~"^(restaurant|cafe|ice_cream|fast_food)$"]["name"]${around};`
+                + `nwr["shop"~"^(pastry|confectionery)$"]["name"]${around};`
+                + `);out center tags 400;`;
+            const overpassData = await queryOverpass(query);
+            const pois = overpassData.elements
+                .filter(el => el.tags?.name)
+                .map(el => ({ ...parseElement(el), category: el.tags.shop || el.tags.amenity, tags: el.tags }))
+                .filter(p => p.lat && p.lng);
+            if (pois.length > 0) await cache.set(CACHE_KEY, pois, TTL.LONG);
+            return { data: pois, error: null, fromCache: false };
+        } catch (err) {
+            const stale = await cache.getStale(CACHE_KEY);
+            if (stale) return { data: stale, error: err.message, fromCache: true, stale: true };
+            return { data: [], error: err.message };
+        }
+    })().finally(() => inFlightRequests.delete(CACHE_KEY));
+
+    inFlightRequests.set(CACHE_KEY, request);
+    return request;
+}

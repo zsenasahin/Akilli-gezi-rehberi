@@ -1,58 +1,25 @@
 import { getCities } from '../data/repositories/cityRepository';
-import { getPlaceSummary } from './wikipediaService';
-import { loadCityPlaces } from './placeDataManager';
-import { cache } from './cacheService';
 
 /**
- * PrefetchService — Uygulama açılışında verileri arka planda yükler.
- * Kullanıcı şehri seçtiğinde verinin hazır (cache'lenmiş) olmasını sağlar.
+ * PrefetchService — Uygulama açılışında yalnızca hafif ve her ekranda gereken
+ * veriyi (şehir listesi) önceden alır.
+ *
+ * Önceki sürüm açılışta 81 şehrin tamamının yerlerini (~180 KB/şehir, toplam
+ * ~14 MB) indirip AsyncStorage'a yazmaya ve her şehir için Wikipedia'ya istek
+ * atmaya çalışıyordu. Android'de AsyncStorage sınırı 6 MB olduğu için depolama
+ * doluyor, önbellek tamamen silinip iş baştan başlıyordu; bu sırada JavaScript
+ * iş parçacığı dakikalarca meşgul kaldığı için açılan ekranlarda resimler hiç
+ * yüklenmiyordu. Şehrin yerleri artık o şehir açıldığında tek sorguyla gelir.
  */
 
 let isInitialized = false;
 
-export const initPrefetch = async () => {
+export const initPrefetch = () => {
     if (isInitialized) return;
     isInitialized = true;
 
-    try {
-        console.log('[Prefetch] Başlatılıyor...');
-
-        // 1. Tüm şehirleri çek (ve cache'le)
-        const { data: cities } = await getCities();
-        if (!cities || cities.length === 0) return;
-
-        // 2. İlk 5 popüler şehri hemen çek, diğerlerini zamana yay
-        const priorityCities = cities.slice(0, 5);
-        const remainingCities = cities.slice(5);
-
-        // Öncelikli şehirler (Likit yükleme)
-        for (const city of priorityCities) {
-            preloadCityData(city);
-        }
-
-        // Kalan şehirler (Gecikmeli yükleme — ana thread'i yormamak için)
-        setTimeout(() => {
-            remainingCities.forEach((city, index) => {
-                setTimeout(() => {
-                    preloadCityData(city);
-                }, index * 2000); // Her 2 saniyede bir şehir
-            });
-        }, 5000);
-
-    } catch (err) {
-        console.warn('[Prefetch] Hata:', err);
-    }
-};
-
-/**
- * Belirli bir şehir için yerleri ve açıklamayı arka planda yükler
- */
-const preloadCityData = async (city) => {
-    if (!city || !city.id || !city.name) return;
-    try {
-        await loadCityPlaces({ id: city.id, name: city.name });
-        await getPlaceSummary(city.name);
-    } catch (err) {
-        // Sessizce geç
-    }
+    // İlk ekran çizildikten sonra çalışsın
+    setTimeout(() => {
+        getCities().catch(() => { /* çevrimdışıysa önbellekteki liste kullanılır */ });
+    }, 1500);
 };

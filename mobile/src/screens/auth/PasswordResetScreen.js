@@ -19,6 +19,7 @@ import { SPACING } from '../../constants/layout';
 import { AUTH_IMAGES } from '../../constants/authAssets';
 import { supabase } from '../../config/supabase';
 import AuthFormLayout from '../../components/auth/AuthFormLayout';
+import { createThemedStyles } from '../../utils/themedStyles';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -420,7 +421,7 @@ export default function PasswordResetScreen({ navigation, route }) {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles(() => ({
   backRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -561,4 +562,4 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
     textAlign: 'center',
   },
-});
+}));

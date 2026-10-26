@@ -1,13 +1,14 @@
 import React, { useState, useEffect, useMemo, memo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Modal, ScrollView, Dimensions, ActivityIndicator } from 'react-native';
-import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { COLORS } from '../../constants/colors';
 import { FONTS, FONT_SIZES } from '../../constants/typography';
 import { SPACING, BORDER_RADIUS } from '../../constants/layout';
 import { getPlaceImage } from '../../constants/placeImages';
-import { GEMINI_API_KEY } from '../../config/secrets';
+import { getPlaceSummary } from '../../services/wikipediaService';
+import SmartImage from '../common/SmartImage';
+import { createThemedStyles } from '../../utils/themedStyles';
 
 const { width } = Dimensions.get('window');
 // Plan ekranındaki yatay padding (16 + 16) ve kart aralığı (8) hesaba katılır.
@@ -39,30 +40,18 @@ function PlaceSelectionCard({ place, selected, onPress }) {
         [place.name, place.image_url, place.category]
     );
 
+    // Açıklama yoksa ücretsiz ve anahtarsız Wikipedia özeti kullanılır. Önceki
+    // sürüm Gemini anahtarını istemciye gömüyordu (APK'dan okunabilir) ve
+    // gitignore'daki secrets.js'e bağımlı olduğu için EAS build'i kırıyordu.
     const fetchAIDescription = async () => {
         if (aiDescription) return;
-        
+
         setLoadingDescription(true);
         try {
-            if (GEMINI_API_KEY) {
-                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        contents: [{ parts: [{ text: `${place.name} hakkında 2-3 cümlelik kısa, ilgi çekici ve turistik bir bilgi ver. Sadece bilgiyi ver.` }] }]
-                    })
-                });
-                
-                const data = await response.json();
-                if (data.candidates && data.candidates[0] && data.candidates[0].content) {
-                    setAiDescription(data.candidates[0].content.parts[0].text.trim());
-                    return;
-                }
-            }
-            // Fallback (Kültür portalı veya varsayılan)
-            setAiDescription('Bu gezi yeri hakkında detaylı bilgi bulunamadı.');
+            const summary = await getPlaceSummary(place.name);
+            setAiDescription(summary?.description?.trim() || 'Bu gezi yeri hakkında detaylı bilgi bulunamadı.');
         } catch (error) {
-            console.error('Gemini API hatası:', error.message);
+            console.warn('Yer açıklaması alınamadı:', error.message);
             setAiDescription('Bu gezi yeri, şehrin önemli turistik noktalarından biridir.');
         } finally {
             setLoadingDescription(false);
@@ -85,14 +74,15 @@ function PlaceSelectionCard({ place, selected, onPress }) {
             <TouchableOpacity
                 style={[
                     styles.card,
-                    { borderColor: selected ? '#10B981' : 'transparent' },
+                    { borderColor: selected ? '#5B7A4A' : 'transparent' },
                 ]}
                 onPress={onPress}
                 onLongPress={() => setShowModal(true)}
                 activeOpacity={0.7}
             >
-                <Image
-                    source={{ uri: imageUrl }}
+                <SmartImage
+                    thumbnail uri={imageUrl}
+                    fallbackUri={getPlaceImage(place.name, null, place.category)}
                     style={styles.image}
                     contentFit="cover"
                     cachePolicy="memory-disk"
@@ -111,7 +101,7 @@ function PlaceSelectionCard({ place, selected, onPress }) {
                 {/* Seçim İşareti */}
                 {selected && (
                     <View style={styles.checkmark}>
-                        <Ionicons name="checkmark-circle" size={28} color="#10B981" />
+                        <Ionicons name="checkmark-circle" size={28} color="#5B7A4A" />
                     </View>
                 )}
 
@@ -167,8 +157,9 @@ function PlaceSelectionCard({ place, selected, onPress }) {
                         accessibilityLabel="Detayı kapat"
                     />
                     <View style={styles.modalContent}>
-                        <Image
-                            source={{ uri: imageUrl }}
+                        <SmartImage
+                            uri={imageUrl}
+                            fallbackUri={getPlaceImage(place.name, null, place.category)}
                             style={styles.modalImage}
                             contentFit="cover"
                             cachePolicy="memory-disk"
@@ -268,7 +259,7 @@ function PlaceSelectionCard({ place, selected, onPress }) {
 
 export default memo(PlaceSelectionCard);
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles(() => ({
     card: {
         width: CARD_WIDTH,
         height: 168,
@@ -276,7 +267,7 @@ const styles = StyleSheet.create({
         overflow: 'hidden',
         marginBottom: 0,
         backgroundColor: COLORS.surface,
-        // borderWidth her zaman 2 — rengi dinamik olarak ayarlanıyor (transparent / #10B981)
+        // borderWidth her zaman 2 — rengi dinamik olarak ayarlanıyor (transparent / #5B7A4A)
         // Bu sayede layout reflow olmaz ve resim kaybolmaz
         borderWidth: 2,
         borderColor: 'transparent',
@@ -316,7 +307,7 @@ const styles = StyleSheet.create({
         position: 'absolute',
         top: 8,
         right: 8,
-        backgroundColor: '#fff',
+        backgroundColor: COLORS.surface,
         borderRadius: 14,
     },
     infoButton: {
@@ -361,7 +352,7 @@ const styles = StyleSheet.create({
         color: 'rgba(255,255,255,0.9)',
     },
     freeBadge: {
-        backgroundColor: '#10B981',
+        backgroundColor: '#5B7A4A',
         paddingHorizontal: 6,
         paddingVertical: 2,
         borderRadius: 4,
@@ -388,7 +379,7 @@ const styles = StyleSheet.create({
         backgroundColor: 'rgba(0,0,0,0.8)',
         justifyContent: 'flex-end',
     },
-    modalBackdrop: { ...StyleSheet.absoluteFillObject },
+    modalBackdrop: { ...StyleSheet.absoluteFill },
     modalContent: {
         backgroundColor: COLORS.surface,
         borderTopLeftRadius: 24,
@@ -514,11 +505,11 @@ const styles = StyleSheet.create({
         borderRadius: BORDER_RADIUS.lg,
     },
     selectButtonSelected: {
-        backgroundColor: '#10B981',
+        backgroundColor: '#5B7A4A',
     },
     selectButtonText: {
         fontFamily: FONTS.bodySemiBold,
         fontSize: 16,
         color: '#fff',
     },
-});
+}));

@@ -5,6 +5,7 @@ import { FONT_SIZES, FONT_WEIGHTS } from '../../constants/typography';
 import { BORDER_RADIUS, SPACING } from '../../constants/layout';
 import { formatDuration } from '../../utils/formatters';
 import PlaceItem from './PlaceItem';
+import { createThemedStyles } from '../../utils/themedStyles';
 
 /**
  * Renders a single day within the itinerary plan.
@@ -40,7 +41,7 @@ const DayCard = ({ dayPlan }) => {
     );
 };
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles(() => ({
     card: {
         backgroundColor: COLORS.surface,
         borderRadius: BORDER_RADIUS.lg,
@@ -91,6 +92,6 @@ const styles = StyleSheet.create({
         textAlign: 'center',
         paddingVertical: SPACING.lg,
     },
-});
+}));
 
 export default DayCard;

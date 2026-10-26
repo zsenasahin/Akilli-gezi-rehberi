@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../../constants/colors';
 import { FONT_SIZES, FONT_WEIGHTS } from '../../constants/typography';
 import { BORDER_RADIUS, SPACING } from '../../constants/layout';
+import { createThemedStyles } from '../../utils/themedStyles';
 
 /**
  * City selection card for the home screen.
@@ -38,7 +39,7 @@ const CityCard = ({ city, onPress }) => {
     );
 };
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles(() => ({
     card: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -72,6 +73,6 @@ const styles = StyleSheet.create({
         color: COLORS.textSecondary,
         marginTop: 2,
     },
-});
+}));
 
 export default CityCard;

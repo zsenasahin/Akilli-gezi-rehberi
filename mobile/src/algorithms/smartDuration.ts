@@ -44,12 +44,12 @@ const DURATION_RULES: DurationRule[] = [
   { keywords: ['kanyon', 'vadi'],             hours: 2.0, closingHour: 19 },
   { keywords: ['plaj', 'sahil', 'kumsal'],    hours: 2.5, closingHour: 20 },
   { keywords: ['göl', 'gölü'],               hours: 2.0, closingHour: 20 },
-  { keywords: ['ada', 'adası'],               hours: 3.0 },
+  { keywords: ['adası', 'adaları', 'adalar'], hours: 3.0 },
   { keywords: ['kapalıçarşı', 'çarşı', 'bazaar'], hours: 2.0, closingHour: 19 },
 
   // ─── Orta ziyaretler (1-2 saat) ────────────────────────────
   { keywords: ['müze', 'müzesi', 'galeri'],   hours: 1.5, closingHour: 17 },
-  { keywords: ['sarnıç', 'cistern'],          hours: 1.0, closingHour: 18 },
+  { keywords: ['sarnıç', 'sarnıcı', 'cistern'], hours: 1.0, closingHour: 18 },
   { keywords: ['kervansaray', 'medrese'],      hours: 1.0, closingHour: 18 },
   { keywords: ['mağara', 'mağarası'],         hours: 1.5, closingHour: 18 },
   { keywords: ['şelale', 'şelalesi'],         hours: 1.5, closingHour: 19 },
@@ -58,10 +58,12 @@ const DURATION_RULES: DurationRule[] = [
   { keywords: ['kilise'],                      hours: 1.0, closingHour: 17 },
 
   // ─── Kısa-orta ziyaretler (0.5-1 saat) ────────────────────
+  // "Saat kulesi" genel "kule" kuralından önce gelmeli; ilk eşleşen kazanır.
+  { keywords: ['saat kulesi'],                 hours: 0.25 },
   { keywords: ['cami', 'camii', 'camisi'],    hours: 0.5, closingHour: 20 },
   { keywords: ['türbe', 'külliye', 'tekke'],  hours: 0.5, closingHour: 18 },
   { keywords: ['park', 'bahçe', 'parkı'],     hours: 1.0, closingHour: 20 },
-  { keywords: ['kule', 'kulesi'],             hours: 1.0, closingHour: 19 },
+  { keywords: ['kule', 'kulesi', 'kızkulesi'], hours: 1.0, closingHour: 19 },
   { keywords: ['köşk'],                       hours: 1.0, closingHour: 17 },
   { keywords: ['han', 'hanı'],                hours: 0.75, closingHour: 18 },
 
@@ -69,7 +71,6 @@ const DURATION_RULES: DurationRule[] = [
   { keywords: ['köprü', 'köprüsü'],           hours: 0.3 },
   { keywords: ['çeşme', 'çeşmesi'],           hours: 0.25 },
   { keywords: ['anıt', 'heykel', 'abide'],    hours: 0.3 },
-  { keywords: ['saat kulesi'],                 hours: 0.25 },
   { keywords: ['meydan', 'meydanı'],           hours: 0.3 },
 ];
 
@@ -89,18 +90,33 @@ const CATEGORY_DEFAULT_HOURS: Record<string, number> = {
 const GLOBAL_DEFAULT_HOURS = 1.0;
 
 /**
- * Normalize Turkish characters for case-insensitive matching.
+ * Türkçe karakterleri koruyarak küçük harfe çevirir.
+ * `toLowerCase()` "İ" harfini "i̇" (i + birleşik nokta) yaptığı ve "I" harfini
+ * "ı" yerine "i" yaptığı için dönüşüm, küçültmeden ÖNCE yapılmalıdır.
+ * Noktalama boşluğa çevrilir ki kelime başı eşleştirme çalışsın.
  */
 function normalizeTR(str: string): string {
-  return str
-    .toLowerCase()
+  return String(str || '')
     .replace(/İ/g, 'i')
-    .replace(/I/g, 'ı') // I → ı (Türkçe)
-    .replace(/Ğ/g, 'ğ')
-    .replace(/Ü/g, 'ü')
-    .replace(/Ş/g, 'ş')
-    .replace(/Ö/g, 'ö')
-    .replace(/Ç/g, 'ç');
+    .replace(/I/g, 'ı')
+    .toLowerCase()
+    .replace(/[^a-zçğıöşüâîû0-9]+/g, ' ')
+    .trim();
+}
+
+/**
+ * Anahtar kelime, yer adındaki bir kelimenin başında geçmelidir.
+ * "kale" → "Rumeli Kalesi" eşleşir; "han" → "Cihangir" eşleşmez.
+ */
+function matchesKeyword(normalizedName: string, keyword: string): boolean {
+  return (' ' + normalizedName).includes(' ' + normalizeTR(keyword));
+}
+
+function findRule(name: string, predicate: (rule: DurationRule) => boolean = () => true): DurationRule | undefined {
+  const normalizedName = normalizeTR(name);
+  return DURATION_RULES.find(rule =>
+    predicate(rule) && rule.keywords.some(keyword => matchesKeyword(normalizedName, keyword))
+  );
 }
 
 /**
@@ -111,16 +127,8 @@ function normalizeTR(str: string): string {
  * @returns Tahmini ziyaret süresi (saat cinsinden, ondalıklı)
  */
 export function estimateDuration(name: string, category?: string): number {
-  const normalizedName = normalizeTR(name);
-
-  // Keyword eşleştirmesi (ilk eşleşen kazanır)
-  for (const rule of DURATION_RULES) {
-    for (const keyword of rule.keywords) {
-      if (normalizedName.includes(normalizeTR(keyword))) {
-        return rule.hours;
-      }
-    }
-  }
+  const rule = findRule(name);
+  if (rule) return rule.hours;
 
   // Kategori bazlı varsayılan
   if (category) {
@@ -135,20 +143,11 @@ export function estimateDuration(name: string, category?: string): number {
  *
  * @param name - Yer adı
  * @param category - Kategori
- * @returns Kapanış saati (24 saat formatında, ör: 17 = 17:00). null ise bilinmiyor.
+ * @returns Kapanış saati (24 saat formatında, ör: 17 = 17:00).
  */
 export function estimateClosingHour(name: string, category?: string): number {
-  const normalizedName = normalizeTR(name);
-
-  // Keyword eşleştirmesi
-  for (const rule of DURATION_RULES) {
-    if (rule.closingHour === undefined) continue;
-    for (const keyword of rule.keywords) {
-      if (normalizedName.includes(normalizeTR(keyword))) {
-        return rule.closingHour;
-      }
-    }
-  }
+  const rule = findRule(name, candidate => candidate.closingHour !== undefined);
+  if (rule?.closingHour !== undefined) return rule.closingHour;
 
   // Kategori bazlı
   if (category) {
@@ -156,4 +155,30 @@ export function estimateClosingHour(name: string, category?: string): number {
   }
 
   return 20; // Varsayılan: akşam 20:00
+}
+
+// Açık hava yerleri (ören yerleri, doğa alanları) kış aylarında gün ışığına
+// bağlı olarak erken kapanır. Bakanlık ören yerlerinde kış tarifesi ~17:30'dur.
+const OUTDOOR_KEYWORDS = [
+  'antik kent', 'ören yeri', 'arkeolojik', 'milli park', 'millî park', 'tabiat parkı',
+  'şelale', 'şelalesi', 'plaj', 'sahil', 'kumsal', 'göl', 'gölü', 'mesire', 'piknik',
+  'kanyon', 'kanyonu', 'vadi', 'vadisi', 'kale', 'kalesi', 'hisar', 'höyük',
+];
+const WINTER_MONTHS = new Set([10, 11, 0, 1]); // Kasım, Aralık, Ocak, Şubat (0 tabanlı)
+const WINTER_OUTDOOR_CLOSING = 17.5;
+
+export function isOutdoorPlace(name: string, category?: string): boolean {
+  if (category === 'doğa' || category === 'park') return true;
+  const normalizedName = normalizeTR(name);
+  return OUTDOOR_KEYWORDS.some(keyword => matchesKeyword(normalizedName, keyword));
+}
+
+/**
+ * Mevsime göre kapanış saatini düzeltir.
+ * @param month - 0 tabanlı ay (Date#getMonth)
+ */
+export function adjustClosingHourForSeason(closingHour: number, name: string, category: string | undefined, month?: number | null): number {
+  if (month == null || !WINTER_MONTHS.has(month)) return closingHour;
+  if (!isOutdoorPlace(name, category)) return closingHour;
+  return Math.min(closingHour, WINTER_OUTDOOR_CLOSING);
 }

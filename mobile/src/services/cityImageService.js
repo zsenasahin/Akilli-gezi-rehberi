@@ -7,6 +7,7 @@
 
 import detayData from '../data/turkiye_gezilecek_yerler_detay.json';
 import { getCityImages as getUnsplashImages } from '../constants/cityImages';
+import { normalizeImageUrl } from '../utils/imageUrl';
 
 const BASE_URL = 'https://www.kulturportali.gov.tr';
 
@@ -35,7 +36,7 @@ function getKulturPortaliImages(cityName) {
     // İlk 5 yerin fotoğraflarını topla
     const photos = [];
     for (const yer of ilData.yerler.slice(0, 10)) {
-        if (yer.ana_fotograf) photos.push(yer.ana_fotograf);
+        if (yer.ana_fotograf) photos.push(normalizeImageUrl(yer.ana_fotograf));
         if (photos.length >= 5) break;
     }
 
@@ -58,7 +59,14 @@ function getKulturPortaliImages(cityName) {
  * @returns {{ hero: string, card: string, gallery: string[], source: string }}
  */
 export function getCityImages(cityName, region) {
+    const unsplash = getUnsplashImages(cityName, region);
     const kp = getKulturPortaliImages(cityName);
-    if (kp) return kp;
-    return { ...getUnsplashImages(cityName, region), source: 'unsplash' };
+    if (kp) {
+        return {
+            ...kp,
+            fallbackCard: unsplash.card,
+            fallbackHero: unsplash.hero,
+        };
+    }
+    return { ...unsplash, source: 'unsplash' };
 }

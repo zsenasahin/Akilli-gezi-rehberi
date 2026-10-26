@@ -15,6 +15,7 @@ import { useFonts, Inter_400Regular, Inter_600SemiBold, Inter_700Bold } from '@e
 import { FONTS, FONT_SIZES } from '../../constants/typography';
 import { AUTH_IMAGES } from '../../constants/authAssets';
 import { markOnboardingCompleted } from '../../utils/onboardingStorage';
+import { createThemedStyles } from '../../utils/themedStyles';
 
 export default function OnboardingScreen({ navigation }) {
   const [fontsLoaded] = useFonts({
@@ -65,7 +66,7 @@ export default function OnboardingScreen({ navigation }) {
             'rgba(15, 20, 18, 0.82)',
           ]}
           locations={[0, 0.35, 0.62, 1]}
-          style={StyleSheet.absoluteFillObject}
+          style={StyleSheet.absoluteFill}
         />
 
         <Animated.View
@@ -113,7 +114,7 @@ export default function OnboardingScreen({ navigation }) {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles(() => ({
   container: {
     flex: 1,
     backgroundColor: '#1a221e',
@@ -192,7 +193,7 @@ const styles = StyleSheet.create({
     width: 34,
     height: 34,
     borderRadius: 17,
-    backgroundColor: '#F1F5F3',
+    backgroundColor: '#EFEBE1',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -204,4 +205,4 @@ const styles = StyleSheet.create({
     marginTop: 14,
     letterSpacing: 0.3,
   },
-});
+}));

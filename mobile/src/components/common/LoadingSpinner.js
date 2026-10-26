@@ -2,6 +2,7 @@ import React from 'react';
 import { View, ActivityIndicator, StyleSheet, Text } from 'react-native';
 import { COLORS } from '../../constants/colors';
 import { FONT_SIZES } from '../../constants/typography';
+import { createThemedStyles } from '../../utils/themedStyles';
 
 /**
  * Full-screen loading spinner with optional message.
@@ -14,7 +15,7 @@ const LoadingSpinner = ({ message = 'Yükleniyor...' }) => (
     </View>
 );
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles(() => ({
     container: {
         flex: 1,
         justifyContent: 'center',
@@ -27,6 +28,6 @@ const styles = StyleSheet.create({
         color: COLORS.textSecondary,
         fontFamily: 'Inter_400Regular',
     },
-});
+}));
 
 export default LoadingSpinner;

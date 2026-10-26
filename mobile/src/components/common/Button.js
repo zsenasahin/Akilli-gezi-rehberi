@@ -3,6 +3,7 @@ import { TouchableOpacity, Text, StyleSheet, ActivityIndicator } from 'react-nat
 import { COLORS } from '../../constants/colors';
 import { FONT_SIZES, FONT_WEIGHTS } from '../../constants/typography';
 import { BORDER_RADIUS, SPACING } from '../../constants/layout';
+import { createThemedStyles } from '../../utils/themedStyles';
 
 /**
  * Reusable button component with primary/secondary/outline variants.
@@ -49,7 +50,7 @@ const Button = ({
     );
 };
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles(() => ({
     base: {
         paddingVertical: SPACING.md,
         paddingHorizontal: SPACING.lg,
@@ -85,6 +86,6 @@ const styles = StyleSheet.create({
     outlineText: {
         color: COLORS.primary,
     },
-});
+}));
 
 export default Button;

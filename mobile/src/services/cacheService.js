@@ -58,17 +58,36 @@ const set = async (key, data, ttlMinutes = DEFAULT_TTL_MIN) => {
         await AsyncStorage.setItem(CACHE_PREFIX + key, JSON.stringify(entry));
     } catch (error) {
         console.warn('Cache write failed:', error);
-        // Eğer disk doluysa cache'i temizle (SQLite_Full error)
+        // Disk doluysa (Android AsyncStorage ~6 MB) önbelleğin tamamını silmek
+        // yerine en eski kayıtların yarısı silinir; şehir listesi gibi sık
+        // kullanılan yeni kayıtlar korunur.
         if (error.message?.includes('full') || error.code === '13' || error.message?.includes('quota')) {
-            console.log('Storage limit reached, clearing old cache...');
-            await clear();
-            // Tekrar dene (sadece bir kez)
+            await evictOldest(0.5);
             try {
                 const expiresAt = Date.now() + ttlMinutes * 60 * 1000;
                 const entry = { data, expiresAt, createdAt: Date.now() };
                 await AsyncStorage.setItem(CACHE_PREFIX + key, JSON.stringify(entry));
-            } catch { }
+            } catch { /* yine sığmıyorsa bellekte kalır */ }
         }
+    }
+};
+
+/** En eski kayıtların belirtilen oranını siler. */
+const evictOldest = async (ratio = 0.5) => {
+    try {
+        const keys = (await AsyncStorage.getAllKeys()).filter(k => k.startsWith(CACHE_PREFIX));
+        if (!keys.length) return;
+        const entries = await AsyncStorage.multiGet(keys);
+        const byAge = entries
+            .map(([k, raw]) => {
+                try { return [k, JSON.parse(raw)?.createdAt ?? 0]; } catch { return [k, 0]; }
+            })
+            .sort((a, b) => a[1] - b[1]);
+        const toRemove = byAge.slice(0, Math.max(1, Math.ceil(byAge.length * ratio))).map(([k]) => k);
+        await AsyncStorage.multiRemove(toRemove);
+        toRemove.forEach(k => inMemoryCache.delete(k.slice(CACHE_PREFIX.length)));
+    } catch {
+        await clear();
     }
 };
 

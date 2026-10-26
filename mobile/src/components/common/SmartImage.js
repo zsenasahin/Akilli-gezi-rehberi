@@ -1,15 +1,23 @@
 /**
- * SmartImage — expo-image wrapper with consistent cache & placeholder settings.
+ * SmartImage — expo-image sarmalayıcısı.
  *
- * Resimler Expo Go'da bazen yüklenmiyorsa:
- * 1. Network izni / SSL sorununa karşı cachePolicy="memory-disk"
- * 2. Yüklenmezse placeholder gösterir
- * 3. İsteğe bağlı fallbackUri ile yedek resim
+ * - Uzak adresler `normalizeImageUrl` ile kodlanır (Kültür Portalı adreslerinde
+ *   boşluk ve parantez bulunur).
+ * - Yükleme sırasında arka plan rengi yer tutucu görevi görür. expo-image'ın
+ *   `placeholder` alanına `{ color }` gibi geçersiz bir kaynak verilmez: yeni
+ *   sürümde bu, hata olayını tetikleyip asıl resmin yerine yedek resmin
+ *   gösterilmesine yol açıyordu.
+ * - `fallbackUri` yalnızca asıl resim gerçekten yüklenemezse kullanılır.
+ * - `thumbnail` verilirse küçük sürüm yüklenir; bulunamazsa büyük sürüme geçilir.
+ * - Listelerde görünüm yeniden kullanıldığında eski resmin bir anlığına
+ *   görünmemesi için `recyclingKey` adres olarak verilir.
  */
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Image } from 'expo-image';
 import { View, StyleSheet } from 'react-native';
 import { COLORS } from '../../constants/colors';
+import { normalizeImageUrl, thumbnailUrl } from '../../utils/imageUrl';
+import { createThemedStyles } from '../../utils/themedStyles';
 
 const SmartImage = ({
     uri,
@@ -17,14 +25,22 @@ const SmartImage = ({
     fallbackUri,
     style,
     contentFit = 'cover',
-    transition = 300,
+    transition = 250,
+    thumbnail = false,
     ...rest
 }) => {
     const [failed, setFailed] = useState(false);
 
-    const resolvedSource = source || (failed
-        ? (fallbackUri ? { uri: fallbackUri } : null)
-        : (uri ? { uri } : null));
+    useEffect(() => { setFailed(false); }, [uri]);
+
+    const original = uri ? normalizeImageUrl(uri) : null;
+    const primary = thumbnail && uri ? thumbnailUrl(uri) : original;
+    // Küçük sürüm yoksa önce asıl görsele, o da yoksa verilen yedeğe düş.
+    const fallback = thumbnail && primary !== original
+        ? original
+        : (fallbackUri ? normalizeImageUrl(fallbackUri) : null);
+    const resolvedUri = failed ? fallback : primary;
+    const resolvedSource = source || (resolvedUri ? { uri: resolvedUri } : null);
 
     if (!resolvedSource) {
         return <View style={[styles.placeholder, style]} />;
@@ -33,23 +49,23 @@ const SmartImage = ({
     return (
         <Image
             source={resolvedSource}
-            style={style}
+            style={[styles.placeholder, style]}
             contentFit={contentFit}
             transition={transition}
             cachePolicy="memory-disk"
-            placeholder={{ color: COLORS.surfaceWarm }}
+            recyclingKey={resolvedUri || undefined}
             onError={() => {
-                if (!failed && fallbackUri) setFailed(true);
+                if (!failed && fallback && fallback !== primary) setFailed(true);
             }}
             {...rest}
         />
     );
 };
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles(() => ({
     placeholder: {
-        backgroundColor: COLORS.surfaceWarm,
+        backgroundColor: COLORS.surfaceAlt,
     },
-});
+}));
 
 export default SmartImage;

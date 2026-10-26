@@ -12,6 +12,7 @@ import { COLORS } from '../../constants/colors';
 import { FONTS, FONT_SIZES } from '../../constants/typography';
 import { BORDER_RADIUS, SPACING } from '../../constants/layout';
 import { BlurView } from 'expo-blur';
+import { createThemedStyles } from '../../utils/themedStyles';
 
 const { width } = Dimensions.get('window');
 
@@ -70,9 +71,9 @@ const BadgeEarnedModal = ({ badge, visible, onClose, onAction }) => {
     );
 };
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles(() => ({
     overlay: {
-        ...StyleSheet.absoluteFillObject,
+        ...StyleSheet.absoluteFill,
         backgroundColor: 'rgba(0,0,0,0.4)',
         justifyContent: 'center',
         alignItems: 'center',
@@ -154,6 +155,6 @@ const styles = StyleSheet.create({
         fontSize: 14,
         color: COLORS.textSecondary,
     },
-});
+}));
 
 export default BadgeEarnedModal;

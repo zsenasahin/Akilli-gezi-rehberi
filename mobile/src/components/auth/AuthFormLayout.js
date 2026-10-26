@@ -13,6 +13,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../constants/layout';
+import { createThemedStyles } from '../../utils/themedStyles';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 const TOP_EXPANDED = SCREEN_HEIGHT * 0.32;
@@ -39,7 +40,7 @@ export default function AuthFormLayout({
         <Image source={imageSource} style={styles.heroImage} resizeMode="cover" />
         <LinearGradient
           colors={['rgba(0,0,0,0.2)', 'rgba(0,0,0,0.45)']}
-          style={StyleSheet.absoluteFillObject}
+          style={StyleSheet.absoluteFill}
         />
       </View>
 
@@ -67,7 +68,7 @@ export default function AuthFormLayout({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles(() => ({
   container: {
     flex: 1,
     backgroundColor: COLORS.surface,
@@ -104,4 +105,4 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.lg,
     paddingTop: SPACING.xl,
   },
-});
+}));

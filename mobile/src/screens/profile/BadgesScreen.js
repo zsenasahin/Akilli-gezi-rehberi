@@ -18,6 +18,7 @@ import { SPACING } from '../../constants/layout';
 import { useThemePreference } from '../../contexts/ThemeContext';
 import ConfettiOverlay from '../../components/common/ConfettiOverlay';
 import BadgeEarnedModal from '../../components/common/BadgeEarnedModal';
+import { createThemedStyles } from '../../utils/themedStyles';
 
 const BadgeMedal = ({ badge, theme }) => (
     <View style={[styles.badgeCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border, opacity: badge.earned ? 1 : 0.52 }]}>
@@ -125,7 +126,7 @@ const SummaryStat = ({ value, label, theme }) => (
     </View>
 );
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles(() => ({
     safeArea: { flex: 1 },
     header: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: SPACING.md, paddingTop: 10, paddingBottom: 12 },
     backBtn: { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center' },
@@ -144,6 +145,6 @@ const styles = StyleSheet.create({
     ribbonRight: { position: 'absolute', bottom: -12, right: 20, width: 16, height: 26, borderBottomLeftRadius: 8, borderBottomRightRadius: 8, transform: [{ rotate: '-10deg' }] },
     badgeLabel: { fontFamily: FONTS.bodySemiBold, fontSize: 15, textAlign: 'center' },
     badgeMeta: { marginTop: 6, fontFamily: FONTS.body, fontSize: 12, lineHeight: 17, textAlign: 'center' },
-});
+}));
 
 export default BadgesScreen;

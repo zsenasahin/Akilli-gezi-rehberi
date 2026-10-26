@@ -6,6 +6,8 @@
  */
 
 import { getCityCenter } from '../constants/cities';
+import { cache, TTL } from './cacheService';
+import { parseLocalDate, toLocalISODate, addDays } from '../utils/dateUtils';
 
 const BASE_URL = 'https://api.open-meteo.com/v1/forecast';
 
@@ -46,6 +48,9 @@ const getWeatherInfo = (code) =>
  * @returns {Promise<{ data: Array|null, error: string|null }>}
  */
 export const getWeatherForecast = async (cityName) => {
+    const CACHE_KEY = `weather_v1_${cityName}`;
+    const cached = await cache.get(CACHE_KEY);
+    if (cached) return { data: cached, error: null };
     try {
         const { lat, lng } = getCityCenter(cityName);
 
@@ -76,8 +81,11 @@ export const getWeatherForecast = async (cityName) => {
             rainChance: daily.precipitation_probability_max[i],
         }));
 
+        await cache.set(CACHE_KEY, forecast, TTL.MEDIUM);
         return { data: forecast, error: null };
     } catch (err) {
+        const stale = await cache.getStale(CACHE_KEY);
+        if (stale) return { data: stale, error: null, stale: true };
         return { data: null, error: err.message };
     }
 };
@@ -89,25 +97,19 @@ export const getWeatherForecast = async (cityName) => {
 export const formatWeatherDate = (dateStr) => {
     const months = ['Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz',
         'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara'];
-    const d = new Date(dateStr);
-    return `${d.getDate()} ${months[d.getMonth()]}`;
+    const d = parseLocalDate(dateStr);
+    return d ? `${d.getDate()} ${months[d.getMonth()]}` : '';
 };
 
 /**
- * Tarihin gün adını döndürür.
+ * Tarihin gün adını döndürür (yerel saate göre).
  * "2026-03-04" → "Bugün" veya "Yarın" veya "Çar"
  */
 export const getDayLabel = (dateStr) => {
     const days = ['Paz', 'Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt'];
     const today = new Date();
-    const d = new Date(dateStr);
-
-    const todayStr = today.toISOString().split('T')[0];
-    const tomorrowDate = new Date(today);
-    tomorrowDate.setDate(today.getDate() + 1);
-    const tomorrowStr = tomorrowDate.toISOString().split('T')[0];
-
-    if (dateStr === todayStr) return 'Bugün';
-    if (dateStr === tomorrowStr) return 'Yarın';
-    return days[d.getDay()];
+    if (dateStr === toLocalISODate(today)) return 'Bugün';
+    if (dateStr === toLocalISODate(addDays(today, 1))) return 'Yarın';
+    const d = parseLocalDate(dateStr);
+    return d ? days[d.getDay()] : '';
 };

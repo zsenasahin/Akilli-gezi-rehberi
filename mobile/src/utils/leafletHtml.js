@@ -39,7 +39,7 @@ export function generateLeafletHtml(initialCenter = { lat: 41.0082, lng: 28.9784
         .pulse-marker {
             width: 20px; height: 20px;
             border-radius: 50%;
-            background: #3D7A62;
+            background: #4F6342;
             border: 3px solid #fff;
             box-shadow: 0 0 0 rgba(61,122,98,0.4);
             animation: pulse 2s infinite;
@@ -90,7 +90,7 @@ export function generateLeafletHtml(initialCenter = { lat: 41.0082, lng: 28.9784
         var iconRestaurant = createIcon('🍽️', 22);
         var iconPlaceNumbered = function(num) {
             return L.divIcon({
-                html: '<div style="background:#3D7A62;color:#fff;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:bold;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.3);">' + num + '</div>',
+                html: '<div style="background:#4F6342;color:#fff;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:bold;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.3);">' + num + '</div>',
                 iconSize: [28, 28],
                 iconAnchor: [14, 28],
                 popupAnchor: [0, -28],
@@ -200,7 +200,7 @@ export function generateLeafletHtml(initialCenter = { lat: 41.0082, lng: 28.9784
 
             var latlngs = coordinates.map(function(c) { return [c[1], c[0]]; }); // ORS returns [lng, lat]
             routePolyline = L.polyline(latlngs, {
-                color: '#3D7A62',
+                color: '#4F6342',
                 weight: 4,
                 opacity: 0.8,
                 dashArray: null,

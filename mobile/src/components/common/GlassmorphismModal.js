@@ -12,6 +12,7 @@ import { useFonts, Inter_400Regular, Inter_600SemiBold, Inter_700Bold } from '@e
 import { COLORS } from '../../constants/colors';
 import { FONTS, FONT_SIZES } from '../../constants/typography';
 import { SPACING } from '../../constants/layout';
+import { createThemedStyles } from '../../utils/themedStyles';
 
 const { width } = Dimensions.get('window');
 
@@ -72,7 +73,7 @@ export default function GlassmorphismModal({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles(() => ({
   backdrop: {
     flex: 1,
     backgroundColor: 'rgba(15, 26, 22, 0.55)',
@@ -128,4 +129,4 @@ const styles = StyleSheet.create({
     fontSize: FONT_SIZES.md,
     color: COLORS.textSecondary,
   },
-});
+}));

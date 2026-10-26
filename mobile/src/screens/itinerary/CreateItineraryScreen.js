@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
     View, Text, StyleSheet, ScrollView, TouchableOpacity,
-    Switch, Alert, KeyboardAvoidingView, Platform, TextInput,
-    ActivityIndicator, Modal, Linking, FlatList,
+    Switch, KeyboardAvoidingView, Platform, TextInput,
+    ActivityIndicator, Linking, BackHandler,
 } from 'react-native';
+import Animated, { FadeInDown, FadeInLeft, FadeInRight } from 'react-native-reanimated';
 import { Calendar } from 'react-native-calendars';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -17,59 +18,102 @@ import { useAuth } from '../../contexts/AuthContext';
 import { getCities } from '../../data/repositories/cityRepository';
 import { createItinerary } from '../../data/repositories/itineraryRepository';
 import { generateItinerary } from '../../domain/itineraryGenerator';
+import { estimateGroupMinutes } from '../../domain/dayPlanner';
+import { estimateDuration } from '../../algorithms/smartDuration';
 import { loadCityPlaces } from '../../services/placeDataManager';
 import { getHotelSuggestions } from '../../services/hotelService';
 import PlaceSelectionCard from '../../components/itinerary/PlaceSelectionCard';
 import ErrorMessage from '../../components/common/ErrorMessage';
 import HotelSearch from '../../components/itinerary/HotelSearch';
 import { consumePendingLocation } from '../../services/locationSelectionStore';
+import { getCityImages } from '../../services/cityImageService';
+import SmartImage from '../../components/common/SmartImage';
+import PlannerHeader from '../../components/planner/PlannerHeader';
+import PressableScale from '../../components/planner/PressableScale';
+import PlanningOverlay from '../../components/planner/PlanningOverlay';
+import DecisionStep from '../../components/planner/DecisionStep';
+import { TRANSPORT_PROFILES, PACE_PROFILES, getPaceProfile, getTransportProfile } from '../../algorithms/travelProfiles';
+import { addDays, countDaysInclusive, formatDayMonth, parseLocalDate, toLocalISODate } from '../../utils/dateUtils';
+import { createThemedStyles } from '../../utils/themedStyles';
 
 const CATEGORY_COLORS = {
-    'tarihi': '#8B5CF6',
-    'müze': '#6366F1',
-    'doğa': '#10B981',
-    'park': '#84CC16',
-    'dini': '#F59E0B',
-    'restoran': '#EF4444',
-    'kafe': '#F97316',
-    'alışveriş': '#EC4899',
-    'eğlence': '#3B82F6',
+    'tarihi': '#8B6B4E',
+    'müze': '#6E5A47',
+    'doğa': '#5B7A4A',
+    'park': '#8A9A5B',
+    'dini': '#B8893A',
+    'restoran': '#B5523B',
+    'kafe': '#B87B4F',
+    'alışveriş': '#A86A5A',
+    'eğlence': '#5A7D8C',
 };
 
-const STEP_LABELS = ['Şehir', 'Yerler', 'Süre', 'Konaklama'];
-
-const TR_MONTHS = [
-    'Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran',
-    'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık',
+// Adımlar kullanıcının plan yaparken düşündüğü sırayı izler:
+// nereye → ne zaman → neler → nasıl → nerede kalınacak → özet.
+const STEPS = [
+    { key: 'city', label: 'Şehir', icon: 'location-outline', title: 'Nereye gidiyorsun?' },
+    { key: 'dates', label: 'Tarih', icon: 'calendar-outline', title: 'Ne zaman gidiyorsun?' },
+    { key: 'places', label: 'Yerler', icon: 'images-outline', title: 'Neleri görmek istersin?' },
+    { key: 'travel', label: 'Ulaşım', icon: 'bus-outline', title: 'Nasıl gezeceksin?' },
+    { key: 'stay', label: 'Konaklama', icon: 'bed-outline', title: 'Nerede kalacaksın?' },
+    { key: 'review', label: 'Özet', icon: 'sparkles-outline', title: 'Planını kontrol et' },
 ];
-const TR_DAYS = ['Pazar', 'Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi'];
 
-function formatDate(date) {
-    return `${date.getDate()} ${TR_MONTHS[date.getMonth()]} ${date.getFullYear()} ${TR_DAYS[date.getDay()]}`;
-}
+// Plan motoru gün başına birkaç durak planladığı için çok uzun aralıklar
+// gerçekçi bir program üretmez; uzun geziler birden fazla plana bölünmelidir.
+const MAX_TRIP_DAYS = 14;
+
+// Plan saniyeden kısa sürede hesaplanır; animasyonun okunabilmesi için kısa bir süre gösterilir.
+const MIN_PLANNING_ANIMATION_MS = 1400;
+
+const normalizeSearch = (value = '') => String(value).toLocaleLowerCase('tr-TR').trim();
+
+const buildRangeMarks = (start, end) => {
+    const total = countDaysInclusive(start, end);
+    const startDate = parseLocalDate(start);
+    const marked = {};
+    for (let offset = 0; offset < total; offset++) {
+        const dateStr = toLocalISODate(addDays(startDate, offset));
+        const isEdge = offset === 0 || offset === total - 1;
+        marked[dateStr] = {
+            startingDay: offset === 0,
+            endingDay: offset === total - 1,
+            color: isEdge ? COLORS.primary : COLORS.primaryMuted,
+            textColor: isEdge ? '#fff' : COLORS.primary,
+        };
+    }
+    return marked;
+};
 
 export default function CreateItineraryScreen({ navigation, route }) {
     const { user } = useAuth();
     const insets = useSafeAreaInsets();
+    const scrollRef = useRef(null);
 
-    const [step, setStep] = useState(0);
+    const [stepIndex, setStepIndex] = useState(0);
+    const [direction, setDirection] = useState(1);
+    const stepKey = STEPS[stepIndex].key;
 
-    // Step 0
+    // Şehir
     const [cities, setCities] = useState([]);
     const [selectedCity, setSelectedCity] = useState(null);
 
-    // Step 1
+    // Yerler
     const [places, setPlaces] = useState([]);
     const [selectedPlaces, setSelectedPlaces] = useState([]);
     const [autoSelect, setAutoSelect] = useState(true);
 
-    // Step 2
+    // Tarih
     const [markedDates, setMarkedDates] = useState({});
     const [startDate, setStartDate] = useState(null);
     const [endDate, setEndDate] = useState(null);
     const [days, setDays] = useState(0);
 
-    // Step 3
+    // Ulaşım & tempo
+    const [transportMode, setTransportMode] = useState('transit');
+    const [pace, setPace] = useState('balanced');
+
+    // Konaklama
     const [hasAccommodation, setHasAccommodation] = useState(true);
     const [accommodationType, setAccommodationType] = useState('hotel'); // 'hotel' | 'own'
     const [hotels, setHotels] = useState([]);
@@ -79,15 +123,16 @@ export default function CreateItineraryScreen({ navigation, route }) {
 
     // UI
     const [loading, setLoading] = useState(false);
-    const [saving, setSaving] = useState(false);
+    const [planning, setPlanning] = useState(false);
+    const [decision, setDecision] = useState(null); // { conflicts }
     const [error, setError] = useState(null);
 
-    // Preselected city varsa direkt yer seçimine geç
+    // Şehir ekranından gelindiyse şehir adımı atlanır
     useEffect(() => {
         const preselectedCity = route?.params?.preselectedCity;
         if (preselectedCity) {
             setSelectedCity(preselectedCity);
-            setStep(1); // Direkt yer seçimine geç
+            setStepIndex(1);
         }
     }, [route?.params?.preselectedCity]);
 
@@ -112,26 +157,22 @@ export default function CreateItineraryScreen({ navigation, route }) {
     // Yerler yüklenince otelleri de güncelle (yakınlık hesabı için)
     useEffect(() => {
         if (selectedCity && places.length > 0) {
-            getHotelSuggestions(selectedCity.name, places).then(result => {
-                setHotels(result.data);
-            });
+            setLoadingHotels(true);
+            getHotelSuggestions(selectedCity.name, places)
+                .then(result => setHotels(result.data || []))
+                .finally(() => setLoadingHotels(false));
         }
     }, [places]);
 
-    const loadHotels = async () => {
-        if (!selectedCity) return;
-        setLoadingHotels(true);
-        // Gezilen yerlerin konumuna göre Overpass'tan gerçek otelleri çek
-        const result = await getHotelSuggestions(selectedCity.name, places);
-        setHotels(result.data);
-        setLoadingHotels(false);
-    };
+    useEffect(() => {
+        scrollRef.current?.scrollTo?.({ y: 0, animated: false });
+    }, [stepIndex, decision]);
 
     const loadCities = async () => {
         setLoading(true);
         const { data, error: err } = await getCities();
         setLoading(false);
-        if (err) { setError(err.message); return; }
+        if (err) { setError('Şehirler yüklenemedi. İnternet bağlantınızı kontrol edin.'); return; }
         setCities(data || []);
     };
 
@@ -158,99 +199,76 @@ export default function CreateItineraryScreen({ navigation, route }) {
 
     const handleDayPress = useCallback((day) => {
         const selectedDate = day.dateString;
-        
-        if (!startDate || (startDate && endDate)) {
-            // Yeni seçim başlat
+        setError(null);
+
+        if (!startDate || endDate || selectedDate < startDate) {
+            // Yeni seçim başlat (ya da başlangıçtan önceki bir güne tıklandı)
             setStartDate(selectedDate);
             setEndDate(null);
-            setMarkedDates({
-                [selectedDate]: {
-                    startingDay: true,
-                    color: COLORS.primary,
-                    textColor: '#fff',
-                },
-            });
+            setMarkedDates(buildRangeMarks(selectedDate, selectedDate));
             setDays(1);
-        } else if (startDate && !endDate) {
-            // Bitiş tarihini seç
-            if (selectedDate < startDate) {
-                // Başlangıçtan önce seçildi, başlangıcı değiştir
-                setStartDate(selectedDate);
-                setEndDate(null);
-                setMarkedDates({
-                    [selectedDate]: {
-                        startingDay: true,
-                        color: COLORS.primary,
-                        textColor: '#fff',
-                    },
-                });
-                setDays(1);
-            } else {
-                // Normal bitiş seçimi
-                setEndDate(selectedDate);
-                const start = new Date(startDate);
-                const end = new Date(selectedDate);
-                const daysDiff = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
-                setDays(daysDiff);
-                
-                // Aradaki günleri işaretle
-                const marked = {};
-                let current = new Date(start);
-                while (current <= end) {
-                    const dateStr = current.toISOString().split('T')[0];
-                    if (dateStr === startDate) {
-                        marked[dateStr] = {
-                            startingDay: true,
-                            color: COLORS.primary,
-                            textColor: '#fff',
-                        };
-                    } else if (dateStr === selectedDate) {
-                        marked[dateStr] = {
-                            endingDay: true,
-                            color: COLORS.primary,
-                            textColor: '#fff',
-                        };
-                    } else {
-                        marked[dateStr] = {
-                            color: COLORS.primaryMuted,
-                            textColor: COLORS.primary,
-                        };
-                    }
-                    current.setDate(current.getDate() + 1);
-                }
-                setMarkedDates(marked);
+            return;
+        }
+
+        const daysDiff = countDaysInclusive(startDate, selectedDate);
+        if (daysDiff > MAX_TRIP_DAYS) {
+            setError(`Bir plan en fazla ${MAX_TRIP_DAYS} gün olabilir. Daha uzun geziler için birden fazla plan oluşturun.`);
+            return;
+        }
+
+        setEndDate(selectedDate);
+        setDays(daysDiff);
+        setMarkedDates(buildRangeMarks(startDate, selectedDate));
+    }, [startDate, endDate]);
+
+    const validateStep = (key = stepKey) => {
+        if (key === 'city' && !selectedCity) return 'Lütfen bir şehir seçin.';
+        if (key === 'dates' && !startDate) return 'Lütfen takvimden tarih seçin.';
+        if (key === 'places' && !autoSelect && selectedPlaces.length === 0) return 'Lütfen en az bir yer seçin ya da otomatik seçimi açın.';
+        if (key === 'stay' && hasAccommodation && accommodationType === 'hotel' && !selectedHotel) {
+            return 'Devam etmek için bir otel seçin veya konaklamayı günübirlik olarak işaretleyin.';
+        }
+        if (key === 'stay' && hasAccommodation && accommodationType === 'own' && !selectedOwnLocation) {
+            return 'Devam etmek için kendi konumunuzu arayın veya haritadan seçin.';
+        }
+        return null;
+    };
+
+    const goToStep = (nextIndex) => {
+        if (nextIndex === stepIndex && !decision) return;
+        setDirection(nextIndex >= stepIndex ? 1 : -1);
+        setDecision(null);
+        setStepIndex(nextIndex);
+    };
+
+    /**
+     * Adım çizelgesinden doğrudan bir adıma geçiş. Geri gitmek her zaman
+     * serbesttir; ileri atlarken aradaki adımlar doğrulanır ve eksik olan ilk
+     * adımda durulur.
+     */
+    const handleStepPress = (targetIndex) => {
+        setError(null);
+        if (targetIndex <= stepIndex) { goToStep(targetIndex); return; }
+        for (let index = stepIndex; index < targetIndex; index += 1) {
+            const validationError = validateStep(STEPS[index].key);
+            if (validationError) {
+                goToStep(index);
+                setError(validationError);
+                return;
             }
         }
-    }, [startDate, endDate]);
+        if (startDate && !endDate) setEndDate(startDate);
+        goToStep(targetIndex);
+    };
 
     const handleNext = () => {
         setError(null);
-        if (step === 0 && !selectedCity) {
-            setError('Lütfen bir şehir seçin.');
-            return;
-        }
-        if (step === 1 && !autoSelect && selectedPlaces.length === 0) {
-            setError('Lütfen en az bir yer seçin.');
-            return;
-        }
-        if (step === 2 && !startDate) {
-            setError('Lütfen tarih aralığı seçin.');
-            return;
-        }
-        if (step === 3 && hasAccommodation && accommodationType === 'hotel' && !selectedHotel) {
-            setError('Devam etmek için bir otel seçin veya konaklamayı günübirlik olarak işaretleyin.');
-            return;
-        }
-        if (step === 3 && hasAccommodation && accommodationType === 'own' && !selectedOwnLocation) {
-            setError('Devam etmek için kendi konumunuzu arayın veya haritadan seçin.');
-            return;
-        }
-        if (step < 4) {
-            // Tek gün seçildiyse endDate = startDate (step 2'den çıkarken)
-            if (step === 2 && startDate && !endDate) {
-                setEndDate(startDate);
-            }
-            setStep(s => s + 1);
+        const validationError = validateStep();
+        if (validationError) { setError(validationError); return; }
+
+        if (stepKey === 'dates' && startDate && !endDate) setEndDate(startDate);
+        if (stepIndex < STEPS.length - 1) {
+            goToStep(stepIndex + 1);
         } else {
             handleCreatePlan();
         }
@@ -258,305 +276,412 @@ export default function CreateItineraryScreen({ navigation, route }) {
 
     const handleBack = () => {
         setError(null);
-        if (step > 0) setStep(s => s - 1);
+        if (decision) { setDirection(-1); setDecision(null); return; }
+        if (stepIndex > 0) goToStep(stepIndex - 1);
+        else navigation.goBack();
     };
 
-    const handleCreatePlan = async () => {
-        const placesToUse = autoSelect ? places : selectedPlaces;
-        if (placesToUse.length === 0) {
-            setError('Plan oluşturmak için yer bulunamadı.');
-            return;
-        }
-        if (!startDate) {
-            setError('Lütfen başlangıç tarihi seçin.');
-            return;
-        }
-        // endDate null ise startDate kullan (tek günlük gezi)
-        const effectiveEndDate = endDate || startDate;
-        const effectiveDays = days > 0 ? days : 1;
+    // Android geri tuşu planlayıcıdan çıkmak yerine bir önceki adıma döner
+    useFocusEffect(useCallback(() => {
+        const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+            if (planning) return true;
+            if (decision || stepIndex > 0) { handleBack(); return true; }
+            return false;
+        });
+        return () => subscription.remove();
+    }, [decision, stepIndex, planning]));
 
-        setLoading(true);
-        const cityCenter = getCityCenter(selectedCity.name);
+    const getStartLocation = () => {
         const accommodation = hasAccommodation
             ? (accommodationType === 'own' ? selectedOwnLocation : selectedHotel)
             : null;
-        const startLocation = accommodation?.latitude != null
-            ? { latitude: accommodation.latitude, longitude: accommodation.longitude }
-            : accommodation?.lat != null
-                ? { latitude: accommodation.lat, longitude: accommodation.lng }
-                : undefined;
-        const result = generateItinerary(placesToUse, effectiveDays, {
-            cityLat: cityCenter.lat,
-            cityLng: cityCenter.lng,
-            startLocation,
-            returnToHotel: Boolean(startLocation),
-            selectionMode: autoSelect ? 'auto' : 'manual',
-        });
-        const { data: saved, error: saveError } = await createItinerary({
-            userId: user.id,
-            cityId: selectedCity.id,
-            days: effectiveDays,
-            startDate: startDate,
-            hasAccommodation,
-            hasTransport: false,
-            startLocationLat: startLocation?.latitude ?? null,
-            startLocationLng: startLocation?.longitude ?? null,
-            items: result.items,
-            plan: result.plan,
-        });
-        setLoading(false);
-        if (saveError) { setError(saveError.message); return; }
-        navigation.replace('ItineraryDetail', { itineraryId: saved.id });
+        if (accommodation?.latitude != null) return { accommodation, startLocation: { latitude: accommodation.latitude, longitude: accommodation.longitude } };
+        if (accommodation?.lat != null) return { accommodation, startLocation: { latitude: accommodation.lat, longitude: accommodation.lng } };
+        return { accommodation, startLocation: undefined };
     };
 
-    const adjustDate = (delta) => {
-        const d = new Date(startDate);
-        d.setDate(d.getDate() + delta);
-        setStartDate(d.toISOString().split('T')[0]);
+    /**
+     * Planı hesaplar; kullanıcı kararı gereken bir durum varsa Karar adımını
+     * açar, yoksa kaydeder. `overrides` karar adımındaki seçimleri (tempo,
+     * gün sayısı, çıkarılan yer) state güncellenmesini beklemeden uygular.
+     */
+    const handleCreatePlan = async (overrides = {}) => {
+        const placesToUse = overrides.places ?? (autoSelect ? places : selectedPlaces);
+        const effectiveDays = overrides.days ?? Math.max(days, 1);
+        const effectivePace = overrides.pace ?? pace;
+
+        if (placesToUse.length === 0) { setError('Plan oluşturmak için en az bir yer gerekli.'); return; }
+        if (!startDate) { setError('Lütfen başlangıç tarihi seçin.'); return; }
+        if (!user?.id) { setError('Plan kaydetmek için giriş yapmalısınız.'); return; }
+
+        setError(null);
+        setPlanning(true);
+        const startedAt = Date.now();
+        try {
+            const cityCenter = getCityCenter(selectedCity.name);
+            const { accommodation, startLocation } = getStartLocation();
+            const result = generateItinerary(placesToUse, effectiveDays, {
+                cityLat: cityCenter.lat,
+                cityLng: cityCenter.lng,
+                startLocation,
+                returnToHotel: Boolean(startLocation),
+                selectionMode: autoSelect ? 'auto' : 'manual',
+                transportMode,
+                pace: effectivePace,
+                startDate,
+                acceptCompromise: Boolean(overrides.acceptCompromise),
+            });
+
+            const wait = MIN_PLANNING_ANIMATION_MS - (Date.now() - startedAt);
+            if (wait > 0) await new Promise(resolve => setTimeout(resolve, wait));
+
+            if (result.conflicts?.length) {
+                setDirection(1);
+                setDecision({ conflicts: result.conflicts });
+                return;
+            }
+            if (result.stats.totalPlaces === 0) {
+                setError('Seçilen yerlerle uygulanabilir bir program çıkarılamadı. Daha fazla gün veya farklı yerler deneyin.');
+                return;
+            }
+            if (accommodation?.name && result.plan[0]?.tripMeta) {
+                result.plan[0].tripMeta.accommodationName = accommodation.name;
+            }
+            const { data: saved, error: saveError } = await createItinerary({
+                userId: user.id,
+                cityId: selectedCity.id,
+                days: effectiveDays,
+                startDate,
+                hasAccommodation,
+                hasTransport: transportMode === 'driving',
+                startLocationLat: startLocation?.latitude ?? null,
+                startLocationLng: startLocation?.longitude ?? null,
+                items: result.items,
+                plan: result.plan,
+            });
+            if (saveError) {
+                setError('Plan kaydedilemedi. İnternet bağlantınızı kontrol edip tekrar deneyin.');
+                return;
+            }
+            setDecision(null);
+            navigation.replace('ItineraryDetail', { itineraryId: saved.id });
+        } catch (err) {
+            console.warn('Plan oluşturulamadı:', err?.message);
+            setError('Plan oluşturulurken beklenmeyen bir hata oluştu. Lütfen tekrar deneyin.');
+        } finally {
+            setPlanning(false);
+        }
     };
+
+    // ─── Karar adımı seçenekleri ─────────────────────────────────────────
+    const handleIntensify = () => {
+        setPace('intense');
+        handleCreatePlan({ pace: 'intense' });
+    };
+
+    const handleAddDay = () => {
+        const newDays = Math.max(days, 1) + 1;
+        const newEnd = toLocalISODate(addDays(parseLocalDate(startDate), newDays - 1));
+        setEndDate(newEnd);
+        setDays(newDays);
+        setMarkedDates(buildRangeMarks(startDate, newEnd));
+        handleCreatePlan({ days: newDays });
+    };
+
+    const handleDrop = (placeId) => {
+        const remaining = selectedPlaces.filter(place => String(place.id) !== String(placeId));
+        setSelectedPlaces(remaining);
+        handleCreatePlan({ places: remaining });
+    };
+
+    const currentStep = STEPS[stepIndex];
+    const headerTitle = decision ? 'Kararını ver' : currentStep.title;
+    const headerEyebrow = decision ? 'SON DOKUNUŞ' : `ADIM ${stepIndex + 1} / ${STEPS.length}`;
+    const nextLabel = decision
+        ? null
+        : stepKey === 'review' ? 'Planı Oluştur' : stepKey === 'stay' ? 'Özeti Gör' : 'Devam';
+    // Kısa kayma + solma: yay (spring) animasyonu adım değişiminde titreme yapıyordu
+    const EnterAnimation = direction > 0 ? FadeInRight : FadeInLeft;
+    const canGoBack = Boolean(decision) || stepIndex > 0;
+    const contentKey = decision ? 'decision' : stepKey;
 
     return (
         <KeyboardAvoidingView
             style={styles.container}
             behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
-            <WizardHeader step={step} topInset={insets.top} onBack={() => step === 0 ? navigation.goBack() : handleBack()} />
+            <PlannerHeader
+                steps={STEPS}
+                stepIndex={decision ? STEPS.length - 1 : stepIndex}
+                topInset={insets.top}
+                onClose={() => navigation.goBack()}
+                onStepPress={handleStepPress}
+                title={headerTitle}
+                eyebrow={headerEyebrow}
+            />
 
-            {/* Error */}
-            {error ? <ErrorMessage message={error} style={styles.errorBox} /> : null}
+            {error ? (
+                <Animated.View entering={FadeInDown.duration(220)}>
+                    <ErrorMessage message={error} style={styles.errorBox} />
+                </Animated.View>
+            ) : null}
 
-            {/* Content */}
             <ScrollView
+                ref={scrollRef}
                 style={styles.content}
                 contentContainerStyle={styles.contentContainer}
                 keyboardShouldPersistTaps="handled"
-                showsVerticalScrollIndicator
-                indicatorStyle="default"
+                showsVerticalScrollIndicator={false}
             >
-                {loading && step !== 3 ? (
+                {loading && (stepKey === 'city' || stepKey === 'places') ? (
                     <ActivityIndicator size="large" color={COLORS.primary} style={{ marginTop: 40 }} />
                 ) : (
-                    <>
-                        {step === 0 && (
-                            <StepCity
-                                cities={cities}
-                                selectedCity={selectedCity}
-                                onSelect={setSelectedCity}
+                    <Animated.View key={contentKey} entering={EnterAnimation.duration(240)}>
+                        {decision ? (
+                            <DecisionStep
+                                conflicts={decision.conflicts}
+                                canIntensify={pace !== 'intense'}
+                                canAddDay={Math.max(days, 1) < MAX_TRIP_DAYS}
+                                onAccept={() => handleCreatePlan({ acceptCompromise: true })}
+                                onIntensify={handleIntensify}
+                                onAddDay={handleAddDay}
+                                onDrop={handleDrop}
+                                busy={planning}
                             />
-                        )}
-                        {step === 1 && (
-                            <StepPlaces
-                                places={places}
-                                selectedPlaces={selectedPlaces}
-                                autoSelect={autoSelect}
-                                onToggleAuto={setAutoSelect}
-                                onTogglePlace={togglePlace}
-                            />
-                        )}
-                        {step === 2 && (
-                            <StepDuration
-                                markedDates={markedDates}
-                                onDayPress={handleDayPress}
-                                startDate={startDate}
-                                endDate={endDate}
-                                days={days}
-                            />
-                        )}
-                        {step === 3 && (
-                            <StepAccommodation
-                                hasAccommodation={hasAccommodation}
-                                onToggle={setHasAccommodation}
-                                accommodationType={accommodationType}
-                                onChangeType={setAccommodationType}
-                                hotels={hotels}
-                                selectedHotel={selectedHotel}
-                                onSelectHotel={setSelectedHotel}
-                                selectedOwnLocation={selectedOwnLocation}
-                                onSelectOwnLocation={setSelectedOwnLocation}
-                                navigation={navigation}
-                                loadingHotels={loadingHotels}
-                                selectedCity={selectedCity}
-                                days={days}
-                                startDate={startDate}
-                                endDate={endDate}
-                            />
-                        )}
-                        {step === 4 && (
-                            <StepReview
-                                selectedCity={selectedCity}
-                                days={days}
-                                startDate={startDate}
-                                endDate={endDate || startDate}
-                                selectedPlaces={autoSelect ? places : selectedPlaces}
-                                autoSelect={autoSelect}
-                                hasAccommodation={hasAccommodation}
-                                accommodation={accommodationType === 'own' ? selectedOwnLocation : selectedHotel}
-                            />
-                        )}
-                    </>
-                )}
-            </ScrollView>
-
-            {/* Bottom Nav */}
-            <View style={styles.bottomNav}>
-                {step > 0 ? (
-                    <TouchableOpacity style={styles.backBtn} onPress={handleBack}>
-                        <Ionicons name="chevron-back" size={18} color={COLORS.textSecondary} />
-                        <Text style={styles.backBtnText}>Geri</Text>
-                    </TouchableOpacity>
-                ) : (
-                    <View style={{ flex: 1 }} />
-                )}
-
-                <TouchableOpacity onPress={handleNext} disabled={loading} style={styles.nextBtnWrapper}>
-                    <LinearGradient
-                        colors={COLORS.gradients.primary}
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 0 }}
-                        style={styles.nextBtn}
-                    >
-                        {loading && step >= 3 ? (
-                            <ActivityIndicator size="small" color="#fff" />
                         ) : (
                             <>
-                                <Text style={styles.nextBtnText}>
-                                    {step === 4 ? 'Planı Oluştur' : step === 3 ? 'Özeti Gör' : 'İleri'}
-                                </Text>
-                                {step < 4 && (
-                                    <Ionicons name="chevron-forward" size={18} color="#fff" style={{ marginLeft: 4 }} />
+                                {stepKey === 'city' && (
+                                    <StepCity cities={cities} selectedCity={selectedCity} onSelect={setSelectedCity} />
+                                )}
+                                {stepKey === 'dates' && (
+                                    <StepDuration
+                                        markedDates={markedDates}
+                                        onDayPress={handleDayPress}
+                                        startDate={startDate}
+                                        endDate={endDate}
+                                        days={days}
+                                    />
+                                )}
+                                {stepKey === 'places' && (
+                                    <StepPlaces
+                                        places={places}
+                                        selectedPlaces={selectedPlaces}
+                                        autoSelect={autoSelect}
+                                        onToggleAuto={setAutoSelect}
+                                        onTogglePlace={togglePlace}
+                                        days={Math.max(days, 1)}
+                                        pace={pace}
+                                    />
+                                )}
+                                {stepKey === 'travel' && (
+                                    <StepTravel
+                                        transportMode={transportMode}
+                                        onChangeTransport={setTransportMode}
+                                        pace={pace}
+                                        onChangePace={setPace}
+                                    />
+                                )}
+                                {stepKey === 'stay' && (
+                                    <StepAccommodation
+                                        hasAccommodation={hasAccommodation}
+                                        onToggle={setHasAccommodation}
+                                        accommodationType={accommodationType}
+                                        onChangeType={setAccommodationType}
+                                        hotels={hotels}
+                                        selectedHotel={selectedHotel}
+                                        onSelectHotel={setSelectedHotel}
+                                        selectedOwnLocation={selectedOwnLocation}
+                                        onSelectOwnLocation={setSelectedOwnLocation}
+                                        navigation={navigation}
+                                        loadingHotels={loadingHotels}
+                                        selectedCity={selectedCity}
+                                    />
+                                )}
+                                {stepKey === 'review' && (
+                                    <StepReview
+                                        selectedCity={selectedCity}
+                                        days={days}
+                                        startDate={startDate}
+                                        endDate={endDate || startDate}
+                                        selectedPlaces={autoSelect ? places : selectedPlaces}
+                                        autoSelect={autoSelect}
+                                        hasAccommodation={hasAccommodation}
+                                        accommodation={accommodationType === 'own' ? selectedOwnLocation : selectedHotel}
+                                        transportMode={transportMode}
+                                        pace={pace}
+                                        onEditStep={(key) => goToStep(STEPS.findIndex(step => step.key === key))}
+                                    />
                                 )}
                             </>
                         )}
-                    </LinearGradient>
-                </TouchableOpacity>
-            </View>
+                    </Animated.View>
+                )}
+            </ScrollView>
+
+            {!decision ? (
+                <View style={[styles.bottomNav, { paddingBottom: Math.max(insets.bottom, SPACING.sm) + SPACING.xs }]}>
+                    {canGoBack ? (
+                        <PressableScale
+                            onPress={handleBack}
+                            disabled={planning}
+                            style={styles.backCircle}
+                            accessibilityRole="button"
+                            accessibilityLabel="Önceki adım"
+                        >
+                            <Ionicons name="arrow-back" size={20} color={COLORS.textPrimary} />
+                        </PressableScale>
+                    ) : null}
+                    <PressableScale onPress={handleNext} disabled={loading || planning} style={styles.nextBtnWrapper}>
+                        <LinearGradient
+                            colors={COLORS.gradients.primary}
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 1, y: 0 }}
+                            style={styles.nextBtn}
+                        >
+                            <Text style={styles.nextBtnText}>{nextLabel}</Text>
+                            <Ionicons
+                                name={stepKey === 'review' ? 'sparkles' : 'arrow-forward'}
+                                size={18}
+                                color="#fff"
+                                style={{ marginLeft: 6 }}
+                            />
+                        </LinearGradient>
+                    </PressableScale>
+                </View>
+            ) : (
+                <View style={[styles.bottomNav, { paddingBottom: Math.max(insets.bottom, SPACING.sm) + SPACING.xs }]}>
+                    <PressableScale onPress={handleBack} disabled={planning} style={styles.backPill}>
+                        <Ionicons name="arrow-back" size={18} color={COLORS.textPrimary} />
+                        <Text style={styles.backPillText}>Seçimlere dön</Text>
+                    </PressableScale>
+                </View>
+            )}
+
+            <PlanningOverlay visible={planning} cityName={selectedCity?.name} />
         </KeyboardAvoidingView>
     );
 }
 
 // ─── Sub-components ──────────────────────────────────────────────────────────
 
-function WizardHeader({ step, onBack, topInset }) {
-    const isReview = step === 4;
-    return (
-        <View style={[styles.wizardHeader, { paddingTop: topInset + SPACING.xs }]}>
-            <TouchableOpacity style={styles.wizardBackButton} onPress={onBack} accessibilityRole="button" accessibilityLabel="Geri">
-                <Ionicons name="chevron-back" size={22} color={COLORS.textPrimary} />
-            </TouchableOpacity>
-            <View style={styles.wizardHeaderBody}>
-                <Text style={styles.wizardEyebrow}>{isReview ? 'SON ADIM' : `ADIM ${step + 1} / 4`}</Text>
-                <Text style={styles.wizardTitle}>{isReview ? 'Planını kontrol et' : 'Gezi planla'}</Text>
-            </View>
-            {isReview ? <View style={styles.reviewHeaderIcon}><Ionicons name="checkmark" size={16} color="#fff" /></View> : <View style={styles.wizardHeaderSpacer} />}
-            {!isReview && <StepIndicator step={step} />}
-        </View>
-    );
-}
+function StepReview({ selectedCity, days, startDate, endDate, selectedPlaces, autoSelect, hasAccommodation, accommodation, transportMode, pace, onEditStep }) {
+    const tripDate = startDate && endDate
+        ? (startDate === endDate ? formatDayMonth(startDate) : `${formatDayMonth(startDate)} – ${formatDayMonth(endDate)}`)
+        : 'Tarih seçilmedi';
+    const transport = getTransportProfile(transportMode);
+    const paceProfile = getPaceProfile(pace);
+    const tripDays = days || 1;
+    const capacity = tripDays * paceProfile.maxStopsPerDay;
+    const stopCount = autoSelect ? Math.min(selectedPlaces.length, capacity) : selectedPlaces.length;
+    const cityImage = selectedCity ? getCityImages(selectedCity.name, selectedCity.region) : null;
 
-function StepIndicator({ step }) {
-    return (
-        <View style={styles.stepIndicator}>
-            {STEP_LABELS.map((label, i) => {
-                const isActive = i === step;
-                const isDone = i < step;
-                return (
-                    <View key={i} style={styles.stepItem}>
-                        <View style={[
-                            styles.stepDot,
-                            isActive && styles.stepDotActive,
-                            isDone && styles.stepDotDone,
-                        ]}>
-                            {isDone
-                                ? <Ionicons name="checkmark" size={12} color="#fff" />
-                                : <View style={[
-                                    styles.stepDotInner,
-                                    isActive && styles.stepDotInnerActive,
-                                ]} />
-                            }
-                        </View>
-                        <Text style={[
-                            styles.stepLabel,
-                            isActive && styles.stepLabelActive,
-                        ]}>{label}</Text>
-                        {i < STEP_LABELS.length - 1 && (
-                            <View style={[styles.stepLine, isDone && styles.stepLineDone]} />
-                        )}
-                    </View>
-                );
-            })}
-        </View>
-    );
-}
+    const rows = [
+        { key: 'dates', icon: 'calendar-outline', label: 'Tarihler', value: `${tripDate} · ${tripDays} gün` },
+        { key: 'places', icon: 'images-outline', label: 'Yerler', value: autoSelect ? 'En popüler yerler otomatik seçilecek' : `${selectedPlaces.length} yer seçildi` },
+        { key: 'travel', icon: transport.icon, label: 'Ulaşım ve tempo', value: `${transport.label} · ${paceProfile.label} (${paceProfile.startTime} başlangıç)` },
+        { key: 'stay', icon: 'bed-outline', label: 'Konaklama', value: !hasAccommodation ? 'Günübirlik gezi' : accommodation?.name || 'Konaklama seçilmedi' },
+    ];
 
-function StepReview({ selectedCity, days, startDate, endDate, selectedPlaces, autoSelect, hasAccommodation, accommodation }) {
-    const tripDate = startDate && endDate ? `${formatDateShort(startDate)} – ${formatDateShort(endDate)}` : 'Tarih seçilmedi';
     return (
         <View>
-            <Text style={styles.stepTitle}>Hazırsınız</Text>
-            <Text style={styles.stepSubtitle}>Planınızı son kez gözden geçirin. Oluşturduğunuzda rota size özel hazırlanacak.</Text>
-            <View style={styles.reviewHero}>
-                <View style={styles.reviewHeroIcon}><Ionicons name="map" size={26} color="#fff" /></View>
-                <View style={{ flex: 1 }}>
-                    <Text style={styles.reviewHeroCity}>{selectedCity?.name || 'Şehir'}</Text>
-                    <Text style={styles.reviewHeroMeta}>{days || 1} gün · {selectedPlaces.length} durak</Text>
+            <View style={styles.reviewHeroCard}>
+                <SmartImage uri={selectedCity?.image_url || cityImage?.hero || cityImage?.card} fallbackUri={cityImage?.fallbackHero || cityImage?.fallbackCard} style={StyleSheet.absoluteFill} contentFit="cover" />
+                <LinearGradient colors={COLORS.gradients.heroOverlay} style={StyleSheet.absoluteFill} />
+                <View style={styles.reviewHeroBody}>
+                    <Text style={styles.reviewHeroEyebrow}>GEZİ ÖZETİN</Text>
+                    <Text style={styles.reviewHeroCityLarge}>{selectedCity?.name || 'Şehir'}</Text>
+                    <Text style={styles.reviewHeroMetaLight}>{tripDays} gün · {autoSelect ? `~${stopCount}` : stopCount} durak</Text>
                 </View>
             </View>
+
             <View style={styles.summaryCard}>
-                <Text style={styles.summaryTitle}>Plan özeti</Text>
-                <View style={styles.summaryDivider} />
-                <ReviewRow icon="calendar-outline" label="Tarihler" value={tripDate} />
-                <ReviewRow icon="compass-outline" label="Yer seçimi" value={autoSelect ? 'Popüler yerler otomatik seçilecek' : `${selectedPlaces.length} yer seçildi`} />
-                <ReviewRow icon="bed-outline" label="Konaklama" value={!hasAccommodation ? 'Günübirlik gezi' : accommodation?.name || 'Konaklama seçilmedi'} last />
+                {rows.map(({ key: stepKey, ...row }, index) => (
+                    <Animated.View key={stepKey} entering={FadeInDown.delay(80 + index * 70)}>
+                        <ReviewRow {...row} last={index === rows.length - 1} onEdit={() => onEditStep(stepKey)} />
+                    </Animated.View>
+                ))}
             </View>
-            <View style={styles.reviewNotice}>
+
+            <Animated.View entering={FadeInDown.delay(400)} style={styles.reviewNotice}>
                 <Ionicons name="sparkles-outline" size={18} color={COLORS.primary} />
-                <Text style={styles.reviewNoticeText}>Rota; seçtiğiniz duraklar, tarihler ve varsa konaklama konumuna göre optimize edilir.</Text>
-            </View>
+                <Text style={styles.reviewNoticeText}>
+                    Yakın yerler aynı güne toplanır, tüm gün süren yerler (piknik, milli park…) kendi gününü alır. Bir yer sığmazsa sana sorarım.
+                </Text>
+            </Animated.View>
         </View>
     );
 }
 
-function ReviewRow({ icon, label, value, last }) {
+function ReviewRow({ icon, label, value, last, onEdit }) {
     return (
-        <View style={[styles.reviewRow, last && { marginBottom: 0 }]}>
+        <TouchableOpacity style={[styles.reviewRow, last && { marginBottom: 0 }]} onPress={onEdit} activeOpacity={0.7} accessibilityLabel={`${label}: ${value}. Düzenle`}>
             <View style={styles.reviewRowIcon}><Ionicons name={icon} size={17} color={COLORS.primary} /></View>
             <View style={styles.reviewRowText}>
                 <Text style={styles.reviewRowLabel}>{label}</Text>
                 <Text style={styles.reviewRowValue}>{value}</Text>
             </View>
-        </View>
+            <Ionicons name="create-outline" size={17} color={COLORS.textLight} />
+        </TouchableOpacity>
     );
 }
 
 function StepCity({ cities, selectedCity, onSelect }) {
+    const [query, setQuery] = useState('');
+    const normalizedQuery = normalizeSearch(query);
+    const visibleCities = useMemo(() => (normalizedQuery
+        ? cities.filter(city => normalizeSearch(city.name).includes(normalizedQuery)
+            || normalizeSearch(city.region).includes(normalizedQuery))
+        : cities), [cities, normalizedQuery]);
+
     return (
         <View>
-            <Text style={styles.stepTitle}>Nereye gidiyorsunuz?</Text>
-            <Text style={styles.stepSubtitle}>Keşfetmek istediğiniz şehri seçin</Text>
+            <Text style={styles.stepSubtitle}>81 il arasından keşfetmek istediğin şehri seç.</Text>
+            <View style={styles.searchContainer}>
+                <Ionicons name="search" size={20} color={COLORS.textSecondary} />
+                <TextInput
+                    style={styles.searchInput}
+                    placeholder="Şehir veya bölge ara..."
+                    placeholderTextColor={COLORS.textLight}
+                    value={query}
+                    onChangeText={setQuery}
+                    autoCorrect={false}
+                    returnKeyType="search"
+                />
+                {query.length > 0 && (
+                    <TouchableOpacity onPress={() => setQuery('')} accessibilityLabel="Aramayı temizle">
+                        <Ionicons name="close-circle" size={20} color={COLORS.textLight} />
+                    </TouchableOpacity>
+                )}
+            </View>
+            {visibleCities.length === 0 && (
+                <Text style={styles.emptySearchText}>"{query}" ile eşleşen şehir bulunamadı.</Text>
+            )}
             <View style={styles.cityGrid}>
-                {cities.map(city => {
+                {visibleCities.map((city, index) => {
                     const isSelected = selectedCity?.id === city.id;
+                    const images = getCityImages(city.name, city.region);
                     return (
-                        <TouchableOpacity
-                            key={city.id}
-                            style={[styles.cityCard, isSelected && styles.cityCardSelected]}
-                            onPress={() => onSelect(city)}
-                            activeOpacity={0.7}
-                        >
-                            {isSelected && (
-                                <View style={styles.cityCardCheckmark}>
-                                    <Ionicons name="checkmark-circle" size={24} color={COLORS.primary} />
+                        <Animated.View key={city.id} entering={FadeInDown.delay(Math.min(index, 8) * 40)} style={styles.cityCardWrap}>
+                            <PressableScale
+                                style={[styles.cityPhotoCard, isSelected && styles.cityPhotoCardSelected]}
+                                onPress={() => onSelect(city)}
+                                accessibilityRole="button"
+                                accessibilityState={{ selected: isSelected }}
+                                accessibilityLabel={city.name}
+                            >
+                                <SmartImage thumbnail uri={city.image_url || images.card} fallbackUri={images?.fallbackCard || images?.card} style={StyleSheet.absoluteFill} contentFit="cover" />
+                                <LinearGradient colors={COLORS.gradients.cardOverlay} style={StyleSheet.absoluteFill} />
+                                {isSelected && (
+                                    <View style={styles.cityCardCheckmark}>
+                                        <Ionicons name="checkmark-circle" size={24} color="#fff" />
+                                    </View>
+                                )}
+                                <View style={styles.cityPhotoBody}>
+                                    <Text style={styles.cityPhotoName} numberOfLines={1}>{city.name}</Text>
+                                    {city.region ? <Text style={styles.cityPhotoRegion} numberOfLines={1}>{city.region}</Text> : null}
                                 </View>
-                            )}
-                            <Text style={[styles.cityName, isSelected && styles.cityNameSelected]}>
-                                {city.name}
-                            </Text>
-                            {city.region ? (
-                                <Text style={[styles.cityRegion, isSelected && styles.cityRegionSelected]}>
-                                    {city.region}
-                                </Text>
-                            ) : null}
-                        </TouchableOpacity>
+                            </PressableScale>
+                        </Animated.View>
                     );
                 })}
             </View>
@@ -564,49 +689,93 @@ function StepCity({ cities, selectedCity, onSelect }) {
     );
 }
 
-function StepPlaces({ places, selectedPlaces, autoSelect, onToggleAuto, onTogglePlace }) {
+/**
+ * Seçilen yerlerin süresini gün kapasitesiyle karşılaştıran canlı gösterge.
+ * Kullanıcı daha seçim yaparken "bu kadar yer 2 güne sığmaz" bilgisini görür.
+ */
+function CapacityMeter({ selectedPlaces, days, pace }) {
+    const paceProfile = getPaceProfile(pace);
+    const dayMinutes = paceProfile.dayEndHour * 60 - (Number(paceProfile.startTime.split(':')[0]) * 60 + Number(paceProfile.startTime.split(':')[1])) - paceProfile.lunchMinutes;
+    const normalized = selectedPlaces.map(place => ({
+        ...place,
+        latitude: place.lat ?? 0,
+        longitude: place.lng ?? 0,
+        duration_minutes: place.duration_minutes ?? Math.round((place.avg_duration ?? estimateDuration(place.name || '', place.category)) * 60),
+    }));
+    const needed = normalized.length ? estimateGroupMinutes(normalized, 'transit') : 0;
+    const available = dayMinutes * days;
+    const ratio = available > 0 ? needed / available : 0;
+    const state = ratio > 1 ? 'over' : ratio > 0.8 ? 'tight' : 'ok';
+    const color = state === 'over' ? COLORS.error : state === 'tight' ? COLORS.warning : COLORS.primary;
+    const neededHours = Math.round((needed / 60) * 10) / 10;
+
+    return (
+        <View style={styles.capacityCard}>
+            <View style={styles.capacityHeader}>
+                <Text style={styles.capacityTitle}>{selectedPlaces.length} yer · ~{neededHours} saat</Text>
+                <Text style={[styles.capacityState, { color }]}>
+                    {state === 'over' ? `${days} güne sığmayabilir` : state === 'tight' ? 'Dolu bir program' : 'Rahat sığar'}
+                </Text>
+            </View>
+            <View style={styles.capacityTrack}>
+                <View style={[styles.capacityFill, { width: `${Math.min(ratio, 1) * 100}%`, backgroundColor: color }]} />
+            </View>
+            <Text style={styles.capacityHint}>
+                {days} gün · {paceProfile.label.toLocaleLowerCase('tr-TR')} tempo için günde ~{Math.round(dayMinutes / 60)} saat gezi zamanı var.
+            </Text>
+        </View>
+    );
+}
+
+function StepPlaces({ places, selectedPlaces, autoSelect, onToggleAuto, onTogglePlace, days, pace }) {
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedCategory, setSelectedCategory] = useState('all');
 
-    const categories = ['all', ...new Set(places.map(p => p.category).filter(Boolean))];
-    
+    const categories = useMemo(() => ['all', ...new Set(places.map(p => p.category).filter(Boolean))], [places]);
+
     const filteredPlaces = places.filter(place => {
-        const matchesSearch = place.name.toLowerCase().includes(searchQuery.toLowerCase());
+        const matchesSearch = normalizeSearch(place.name).includes(normalizeSearch(searchQuery));
         const matchesCategory = selectedCategory === 'all' || place.category === selectedCategory;
         return matchesSearch && matchesCategory;
     });
 
     return (
         <View>
-            <View style={styles.placesIntro}>
-                <Ionicons name="sparkles-outline" size={17} color={COLORS.primary} />
-                <Text style={styles.placesIntroText}>{autoSelect ? 'Popüler duraklar rota sürenize göre dengelenecek.' : 'Görmek istediğiniz durakları seçin.'}</Text>
+            <View style={styles.modeSwitch}>
+                {[
+                    { value: true, icon: 'flash-outline', title: 'Benim için seç', description: 'Popüler yerler sürene göre seçilir' },
+                    { value: false, icon: 'hand-left-outline', title: 'Kendim seçeceğim', description: 'Gitmek istediğin yerleri işaretle' },
+                ].map(option => {
+                    const active = autoSelect === option.value;
+                    return (
+                        <PressableScale
+                            key={String(option.value)}
+                            style={[styles.modeCard, active && styles.modeCardActive]}
+                            onPress={() => onToggleAuto(option.value)}
+                            accessibilityRole="radio"
+                            accessibilityState={{ selected: active }}
+                        >
+                            <View style={[styles.optionIcon, active && styles.optionIconActive]}>
+                                <Ionicons name={option.icon} size={18} color={active ? '#fff' : COLORS.primary} />
+                            </View>
+                            <Text style={[styles.optionLabel, active && styles.optionLabelActive]}>{option.title}</Text>
+                            <Text style={styles.optionDescription}>{option.description}</Text>
+                        </PressableScale>
+                    );
+                })}
             </View>
 
-            <View style={[styles.toggleCard, styles.toggleCardCompact]}>
-                <View style={styles.toggleCardLeft}>
-                    <View style={[styles.iconCircle, styles.iconCircleCompact]}>
-                        <Ionicons name="flash" size={20} color={COLORS.primary} />
-                    </View>
-                    <View style={styles.toggleCardText}>
-                        <Text style={styles.toggleCardTitle}>Otomatik Seçim</Text>
-                        <Text style={styles.toggleCardSubtitle}>
-                            {autoSelect ? 'En iyi yerler seçilecek' : 'Manuel seçim yapılacak'}
-                        </Text>
-                    </View>
-                </View>
-                <Switch
-                    value={autoSelect}
-                    onValueChange={onToggleAuto}
-                    trackColor={{ false: COLORS.border, true: COLORS.primaryMuted }}
-                    thumbColor={autoSelect ? COLORS.primary : COLORS.textLight}
-                    ios_backgroundColor={COLORS.border}
-                />
-            </View>
+            {autoSelect ? (
+                <Animated.View entering={FadeInDown} style={styles.reviewNotice}>
+                    <Ionicons name="sparkles-outline" size={18} color={COLORS.primary} />
+                    <Text style={styles.reviewNoticeText}>
+                        {places.length} yer arasından, {days} günlük gezine sığacak en popüler ve birbirine yakın yerleri seçeceğim.
+                    </Text>
+                </Animated.View>
+            ) : (
+                <Animated.View entering={FadeInDown}>
+                    {selectedPlaces.length > 0 && <CapacityMeter selectedPlaces={selectedPlaces} days={days} pace={pace} />}
 
-            {!autoSelect && (
-                <>
-                    {/* Arama */}
                     <View style={styles.searchContainer}>
                         <Ionicons name="search" size={20} color={COLORS.textSecondary} />
                         <TextInput
@@ -623,7 +792,6 @@ function StepPlaces({ places, selectedPlaces, autoSelect, onToggleAuto, onToggle
                         )}
                     </View>
 
-                    {/* Kategori Filtreleri */}
                     <ScrollView
                         horizontal
                         showsHorizontalScrollIndicator={false}
@@ -645,14 +813,8 @@ function StepPlaces({ places, selectedPlaces, autoSelect, onToggleAuto, onToggle
                         })}
                     </ScrollView>
 
-                    <View style={styles.selectedCountBadge}>
-                        <Ionicons name="checkmark-circle" size={16} color={COLORS.primary} />
-                        <Text style={styles.selectedCount}>
-                            {selectedPlaces.length} yer seçildi
-                        </Text>
-                    </View>
+                    <Text style={styles.placesHint}>Bilgi için karta uzun bas.</Text>
 
-                    {/* Yer Kartları */}
                     <View style={styles.placeGrid}>
                         {filteredPlaces.map(place => (
                             <PlaceSelectionCard
@@ -663,50 +825,48 @@ function StepPlaces({ places, selectedPlaces, autoSelect, onToggleAuto, onToggle
                             />
                         ))}
                     </View>
-                </>
+                </Animated.View>
             )}
         </View>
     );
 }
 
 function StepDuration({ markedDates, onDayPress, startDate, endDate, days }) {
-    const today = new Date().toISOString().split('T')[0];
-    
+    const today = toLocalISODate();
+
     return (
         <View>
-            <Text style={styles.stepTitle}>Ne Kadar Kalacaksınız?</Text>
-            <Text style={styles.stepSubtitle}>
-                Takvimde başlangıç ve bitiş tarihlerini seçin
-            </Text>
+            <Text style={styles.stepSubtitle}>Takvimde önce gidiş, sonra dönüş gününe dokun.</Text>
 
             {days > 0 && (
-                <View style={styles.durationSummary}>
+                <Animated.View entering={FadeInDown} style={styles.durationSummary}>
                     <View style={styles.durationBadge}>
                         <Ionicons name="calendar" size={20} color={COLORS.primary} />
                         <Text style={styles.durationText}>{days} gün</Text>
                     </View>
-                    {startDate && endDate && (
+                    {startDate && (
                         <Text style={styles.dateRangeText}>
-                            {formatDateShort(startDate)} - {formatDateShort(endDate)}
+                            {formatDayMonth(startDate)}{endDate && endDate !== startDate ? ` – ${formatDayMonth(endDate)}` : ''}
                         </Text>
                     )}
-                </View>
+                </Animated.View>
             )}
 
             <View style={styles.calendarContainer}>
                 <Calendar
-                    current={today}
+                    current={startDate || today}
                     minDate={today}
                     onDayPress={onDayPress}
                     markingType={'period'}
                     markedDates={markedDates}
+                    firstDay={1}
                     theme={{
                         backgroundColor: COLORS.surface,
                         calendarBackground: COLORS.surface,
                         textSectionTitleColor: COLORS.textSecondary,
                         selectedDayBackgroundColor: COLORS.primary,
                         selectedDayTextColor: '#fff',
-                        todayTextColor: COLORS.primary,
+                        todayTextColor: COLORS.earth,
                         dayTextColor: COLORS.textPrimary,
                         textDisabledColor: COLORS.textLight,
                         dotColor: COLORS.primary,
@@ -726,23 +886,68 @@ function StepDuration({ markedDates, onDayPress, startDate, endDate, days }) {
             </View>
 
             <View style={styles.calendarHint}>
-                <Ionicons name="information-circle" size={18} color={COLORS.primary} />
+                <Ionicons name="information-circle-outline" size={18} color={COLORS.primary} />
                 <Text style={styles.calendarHintText}>
-                    İlk tıklama başlangıç, ikinci tıklama bitiş tarihini belirler
+                    Tek günlük gezi için yalnızca bir güne dokunman yeterli. En fazla {MAX_TRIP_DAYS} gün.
                 </Text>
             </View>
         </View>
     );
 }
 
-function formatDateShort(dateString) {
-    const date = new Date(dateString);
-    const day = date.getDate();
-    const month = TR_MONTHS[date.getMonth()];
-    return `${day} ${month}`;
+function StepTravel({ transportMode, onChangeTransport, pace, onChangePace }) {
+    return (
+        <View>
+            <Text style={styles.stepSubtitle}>Yol süreleri ve günlük program bu seçimlere göre hesaplanır.</Text>
+
+            <Text style={styles.optionSectionTitle}>Şehirde nasıl dolaşacaksın?</Text>
+            <OptionGroup options={Object.values(TRANSPORT_PROFILES)} value={transportMode} onChange={onChangeTransport} />
+
+            <Text style={styles.optionSectionTitle}>Gezi temponu seç</Text>
+            <OptionGroup options={Object.values(PACE_PROFILES)} value={pace} onChange={onChangePace} />
+
+            <View style={[styles.reviewNotice, { marginTop: SPACING.lg }]}>
+                <Ionicons name="time-outline" size={18} color={COLORS.primary} />
+                <Text style={styles.reviewNoticeText}>
+                    {getPaceProfile(pace).label} tempoda günler {getPaceProfile(pace).startTime}'da başlar, en geç {formatHour(getPaceProfile(pace).dayEndHour)}'da biter ve öğle arası eklenir.
+                </Text>
+            </View>
+        </View>
+    );
 }
 
+const formatHour = (hour) => `${String(Math.floor(hour)).padStart(2, '0')}:${String(Math.round((hour % 1) * 60)).padStart(2, '0')}`;
 
+function OptionGroup({ options, value, onChange }) {
+    return (
+        <View style={styles.optionGroup}>
+            {options.map(option => {
+                const isActive = option.key === value;
+                return (
+                    <PressableScale
+                        key={option.key}
+                        style={[styles.optionCard, isActive && styles.optionCardActive]}
+                        onPress={() => onChange(option.key)}
+                        accessibilityRole="radio"
+                        accessibilityState={{ selected: isActive }}
+                        accessibilityLabel={`${option.label}. ${option.description}`}
+                    >
+                        <View style={[styles.optionIcon, isActive && styles.optionIconActive]}>
+                            <Ionicons name={option.icon} size={20} color={isActive ? '#fff' : COLORS.primary} />
+                        </View>
+                        <Text style={[styles.optionLabel, isActive && styles.optionLabelActive]}>{option.label}</Text>
+                        <Text style={styles.optionDescription} numberOfLines={3}>{option.description}</Text>
+                        {isActive && (
+                            <Animated.View entering={FadeInDown.duration(200)} style={styles.optionCheck}>
+                                <Ionicons name="checkmark-circle" size={18} color={COLORS.primary} />
+                            </Animated.View>
+                        )}
+                    </PressableScale>
+                );
+            })}
+        </View>
+    );
+}
 
 function StepAccommodation({ 
     hasAccommodation, onToggle, accommodationType, onChangeType,
@@ -757,8 +962,7 @@ function StepAccommodation({
 
     return (
         <View>
-            <Text style={styles.stepTitle}>Konaklama</Text>
-            <Text style={styles.stepSubtitle}>Nerede kalacağınızı belirleyin</Text>
+            <Text style={styles.stepSubtitle}>Rotalar her gün konaklama noktandan başlar ve oraya döner.</Text>
 
             <View style={styles.toggleCard}>
                 <View style={styles.toggleCardLeft}>
@@ -891,7 +1095,7 @@ function StepAccommodation({
                                                         {hotel.stars > 0 && (
                                                             <View style={styles.hotelStars}>
                                                                 {[...Array(Math.min(hotel.stars, 5))].map((_, i) => (
-                                                                    <Ionicons key={i} name="star" size={11} color="#FFB800" />
+                                                                    <Ionicons key={i} name="star" size={11} color="#B8893A" />
                                                                 ))}
                                                             </View>
                                                         )}
@@ -985,7 +1189,7 @@ function StepAccommodation({
 
 // ─── Styles ──────────────────────────────────────────────────────────────────
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles(() => ({
     container: {
         flex: 1,
         backgroundColor: COLORS.background,
@@ -1079,7 +1283,7 @@ const styles = StyleSheet.create({
         backgroundColor: COLORS.border,
     },
     stepDotInnerActive: {
-        backgroundColor: '#fff',
+        backgroundColor: COLORS.surface,
     },
     stepLabel: {
         fontFamily: FONTS.body,
@@ -1101,6 +1305,87 @@ const styles = StyleSheet.create({
     },
     stepLineDone: {
         backgroundColor: COLORS.primary,
+    },
+
+    // Fotoğraflı şehir kartları
+    cityCardWrap: { width: '48%' },
+    cityPhotoCard: {
+        height: 118,
+        borderRadius: BORDER_RADIUS.lg,
+        overflow: 'hidden',
+        backgroundColor: COLORS.surfaceAlt,
+        borderWidth: 2,
+        borderColor: 'transparent',
+    },
+    cityPhotoCardSelected: { borderColor: COLORS.primary },
+    cityPhotoBody: { position: 'absolute', left: SPACING.sm + 2, right: SPACING.sm, bottom: SPACING.sm },
+    cityPhotoName: { fontFamily: FONTS.bodyBold, fontSize: FONT_SIZES.lg, color: '#fff' },
+    cityPhotoRegion: { fontFamily: FONTS.body, fontSize: FONT_SIZES.xs, color: 'rgba(255,255,255,0.85)', marginTop: 1 },
+
+    // Özet hero
+    reviewHeroCard: { height: 170, borderRadius: BORDER_RADIUS.xl, overflow: 'hidden', marginBottom: SPACING.md, backgroundColor: COLORS.surfaceAlt },
+    reviewHeroBody: { position: 'absolute', left: SPACING.md, right: SPACING.md, bottom: SPACING.md },
+    reviewHeroEyebrow: { fontFamily: FONTS.bodyBold, fontSize: 10, letterSpacing: 1.5, color: 'rgba(255,255,255,0.85)' },
+    reviewHeroCityLarge: { fontFamily: FONTS.heading, fontSize: FONT_SIZES.display, color: '#fff', marginTop: 2 },
+    reviewHeroMetaLight: { fontFamily: FONTS.bodyMedium, fontSize: FONT_SIZES.sm, color: 'rgba(255,255,255,0.9)' },
+
+    // Yer seçimi modu ve kapasite
+    modeSwitch: { flexDirection: 'row', gap: SPACING.sm, marginBottom: SPACING.md },
+    modeCard: {
+        flex: 1, backgroundColor: COLORS.surface,
+        borderRadius: BORDER_RADIUS.lg, borderWidth: 1.5, borderColor: COLORS.border,
+        padding: SPACING.sm + 2,
+    },
+    modeCardActive: { borderColor: COLORS.primary, backgroundColor: COLORS.primaryMuted },
+    capacityCard: {
+        backgroundColor: COLORS.surface, borderRadius: BORDER_RADIUS.lg,
+        borderWidth: 1, borderColor: COLORS.border,
+        padding: SPACING.md, marginBottom: SPACING.md,
+    },
+    capacityHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+    capacityTitle: { fontFamily: FONTS.bodyBold, fontSize: FONT_SIZES.sm, color: COLORS.textPrimary },
+    capacityState: { fontFamily: FONTS.bodySemiBold, fontSize: FONT_SIZES.xs },
+    capacityTrack: { height: 6, borderRadius: 3, backgroundColor: COLORS.surfaceAlt, marginTop: SPACING.sm, overflow: 'hidden' },
+    capacityFill: { height: '100%', borderRadius: 3 },
+    capacityHint: { fontFamily: FONTS.body, fontSize: FONT_SIZES.xs, color: COLORS.textSecondary, marginTop: 6 },
+    placesHint: { fontFamily: FONTS.body, fontSize: FONT_SIZES.xs, color: COLORS.textLight, marginBottom: SPACING.sm },
+    optionCheck: { position: 'absolute', top: 8, right: 8 },
+
+    // Ulaşım / tempo seçimi
+    optionSectionTitle: {
+        fontFamily: FONTS.bodyBold,
+        fontSize: FONT_SIZES.md,
+        color: COLORS.textPrimary,
+        marginTop: SPACING.lg,
+        marginBottom: SPACING.sm,
+    },
+    optionGroup: { flexDirection: 'row', gap: SPACING.sm },
+    optionCard: {
+        flex: 1,
+        backgroundColor: COLORS.surface,
+        borderRadius: BORDER_RADIUS.lg,
+        borderWidth: 1.5,
+        borderColor: COLORS.border,
+        padding: SPACING.sm,
+        alignItems: 'flex-start',
+        minHeight: 112,
+    },
+    optionCardActive: { borderColor: COLORS.primary, backgroundColor: COLORS.primaryMuted },
+    optionIcon: {
+        width: 34, height: 34, borderRadius: 17,
+        alignItems: 'center', justifyContent: 'center',
+        backgroundColor: COLORS.primaryMuted, marginBottom: SPACING.xs,
+    },
+    optionIconActive: { backgroundColor: COLORS.primary },
+    optionLabel: { fontFamily: FONTS.bodyBold, fontSize: FONT_SIZES.sm, color: COLORS.textPrimary },
+    optionLabelActive: { color: COLORS.primary },
+    optionDescription: { fontFamily: FONTS.body, fontSize: FONT_SIZES.xs, color: COLORS.textSecondary, marginTop: 2, lineHeight: 15 },
+    emptySearchText: {
+        fontFamily: FONTS.body,
+        fontSize: FONT_SIZES.sm,
+        color: COLORS.textSecondary,
+        textAlign: 'center',
+        marginVertical: SPACING.lg,
     },
 
     // Content
@@ -1136,7 +1421,8 @@ const styles = StyleSheet.create({
     cityGrid: {
         flexDirection: 'row',
         flexWrap: 'wrap',
-        gap: SPACING.md,
+        justifyContent: 'space-between',
+        rowGap: SPACING.sm + 4,
     },
     cityCard: {
         width: '47%',
@@ -1936,6 +2222,7 @@ const styles = StyleSheet.create({
     reviewRowText: { flex: 1 },
     reviewRowLabel: { fontFamily: FONTS.bodyMedium, fontSize: FONT_SIZES.xs, color: COLORS.textLight, marginBottom: 2 },
     reviewRowValue: { fontFamily: FONTS.bodySemiBold, fontSize: FONT_SIZES.sm, color: COLORS.textPrimary, lineHeight: 19 },
+    reviewWarning: { backgroundColor: 'rgba(183, 121, 31, 0.10)' },
     reviewNotice: { flexDirection: 'row', alignItems: 'flex-start', gap: SPACING.sm, backgroundColor: COLORS.primaryMuted, borderRadius: BORDER_RADIUS.lg, padding: SPACING.md, marginTop: SPACING.md },
     reviewNoticeText: { flex: 1, fontFamily: FONTS.body, fontSize: FONT_SIZES.sm, color: COLORS.textSecondary, lineHeight: 20 },
 
@@ -2107,12 +2394,39 @@ const styles = StyleSheet.create({
     bottomNav: {
         flexDirection: 'row',
         alignItems: 'center',
-        justifyContent: 'space-between',
+        gap: SPACING.sm,
         paddingHorizontal: SPACING.md,
-        paddingVertical: SPACING.md,
+        paddingTop: SPACING.sm + 4,
         backgroundColor: COLORS.surface,
         borderTopWidth: 1,
         borderTopColor: COLORS.border,
+    },
+    backCircle: {
+        width: 50,
+        height: 50,
+        borderRadius: 25,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: COLORS.surfaceAlt,
+        borderWidth: 1,
+        borderColor: COLORS.border,
+    },
+    backPill: {
+        flex: 1,
+        height: 50,
+        borderRadius: 25,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 6,
+        backgroundColor: COLORS.surfaceAlt,
+        borderWidth: 1,
+        borderColor: COLORS.border,
+    },
+    backPillText: {
+        fontFamily: FONTS.bodySemiBold,
+        fontSize: FONT_SIZES.md,
+        color: COLORS.textPrimary,
     },
     backBtn: {
         flexDirection: 'row',
@@ -2129,20 +2443,20 @@ const styles = StyleSheet.create({
     },
     nextBtnWrapper: {
         flex: 1,
-        alignItems: 'flex-end',
+        borderRadius: BORDER_RADIUS.full,
+        overflow: 'hidden',
     },
     nextBtn: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        paddingVertical: SPACING.sm + 2,
+        height: 50,
         paddingHorizontal: SPACING.lg,
         borderRadius: BORDER_RADIUS.full,
-        minWidth: 120,
     },
     nextBtnText: {
         fontFamily: FONTS.bodyBold,
         fontSize: FONT_SIZES.md,
         color: '#fff',
     },
-});
+}));

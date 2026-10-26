@@ -23,21 +23,23 @@ import ThemeSettingsScreen from '../screens/profile/ThemeSettingsScreen';
 import MapScreen from '../screens/map/MapScreen';
 import EtkinliklerScreen from '../screens/discover/EtkinliklerScreen';
 import PasswordResetScreen from '../screens/auth/PasswordResetScreen';
+import { createThemedStyles } from '../utils/themedStyles';
 
 const Tab = createBottomTabNavigator();
 const HomeStack = createNativeStackNavigator();
 const SavedStack = createNativeStackNavigator();
 const ProfileStack = createNativeStackNavigator();
 
-const stackScreenOptions = {
+// Fonksiyon: tema değişince başlık renkleri yeniden okunur.
+const stackScreenOptions = () => ({
     headerStyle: { backgroundColor: COLORS.surface },
     headerTintColor: COLORS.textPrimary,
     headerTitleStyle: { fontFamily: FONTS.heading, fontSize: 18 },
     headerShadowVisible: false,
-};
+});
 
 const HomeStackNavigator = () => (
-    <HomeStack.Navigator screenOptions={stackScreenOptions}>
+    <HomeStack.Navigator screenOptions={stackScreenOptions()}>
         <HomeStack.Screen name="HomeMain" component={HomeScreen} options={{ headerShown: false }} />
         <HomeStack.Screen name="CreateItinerary" component={CreateItineraryScreen} options={{ headerShown: false }} />
         <HomeStack.Screen name="MapScreen" component={MapScreen} options={{ headerShown: false }} />
@@ -49,7 +51,7 @@ const HomeStackNavigator = () => (
 );
 
 const SavedStackNavigator = () => (
-    <SavedStack.Navigator screenOptions={stackScreenOptions}>
+    <SavedStack.Navigator screenOptions={stackScreenOptions()}>
         <SavedStack.Screen name="SavedList" component={SavedItinerariesScreen} options={{ title: 'Planlarım' }} />
         <SavedStack.Screen name="ItineraryDetail" component={ItineraryDetailScreen} options={{ headerShown: false }} />
         <SavedStack.Screen name="MapScreen" component={MapScreen} options={{ headerShown: false }} />
@@ -57,7 +59,7 @@ const SavedStackNavigator = () => (
 );
 
 const ProfileStackNavigator = () => (
-    <ProfileStack.Navigator screenOptions={stackScreenOptions}>
+    <ProfileStack.Navigator screenOptions={stackScreenOptions()}>
         <ProfileStack.Screen name="ProfileMain" component={ProfileScreen} options={{ headerShown: false }} />
         <ProfileStack.Screen name="ProfileMenu" component={MenuScreen} options={{ headerShown: false }} />
         <ProfileStack.Screen name="ItineraryDetail" component={ItineraryDetailScreen} options={{ headerShown: false }} />
@@ -109,12 +111,12 @@ const AnimatedTabIcon = ({ name, focused, color }) => {
     );
 };
 
-const tabIconStyles = StyleSheet.create({
+const tabIconStyles = createThemedStyles(() => ({
     container: { alignItems: 'center', justifyContent: 'center', width: 44, height: 36 },
     iconWrap: { padding: 4, borderRadius: 10 },
     iconWrapActive: { backgroundColor: COLORS.primaryMuted },
     dot: { width: 4, height: 4, borderRadius: 2, backgroundColor: COLORS.primary, marginTop: 1 },
-});
+}));
 
 const TabsWithFloating = () => {
     const insets = useSafeAreaInsets();
@@ -167,6 +169,6 @@ const MainNavigator = () => (
     </RootStack.Navigator>
 );
 
-const styles = StyleSheet.create({ root: { flex: 1 } });
+const styles = createThemedStyles(() => ({ root: { flex: 1 } }));
 
 export default MainNavigator;

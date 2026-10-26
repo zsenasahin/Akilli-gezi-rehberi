@@ -9,6 +9,8 @@ import { supabase } from '../config/supabase';
 import { batchGeocodeForCity, countMissingCoords } from './geocodingService';
 import { estimateDuration, estimateClosingHour } from '../algorithms/smartDuration';
 import { getCityCenter } from '../constants/cities';
+import { normalizeImageUrl } from '../utils/imageUrl';
+import { getPlaceImage } from '../constants/placeImages';
 import yerlerData from '../data/turkiye_gezilecek_yerler.json';
 import detayData from '../data/turkiye_gezilecek_yerler_detay.json';
 
@@ -21,6 +23,39 @@ try {
 }
 
 const BASE_IMAGE_URL = 'https://www.kulturportali.gov.tr';
+
+// ─── Galeri temizliği ─────────────────────────────────────────────────────────
+// Kültür Portalı sayfalarındaki "diğer yerler" önerilerinin küçük resimleri,
+// kazıma sırasında yerlerin galerisine karışmış (ör. Adana Taş Köprü galerisinde
+// Antalya'daki Ariassos ve Nemrut fotoğrafları). Gerçek bir yer fotoğrafı yalnızca
+// o yere aittir; birden çok yerde geçen fotoğraflar galeriden çıkarılır.
+const photoKey = (url = '') => String(url).split('?')[0].replace(/\/(large|small|medium)\//i, '/').toLowerCase();
+const PHOTO_USAGE = (() => {
+    const usage = new Map();
+    for (const city of Object.values(detayData)) {
+        for (const place of city.yerler || []) {
+            for (const key of new Set((place.fotograflar || []).map(photoKey))) {
+                usage.set(key, (usage.get(key) || 0) + 1);
+            }
+        }
+    }
+    return usage;
+})();
+
+/** Ana fotoğrafı başa koyar, başka yerlere ait fotoğrafları ve tekrarları atar. */
+export function cleanGallery(mainImage, gallery = []) {
+    const seen = new Set();
+    const result = [];
+    for (const url of [mainImage, ...(Array.isArray(gallery) ? gallery : [])]) {
+        if (!url) continue;
+        const key = photoKey(url);
+        if (seen.has(key)) continue;
+        if (url !== mainImage && (PHOTO_USAGE.get(key) || 0) > 1) continue;
+        seen.add(key);
+        result.push(normalizeImageUrl(url));
+    }
+    return result;
+}
 
 // ─── Kategori tahmini ─────────────────────────────────────────────────────────
 
@@ -72,9 +107,9 @@ function normalizeStr(str) {
 
 function normalizePlace(yer, idx) {
     const category = getCategory(yer.Baslik || '', yer.Url || '');
-    const imageUrl = yer.ana_fotograf
+    const imageUrl = normalizeImageUrl(yer.ana_fotograf
         ? yer.ana_fotograf
-        : yer.Resim ? `${BASE_IMAGE_URL}${yer.Resim}` : null;
+        : yer.Resim ? `${BASE_IMAGE_URL}${yer.Resim}` : null);
 
     const slug = yer.Url?.split('/').pop() || `place-${idx}`;
 
@@ -98,7 +133,7 @@ function normalizePlace(yer, idx) {
         imageUrl,
         short_description: yer.aciklama || null,
         description: yer.aciklama || null,
-        gallery: yer.fotograflar?.length ? yer.fotograflar : (imageUrl ? [imageUrl] : []),
+        gallery: cleanGallery(imageUrl, yer.fotograflar),
         lat,
         lng,
         avg_duration: smartDuration,
@@ -139,7 +174,7 @@ function findCityData(cityName) {
 export async function loadCityPlaces(city, onProgress) {
     // Süre kuralları güncellendiğinde eski 1 saatlik tahminleri kullanmamak için
     // sürümlü cache anahtarı kullanıyoruz.
-    const CACHE_KEY = `published_places_v1_${city.id ?? city.name}`;
+    const CACHE_KEY = placesCacheKey(city);
 
     const cached = await cache.get(CACHE_KEY);
     if (cached?.length) {
@@ -163,9 +198,10 @@ export async function loadCityPlaces(city, onProgress) {
             if (!error && data?.length) {
                 const published = data.map(place => ({
                     ...place,
-                    imageUrl: place.image_url,
+                    image_url: normalizeImageUrl(place.image_url),
+                    imageUrl: normalizeImageUrl(place.image_url),
                     description: place.description || place.short_description,
-                    gallery: Array.isArray(place.gallery) ? place.gallery : [],
+                    gallery: cleanGallery(place.image_url, place.gallery),
                     avg_duration: place.avg_duration || null,
                     source: 'database',
                 }));
@@ -214,8 +250,15 @@ export async function loadPlaceDetail(place) {
     return place;
 }
 
-export async function refreshCity(cityName) {
-    await cache.invalidate(`kp_places_v3_${cityName}`);
-    await cache.invalidate(`kp_places_v2_${cityName}`); // eski cache'i de temizle
-    await cache.invalidate(`geocode_coords_v2_${cityName}`);
+const placesCacheKey = (city) => `published_places_v4_${city.id ?? city.name}`;
+
+/**
+ * Şehrin yer önbelleğini temizler. `city` bir şehir nesnesi ({ id, name })
+ * veya geriye dönük uyumluluk için yalnızca şehir adı olabilir.
+ */
+export async function refreshCity(city) {
+    const cityObj = typeof city === 'string' ? { name: city } : city;
+    await cache.invalidate(placesCacheKey(cityObj));
+    if (cityObj.id != null) await cache.invalidate(placesCacheKey({ name: cityObj.name }));
+    await cache.invalidate(`geocode_coords_v2_${cityObj.name}`);
 }

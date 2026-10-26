@@ -57,7 +57,11 @@ export const createItinerary = async ({
             .from('itinerary_items')
             .insert(itemsToInsert);
 
-        if (itemsError) return { data: itinerary, error: itemsError };
+        if (itemsError) {
+            // Yarım plan (item'sız itinerary) bırakmamak için geri al.
+            await supabase.from('itineraries').delete().eq('id', itinerary.id);
+            return { data: null, error: itemsError };
+        }
     }
 
     return { data: itinerary, error: null };
@@ -68,7 +72,7 @@ export const getItinerariesByUser = async (userId) => {
         .from('itineraries')
         .select(`
             *,
-            cities ( name ),
+            cities ( name, region, image_url ),
             itinerary_items ( id ),
             plan
         `)
@@ -85,7 +89,7 @@ export const getItineraryById = async (itineraryId) => {
             has_accommodation, has_transport,
             start_location_lat, start_location_lng,
             start_date, total_budget, plan, created_at,
-            cities ( name ),
+            cities ( name, region, image_url ),
             itinerary_items (
                 id, place_id, day_number, order_index, is_completed,
                 places (

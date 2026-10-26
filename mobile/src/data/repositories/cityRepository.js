@@ -1,5 +1,6 @@
 import { supabase } from '../../config/supabase';
 import { cache, TTL } from '../../services/cacheService';
+import { normalizeImageUrl } from '../../utils/imageUrl';
 
 /**
  * CityRepository – `cities` tablosu okuma işlemleri.
@@ -16,8 +17,13 @@ export const getCities = async (forceRefresh = false) => {
         .order('name', { ascending: true });
 
     if (!error && data) {
-        await cache.set(CACHE_KEY, data, TTL.LONG);
-        return { data, error: null, fromCache: false };
+        const normalized = data.map(city => ({
+            ...city,
+            image_url: normalizeImageUrl(city.image_url),
+            hero_image_url: normalizeImageUrl(city.hero_image_url || city.image_url),
+        }));
+        await cache.set(CACHE_KEY, normalized, TTL.LONG);
+        return { data: normalized, error: null, fromCache: false };
     }
 
     // Ağ hatası varsa cache ile devam et (offline/fallback).

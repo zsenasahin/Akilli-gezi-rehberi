@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { COLORS } from '../../constants/colors';
 import { FONT_SIZES } from '../../constants/typography';
 import { BORDER_RADIUS, SPACING } from '../../constants/layout';
+import { createThemedStyles } from '../../utils/themedStyles';
 
 /**
  * Inline error banner with optional retry action.
@@ -20,9 +21,9 @@ const ErrorMessage = ({ message, onRetry }) => (
     </View>
 );
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles(() => ({
     container: {
-        backgroundColor: '#FEF2F2', // light red tint
+        backgroundColor: 'rgba(181,82,59,0.12)', // light red tint
         borderRadius: BORDER_RADIUS.md,
         padding: SPACING.md,
         marginVertical: SPACING.sm,
@@ -43,6 +44,6 @@ const styles = StyleSheet.create({
         fontSize: FONT_SIZES.sm,
         fontFamily: 'Inter_600SemiBold',
     },
-});
+}));
 
 export default ErrorMessage;

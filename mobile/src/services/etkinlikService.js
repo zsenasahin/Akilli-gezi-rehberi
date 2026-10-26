@@ -4,6 +4,7 @@
  */
 
 import { cache, TTL } from './cacheService';
+import { normalizeImageUrl } from '../utils/imageUrl';
 
 const API_URL = 'https://www.kulturportali.gov.tr/Etkinlikler.aspx/EtkinlikFilitreliGetir';
 const BASE_URL = 'https://www.kulturportali.gov.tr';
@@ -81,7 +82,7 @@ function normalizeEtkinlik(e) {
         il: e.Il || '',
         aciklama: e.Aciklama || '',
         adres: (e.Adres || '').replace(/\n/g, ', ').trim(),
-        imageUrl: e.Resim ? `${BASE_URL}${e.Resim}` : null,
+        imageUrl: e.Resim ? normalizeImageUrl(`${BASE_URL}${e.Resim}`) : null,
         lokasyon: e.Lokasyon || null,
         url: e.Url ? `${BASE_URL}${e.Url}` : null,
         toplam: e.KayitSayisi || 0,

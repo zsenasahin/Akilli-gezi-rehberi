@@ -4,7 +4,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useFonts, Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold } from '@expo-google-fonts/inter';
 import { AuthProvider } from './src/contexts/AuthContext';
-import { ThemeProvider } from './src/contexts/ThemeContext';
+import { ThemeProvider, useThemePreference } from './src/contexts/ThemeContext';
 import AppNavigator from './src/navigation/AppNavigator';
 import LoadingSpinner from './src/components/common/LoadingSpinner';
 import { initPrefetch } from './src/services/prefetchService';
@@ -37,11 +37,25 @@ export default function App() {
       <SafeAreaProvider>
         <AuthProvider>
           <ThemeProvider>
-            <StatusBar style="auto" translucent={false} />
-            <AppNavigator />
+            <ThemedApp />
           </ThemeProvider>
         </AuthProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
+  );
+}
+
+/**
+ * Tema değişince tüm ağaç yeniden çizilir (key), böylece temalı stiller yeni
+ * renkleri alır. Gezinme durumu AppNavigator içinde saklandığı için kullanıcı
+ * bulunduğu ekranda kalır.
+ */
+function ThemedApp() {
+  const { theme } = useThemePreference();
+  return (
+    <>
+      <StatusBar style={theme.isDark ? 'light' : 'dark'} />
+      <AppNavigator key={theme.key} />
+    </>
   );
 }

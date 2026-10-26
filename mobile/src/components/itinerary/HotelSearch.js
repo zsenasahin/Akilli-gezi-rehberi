@@ -3,6 +3,7 @@ import { View, Text, TextInput, TouchableOpacity, FlatList, ActivityIndicator, S
 import { Ionicons } from '@expo/vector-icons';
 import { searchLocation } from '../../services/geocoding';
 import { COLORS } from '../../constants/colors';
+import { createThemedStyles } from '../../utils/themedStyles';
 
 export default function HotelSearch({ onSelectLocation }) {
   const [query, setQuery] = useState('');
@@ -76,7 +77,7 @@ export default function HotelSearch({ onSelectLocation }) {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles(() => ({
   container: {
     marginVertical: 15,
   },
@@ -95,7 +96,7 @@ const styles = StyleSheet.create({
   searchBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F3F4F6',
+    backgroundColor: COLORS.surfaceAlt,
     borderRadius: 12,
     paddingHorizontal: 12,
     height: 50,
@@ -110,7 +111,7 @@ const styles = StyleSheet.create({
   },
   resultsContainer: {
     marginTop: 8,
-    backgroundColor: '#fff',
+    backgroundColor: COLORS.surface,
     borderRadius: 12,
     borderWidth: 1,
     borderColor: '#E5E7EB',
@@ -121,7 +122,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
+    borderBottomColor: '#EFEBE1',
   },
   resultTextContainer: {
     marginLeft: 12,
@@ -137,4 +138,4 @@ const styles = StyleSheet.create({
     color: COLORS.textLight,
     marginTop: 2,
   },
-});
+}));

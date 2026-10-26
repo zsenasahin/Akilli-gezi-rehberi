@@ -2,13 +2,12 @@
  * EtkinliklerScreen — Türkiye geneli kültürel etkinlikler
  */
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, memo } from 'react';
 import {
     View, Text, StyleSheet, FlatList, TouchableOpacity,
     ActivityIndicator, Linking, Animated, Platform,
     TextInput, Modal, ScrollView,
 } from 'react-native';
-import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -18,18 +17,20 @@ import { SPACING, BORDER_RADIUS } from '../../constants/layout';
 import { getEtkinlikler } from '../../services/etkinlikService';
 import { getTurizmAktiviteleri } from '../../services/turizmAktiviteService';
 import { useThemePreference } from '../../contexts/ThemeContext';
+import SmartImage from '../../components/common/SmartImage';
+import { createThemedStyles } from '../../utils/themedStyles';
 
 const SCREEN_W = require('react-native').Dimensions.get('window').width;
 const BASE_URL = 'https://www.kulturportali.gov.tr';
 
 const TUR_COLORS = {
-    'Sergi': { bg: '#EDE9FE', text: '#7C3AED' },
-    'Konser': { bg: '#FEF3C7', text: '#D97706' },
-    'Tiyatro': { bg: '#FCE7F3', text: '#DB2777' },
-    'Festival': { bg: '#D1FAE5', text: '#059669' },
-    'Yarışma': { bg: '#DBEAFE', text: '#2563EB' },
-    'Sempozyum': { bg: '#F3F4F6', text: '#374151' },
-    'Konferans': { bg: '#F3F4F6', text: '#374151' },
+    'Sergi': { bg: COLORS.earthLight, text: '#7A5C42' },
+    'Konser': { bg: COLORS.accentLight, text: '#9C7230' },
+    'Tiyatro': { bg: COLORS.earthLight, text: '#93594B' },
+    'Festival': { bg: COLORS.primaryMuted, text: '#4F6342' },
+    'Yarışma': { bg: 'rgba(90,125,140,0.14)', text: '#5A7D8C' },
+    'Sempozyum': { bg: COLORS.surfaceAlt, text: COLORS.textPrimary },
+    'Konferans': { bg: COLORS.surfaceAlt, text: COLORS.textPrimary },
 };
 
 function getTurStyle(tur) {
@@ -37,6 +38,33 @@ function getTurStyle(tur) {
 }
 
 const FALLBACK_IMAGE = 'https://images.unsplash.com/photo-1533174072545-7a4b6ad7a6c3?w=600&h=400&fit=crop&q=80';
+
+// 551 aktivitenin hepsi tek seferde çizildiğinde JS iş parçacığı saniyelerce
+// kilitleniyor, dokunuşlar kuyrukta bekliyordu. Kartlar FlatList ile yalnızca
+// görünür olanlar kadar çizilir ve memo sayesinde modal açılıp kapanırken
+// yeniden çizilmez.
+const ActivityCard = memo(({ activity, onPress }) => (
+    <TouchableOpacity
+        style={styles.activityCard}
+        activeOpacity={0.86}
+        onPress={() => onPress(activity)}
+    >
+        <SmartImage thumbnail uri={activity.imageUrl || FALLBACK_IMAGE} style={styles.activityImage} contentFit="cover" transition={200} />
+        <LinearGradient colors={['transparent', 'rgba(0,0,0,0.76)']} style={StyleSheet.absoluteFill} />
+        <View style={styles.activityBadge}>
+            <Text style={styles.activityBadgeText}>{activity.type}</Text>
+        </View>
+        <View style={styles.activityBody}>
+            <Text style={styles.activityTitle} numberOfLines={2}>{activity.title}</Text>
+            <View style={styles.activityMeta}>
+                <Ionicons name="location-outline" size={12} color="rgba(255,255,255,0.78)" />
+                <Text style={styles.activityCity}>{activity.city}</Text>
+            </View>
+        </View>
+    </TouchableOpacity>
+));
+
+const ActivitySeparator = () => <View style={{ height: SPACING.sm }} />;
 
 export default function EtkinliklerScreen({ navigation, route }) {
     const insets = useSafeAreaInsets();
@@ -80,7 +108,15 @@ export default function EtkinliklerScreen({ navigation, route }) {
         loadEtkinlikler(1);
     }, [loadEtkinlikler, tourismOnly]);
 
-    const turizmAktiviteleri = getTurizmAktiviteleri({ cityName: filterIl, search });
+    const turizmAktiviteleri = useMemo(
+        () => getTurizmAktiviteleri({ cityName: filterIl, search }),
+        [filterIl, search],
+    );
+    const openActivity = useCallback((activity) => setSelectedActivity(activity), []);
+    const renderActivity = useCallback(
+        ({ item }) => <ActivityCard activity={item} onPress={openActivity} />,
+        [openActivity],
+    );
 
     useEffect(() => {
         if (!selectedActivityId) return;
@@ -103,47 +139,21 @@ export default function EtkinliklerScreen({ navigation, route }) {
         )
         : etkinlikler;
 
-    const renderTurizmSection = () => {
-        if (turizmAktiviteleri.length === 0) return null;
-        return (
-            <View style={[styles.turizmSection, tourismOnly && styles.turizmSectionOnly]}>
-                <View style={styles.turizmHeader}>
-                    <View>
-                        <Text style={styles.turizmTitle}>Turizm Aktiviteleri</Text>
-                        <Text style={styles.turizmSub}>
-                            {filterIl ? `${filterIl} için ${turizmAktiviteleri.length} aktivite` : `${turizmAktiviteleri.length} Kültür Portalı rotası`}
-                        </Text>
-                    </View>
-                    <View style={styles.kpBadge}>
-                        <Text style={styles.kpBadgeText}>Kültür Portalı</Text>
-                    </View>
+    const renderTurizmHeader = () => (
+        <View style={[styles.turizmSection, styles.turizmSectionOnly]}>
+            <View style={styles.turizmHeader}>
+                <View>
+                    <Text style={styles.turizmTitle}>Turizm Aktiviteleri</Text>
+                    <Text style={styles.turizmSub}>
+                        {filterIl ? `${filterIl} için ${turizmAktiviteleri.length} aktivite` : `${turizmAktiviteleri.length} Kültür Portalı rotası`}
+                    </Text>
                 </View>
-                <View style={styles.activityGrid}>
-                    {turizmAktiviteleri.map((activity) => (
-                        <TouchableOpacity
-                            key={activity.id}
-                            style={styles.activityCard}
-                            activeOpacity={0.86}
-                            onPress={() => setSelectedActivity(activity)}
-                        >
-                            <Image source={{ uri: activity.imageUrl || FALLBACK_IMAGE }} style={styles.activityImage} contentFit="cover" transition={300} />
-                            <LinearGradient colors={['transparent', 'rgba(0,0,0,0.76)']} style={StyleSheet.absoluteFillObject} />
-                            <View style={styles.activityBadge}>
-                                <Text style={styles.activityBadgeText}>{activity.type}</Text>
-                            </View>
-                            <View style={styles.activityBody}>
-                                <Text style={styles.activityTitle} numberOfLines={2}>{activity.title}</Text>
-                                <View style={styles.activityMeta}>
-                                    <Ionicons name="location-outline" size={12} color="rgba(255,255,255,0.78)" />
-                                    <Text style={styles.activityCity}>{activity.city}</Text>
-                                </View>
-                            </View>
-                        </TouchableOpacity>
-                    ))}
+                <View style={styles.kpBadge}>
+                    <Text style={styles.kpBadgeText}>Kültür Portalı</Text>
                 </View>
             </View>
-        );
-    };
+        </View>
+    );
 
     const renderItem = ({ item, index }) => {
         const turStyle = getTurStyle(item.tur);
@@ -155,15 +165,15 @@ export default function EtkinliklerScreen({ navigation, route }) {
             >
                 {/* Fotoğraf */}
                 <View style={styles.cardImageWrap}>
-                    <Image
-                        source={{ uri: item.imageUrl || FALLBACK_IMAGE }}
+                    <SmartImage
+                        thumbnail uri={item.imageUrl || FALLBACK_IMAGE}
                         style={styles.cardImage}
                         contentFit="cover"
                         transition={300}
                     />
                     <LinearGradient
                         colors={['transparent', 'rgba(0,0,0,0.5)']}
-                        style={StyleSheet.absoluteFillObject}
+                        style={StyleSheet.absoluteFill}
                     />
                     {/* Tarih badge */}
                     <View style={styles.dateBadge}>
@@ -239,29 +249,51 @@ export default function EtkinliklerScreen({ navigation, route }) {
                         <Text style={styles.retryText}>Tekrar Dene</Text>
                     </TouchableOpacity>
                 </View>
+            ) : tourismOnly ? (
+                <FlatList
+                    data={turizmAktiviteleri}
+                    keyExtractor={item => item.id}
+                    renderItem={renderActivity}
+                    ItemSeparatorComponent={ActivitySeparator}
+                    contentContainerStyle={styles.list}
+                    showsVerticalScrollIndicator={false}
+                    ListHeaderComponent={renderTurizmHeader()}
+                    ListEmptyComponent={(
+                        <View style={styles.center}>
+                            <Text style={styles.emptyEmoji}>🧭</Text>
+                            <Text style={styles.emptyText}>Aktivite bulunamadı</Text>
+                        </View>
+                    )}
+                    initialNumToRender={6}
+                    maxToRenderPerBatch={6}
+                    windowSize={7}
+                    removeClippedSubviews
+                    keyboardShouldPersistTaps="handled"
+                />
             ) : (
                 <FlatList
-                    data={tourismOnly ? [] : filtered}
+                    data={filtered}
                     keyExtractor={(_, i) => String(i)}
                     renderItem={renderItem}
                     contentContainerStyle={styles.list}
                     showsVerticalScrollIndicator={false}
-                    onEndReached={tourismOnly ? undefined : loadMore}
+                    onEndReached={loadMore}
                     onEndReachedThreshold={0.3}
-                    ListHeaderComponent={tourismOnly ? renderTurizmSection() : null}
-                    ListEmptyComponent={!tourismOnly ? (
+                    ListEmptyComponent={(
                         <View style={styles.center}>
                             <Text style={styles.emptyEmoji}>🎭</Text>
                             <Text style={styles.emptyText}>Etkinlik bulunamadı</Text>
                         </View>
-                    ) : null}
+                    )}
                     ListFooterComponent={
-                        !tourismOnly && loadingMore ? (
+                        loadingMore ? (
                             <View style={styles.footerLoader}>
                                 <ActivityIndicator size="small" color={COLORS.primary} />
                             </View>
                         ) : null
                     }
+                    initialNumToRender={6}
+                    windowSize={7}
                 />
             )}
 
@@ -278,15 +310,15 @@ export default function EtkinliklerScreen({ navigation, route }) {
                         <View style={styles.modalSheet}>
                             {/* Hero */}
                             <View style={styles.modalHero}>
-                                <Image
-                                    source={{ uri: selected.imageUrl || FALLBACK_IMAGE }}
+                                <SmartImage
+                                    uri={selected.imageUrl || FALLBACK_IMAGE}
                                     style={styles.modalHeroImage}
                                     contentFit="cover"
                                     transition={300}
                                 />
                                 <LinearGradient
                                     colors={['transparent', 'rgba(0,0,0,0.65)']}
-                                    style={StyleSheet.absoluteFillObject}
+                                    style={StyleSheet.absoluteFill}
                                 />
                                 <TouchableOpacity style={styles.modalClose} onPress={() => setSelected(null)}>
                                     <Ionicons name="close" size={20} color="#fff" />
@@ -389,13 +421,13 @@ export default function EtkinliklerScreen({ navigation, route }) {
                         <TouchableOpacity style={styles.modalBackdrop} onPress={() => setSelectedActivity(null)} />
                         <View style={styles.modalSheet}>
                             <View style={styles.modalHero}>
-                                <Image
-                                    source={{ uri: selectedActivity.imageUrl || FALLBACK_IMAGE }}
+                                <SmartImage
+                                    uri={selectedActivity.imageUrl || FALLBACK_IMAGE}
                                     style={styles.modalHeroImage}
                                     contentFit="cover"
                                     transition={300}
                                 />
-                                <LinearGradient colors={['transparent', 'rgba(0,0,0,0.68)']} style={StyleSheet.absoluteFillObject} />
+                                <LinearGradient colors={['transparent', 'rgba(0,0,0,0.68)']} style={StyleSheet.absoluteFill} />
                                 <TouchableOpacity style={styles.modalClose} onPress={() => setSelectedActivity(null)}>
                                     <Ionicons name="close" size={20} color="#fff" />
                                 </TouchableOpacity>
@@ -451,7 +483,7 @@ export default function EtkinliklerScreen({ navigation, route }) {
     );
 }
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles(() => ({
     container: { flex: 1, backgroundColor: COLORS.background },
 
     header: {
@@ -490,7 +522,7 @@ const styles = StyleSheet.create({
         elevation: 3,
     },
     cardImageWrap: { height: 180, position: 'relative' },
-    cardImage: { ...StyleSheet.absoluteFillObject },
+    cardImage: { ...StyleSheet.absoluteFill },
     dateBadge: {
         position: 'absolute', top: SPACING.sm, left: SPACING.sm,
         backgroundColor: COLORS.surface, borderRadius: BORDER_RADIUS.md,
@@ -565,9 +597,6 @@ const styles = StyleSheet.create({
         fontSize: 10,
         color: COLORS.primary,
     },
-    activityGrid: {
-        gap: SPACING.sm,
-    },
     activityCard: {
         height: 168,
         borderRadius: BORDER_RADIUS.xl,
@@ -575,7 +604,7 @@ const styles = StyleSheet.create({
         backgroundColor: COLORS.surface,
     },
     activityImage: {
-        ...StyleSheet.absoluteFillObject,
+        ...StyleSheet.absoluteFill,
     },
     activityBadge: {
         position: 'absolute',
@@ -628,14 +657,14 @@ const styles = StyleSheet.create({
 
     // Modal
     modalOverlay: { flex: 1, justifyContent: 'flex-end' },
-    modalBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.5)' },
+    modalBackdrop: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(0,0,0,0.5)' },
     modalSheet: {
         backgroundColor: COLORS.background,
         borderTopLeftRadius: 24, borderTopRightRadius: 24,
         maxHeight: '90%', overflow: 'hidden',
     },
     modalHero: { height: 220, position: 'relative' },
-    modalHeroImage: { ...StyleSheet.absoluteFillObject },
+    modalHeroImage: { ...StyleSheet.absoluteFill },
     modalClose: {
         position: 'absolute', top: 16, right: 16,
         width: 32, height: 32, borderRadius: 16,
@@ -677,4 +706,4 @@ const styles = StyleSheet.create({
         backgroundColor: COLORS.primaryMuted,
     },
     modalActionText: { fontFamily: FONTS.bodySemiBold, fontSize: FONT_SIZES.sm, color: '#fff' },
-});
+}));

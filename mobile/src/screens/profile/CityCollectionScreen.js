@@ -12,7 +12,6 @@ import {
 import { WebView } from 'react-native-webview';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { Image } from 'expo-image';
 import { useFocusEffect } from '@react-navigation/native';
 import { FONTS } from '../../constants/typography';
 import { SPACING } from '../../constants/layout';
@@ -21,6 +20,8 @@ import { useAuth } from '../../contexts/AuthContext';
 import { getCityImages } from '../../services/cityImageService';
 import { useThemePreference } from '../../contexts/ThemeContext';
 import { generateCityCollectionMapHtml } from '../../utils/turkeyMapHtml';
+import SmartImage from '../../components/common/SmartImage';
+import { createThemedStyles } from '../../utils/themedStyles';
 
 const CityCollectionScreen = ({ navigation }) => {
     const { user } = useAuth();
@@ -112,7 +113,7 @@ const CityCollectionScreen = ({ navigation }) => {
         const image = getCityImages(item.cityName);
         return (
             <View style={[styles.card, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
-                <Image source={{ uri: image.card }} style={styles.image} contentFit="cover" />
+                <SmartImage thumbnail uri={image.card} style={styles.image} contentFit="cover" />
                 <View style={styles.cardContent}>
                     <Text style={[styles.cityName, { color: theme.colors.text }]}>{item.cityName}</Text>
                     <Text style={[styles.meta, { color: theme.colors.textSecondary }]}>
@@ -176,7 +177,7 @@ const CityCollectionScreen = ({ navigation }) => {
                 <Animated.View style={[styles.content, styles.mapContent, animatedContentStyle]}>
                     <View style={styles.mapHeader}>
                         <View style={styles.legendItem}>
-                            <View style={[styles.legendDot, { backgroundColor: '#E76F51' }]} />
+                            <View style={[styles.legendDot, { backgroundColor: '#B0694A' }]} />
                             <Text numberOfLines={1} style={[styles.legendText, { color: theme.colors.textSecondary }]}>Gezilen şehirler</Text>
                         </View>
                         <View style={styles.legendItem}>
@@ -204,7 +205,7 @@ const CityCollectionScreen = ({ navigation }) => {
     );
 };
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles(() => ({
     safeArea: { flex: 1 },
     header: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: SPACING.md, paddingTop: 10, paddingBottom: 12 },
     backBtn: { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center' },
@@ -227,8 +228,8 @@ const styles = StyleSheet.create({
     legendDot: { width: 10, height: 10, borderRadius: 5 },
     legendText: { fontFamily: FONTS.body, fontSize: 12 },
     map: { flex: 1 },
-    loadingOverlay: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center', gap: 10 },
+    loadingOverlay: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center', gap: 10 },
     loadingText: { fontFamily: FONTS.body, fontSize: 13 },
-});
+}));
 
 export default CityCollectionScreen;

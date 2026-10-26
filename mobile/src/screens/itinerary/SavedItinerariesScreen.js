@@ -9,7 +9,6 @@ import {
     RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -27,6 +26,9 @@ import { formatDate } from '../../utils/formatters';
 import { SkeletonLoader } from '../../components/common/SkeletonLoader';
 import ErrorMessage from '../../components/common/ErrorMessage';
 import { useThemePreference } from '../../contexts/ThemeContext';
+import SmartImage from '../../components/common/SmartImage';
+import LottieView from 'lottie-react-native';
+import { createThemedStyles } from '../../utils/themedStyles';
 
 const SavedItinerariesScreen = ({ navigation }) => {
     const { user } = useAuth();
@@ -93,7 +95,11 @@ const SavedItinerariesScreen = ({ navigation }) => {
 
     const renderItineraryItem = ({ item, index }) => {
         const isCompleted = item.status === 'completed';
-        const itemCount = item.itinerary_items?.length || 0;
+        // Kültür Portalı yerleri yalnızca plan JSONB'de tutulur; DB item'ı yoksa oradan say.
+        const planStopCount = Array.isArray(item.plan)
+            ? item.plan.reduce((sum, day) => sum + (day?.places?.length || 0), 0)
+            : 0;
+        const itemCount = Math.max(item.itinerary_items?.length || 0, planStopCount);
         const cityImages = getCityImages(item.cities?.name, item.cities?.region);
 
         return (
@@ -105,8 +111,9 @@ const SavedItinerariesScreen = ({ navigation }) => {
                 >
                     {/* City image header */}
                     <View style={styles.cardImageContainer}>
-                        <Image
-                            source={{ uri: cityImages.card }}
+                        <SmartImage
+                            thumbnail uri={item.cities?.image_url || cityImages.card}
+                            fallbackUri={cityImages?.fallbackCard || cityImages?.card}
                             style={styles.cardImage}
                             contentFit="cover"
                             transition={300}
@@ -245,7 +252,12 @@ const SavedItinerariesScreen = ({ navigation }) => {
                         <ErrorMessage message={error} onRetry={fetchItineraries} />
                     ) : (
                         <View style={styles.emptyContainer}>
-                            <Ionicons name="map-outline" size={64} color={COLORS.textLight} />
+                            <LottieView
+                                source={require('../../../assets/animations/Travel is fun.json')}
+                                autoPlay
+                                loop
+                                style={{ width: 220, height: 170 }}
+                            />
                             <Text style={styles.emptyText}>
                                 {filter === 'ongoing'
                                     ? 'Devam eden planınız yok.'
@@ -264,7 +276,7 @@ const SavedItinerariesScreen = ({ navigation }) => {
     );
 };
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles(() => ({
     container: { flex: 1 },
 
     // ─── Filters ───
@@ -323,12 +335,14 @@ const styles = StyleSheet.create({
     cardImageContainer: {
         height: 130,
         position: 'relative',
+        // Fotoğraf yüklenene kadar (veya yüklenemezse) beyaz yazı koyu zeminde okunur
+        backgroundColor: '#2C3825',
     },
     cardImage: {
-        ...StyleSheet.absoluteFillObject,
+        ...StyleSheet.absoluteFill,
     },
     cardImageGradient: {
-        ...StyleSheet.absoluteFillObject,
+        ...StyleSheet.absoluteFill,
     },
     cardImageContent: {
         position: 'absolute',
@@ -342,6 +356,9 @@ const styles = StyleSheet.create({
         fontFamily: FONTS.heading,
         fontSize: FONT_SIZES.xl,
         color: '#fff',
+        textShadowColor: 'rgba(0,0,0,0.55)',
+        textShadowOffset: { width: 0, height: 1 },
+        textShadowRadius: 6,
     },
     statusBadge: {
         flexDirection: 'row',
@@ -427,6 +444,6 @@ const styles = StyleSheet.create({
         marginTop: SPACING.xs,
         textAlign: 'center',
     },
-});
+}));
 
 export default SavedItinerariesScreen;

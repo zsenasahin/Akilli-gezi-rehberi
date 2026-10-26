@@ -1,3 +1,4 @@
+import { normalizeImageUrl } from '../utils/imageUrl';
 /**
  * Gezilecek yerler için sabit resim URL'leri.
  * Supabase'deki places.image_url alanı boş olduğunda bu dosyadan fallback alınır.
@@ -121,12 +122,20 @@ const buildPlaceFallback = (placeName, category) => {
 export function getPlaceImage(placeName, dbImageUrl, category) {
     // 1. DB'de varsa onu kullan
     if (dbImageUrl && dbImageUrl.startsWith('http')) {
-        return dbImageUrl;
+        return normalizeImageUrl(dbImageUrl);
     }
 
     // 2. Sabit haritada varsa onu kullan
-    if (placeName && PLACE_IMAGES[placeName]) {
-        return PLACE_IMAGES[placeName];
+    if (placeName && typeof placeName === 'string') {
+        const trimmed = placeName.trim();
+        if (PLACE_IMAGES[trimmed]) {
+            return PLACE_IMAGES[trimmed];
+        }
+        const lower = trimmed.toLowerCase();
+        const matchedKey = Object.keys(PLACE_IMAGES).find(k => k.toLowerCase() === lower);
+        if (matchedKey && PLACE_IMAGES[matchedKey]) {
+            return PLACE_IMAGES[matchedKey];
+        }
     }
 
     // 3. Kategori bazlı fallback

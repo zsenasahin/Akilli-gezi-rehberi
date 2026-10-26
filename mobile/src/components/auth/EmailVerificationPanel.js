@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../../constants/colors';
 import { FONTS, FONT_SIZES } from '../../constants/typography';
 import { SPACING } from '../../constants/layout';
+import { createThemedStyles } from '../../utils/themedStyles';
 
 export default function EmailVerificationPanel({
   email,
@@ -51,7 +52,7 @@ export default function EmailVerificationPanel({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles(() => ({
   wrap: {
     paddingVertical: SPACING.sm,
   },
@@ -129,4 +130,4 @@ const styles = StyleSheet.create({
     fontSize: FONT_SIZES.sm,
     color: COLORS.primary,
   },
-});
+}));

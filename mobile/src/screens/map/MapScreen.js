@@ -12,6 +12,7 @@ import { SPACING, BORDER_RADIUS } from '../../constants/layout';
 import { getCityCenter } from '../../constants/cities';
 import { generateLeafletHtml } from '../../utils/leafletHtml';
 import { setPendingLocation } from '../../services/locationSelectionStore';
+import { createThemedStyles } from '../../utils/themedStyles';
 
 /**
  * MapScreen — Sadece harita görüntüleme modu.
@@ -158,7 +159,7 @@ const MapScreen = ({ route, navigation }) => {
     );
 };
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles(() => ({
     container: { flex: 1, backgroundColor: COLORS.background },
     header: {
         flexDirection: 'row', alignItems: 'center', gap: SPACING.sm,
@@ -194,7 +195,7 @@ const styles = StyleSheet.create({
     },
     selectionHintText: { flex: 1, fontSize: FONT_SIZES.sm, fontFamily: 'Inter_600SemiBold', color: '#fff' },
     mapLoading: {
-        ...StyleSheet.absoluteFillObject,
+        ...StyleSheet.absoluteFill,
         justifyContent: 'center', alignItems: 'center',
         backgroundColor: COLORS.background,
     },
@@ -218,6 +219,6 @@ const styles = StyleSheet.create({
     infoMapsBtnText: {
         fontSize: FONT_SIZES.xs, fontFamily: 'Inter_600SemiBold', color: COLORS.primary,
     },
-});
+}));
 
 export default MapScreen;

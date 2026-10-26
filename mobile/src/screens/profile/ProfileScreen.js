@@ -21,14 +21,15 @@ import SmartImage from '../../components/common/SmartImage';
 import { COLORS } from '../../constants/colors';
 import { FONTS } from '../../constants/typography';
 import { SPACING } from '../../constants/layout';
+import { getCityImages } from '../../services/cityImageService';
 import { useAuth } from '../../contexts/AuthContext';
 import { getProfile, updateProfile, uploadProfileMedia } from '../../services/profileService';
 import { getItinerariesByUser } from '../../services/itineraryService';
-import { signOut } from '../../services/authService';
 import useFavorites from '../../hooks/useFavorites';
 import { ProfileSkeleton } from '../../components/common/SkeletonLoader';
 import { buildBadges, buildTravelStats } from '../../services/achievementService';
 import { useThemePreference } from '../../contexts/ThemeContext';
+import { createThemedStyles } from '../../utils/themedStyles';
 
 const DEFAULT_COVER = require('../../../assets/doga.jpg');
 
@@ -118,6 +119,8 @@ const ProfileScreen = ({ navigation }) => {
             if (!acc[cityName]) {
                 acc[cityName] = {
                     cityName,
+                    region: itinerary?.cities?.region || null,
+                    imageUrl: itinerary?.cities?.image_url || null,
                     latestDate: itinerary.created_at || null,
                     planCount: 0,
                 };
@@ -245,23 +248,26 @@ const ProfileScreen = ({ navigation }) => {
         setEditing(false);
     };
 
-    const handleLogout = () => {
-        Alert.alert('Çıkış Yap', 'Oturumu kapatmak istediğine emin misin?', [
-            { text: 'İptal', style: 'cancel' },
-            { text: 'Çıkış Yap', style: 'destructive', onPress: async () => { await signOut(); } },
-        ]);
-    };
-
     if (loading) return <ProfileSkeleton />;
 
     const travelStats = buildTravelStats(itineraries);
     const styleLabel = TRAVEL_STYLES.find((item) => item.value === normalizeStyle(travelStyle))?.label || 'Tarz seçilmedi';
     const profileName = profile?.full_name || 'İsimsiz Gezgin';
     const visitedRatio = Math.min(100, Math.round((cityCollection.length / 81) * 100));
-    const earnedBadges = badges.filter((badge) => badge.earned).slice(0, 4);
+    const allEarned = badges.filter((badge) => badge.earned);
+    const earnedBadges = allEarned.slice(0, 4);
+    const nextBadge = badges.find((badge) => !badge.earned);
+    const activePlans = itineraries.filter((item) => item.status !== 'completed').length;
+
+    const quickActions = [
+        { key: 'saved', label: 'Planlarım', meta: activePlans ? `${activePlans} aktif plan` : 'Rotalarını gör', icon: 'map', route: 'Saved', tint: '#4F6342' },
+        { key: 'favorites', label: 'Favoriler', meta: `${favorites.length} yer`, icon: 'heart', route: 'Favorites', tint: '#B5523B' },
+        { key: 'collection', label: 'Koleksiyon', meta: `${cityCollection.length} şehir`, icon: 'images', route: 'CityCollection', tint: '#5A7D8C' },
+        { key: 'badges', label: 'Rozetler', meta: `${allEarned.length}/${badges.length} kazanıldı`, icon: 'ribbon', route: 'Badges', tint: '#B8893A' },
+    ];
 
     return (
-        <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.colors.background }]} edges={['top']}>
+        <View style={[styles.safeArea, { backgroundColor: theme.colors.background }]}>
             <StatusBar barStyle="light-content" />
             <ScrollView
                 style={[styles.container, { backgroundColor: theme.colors.background }]}
@@ -270,64 +276,74 @@ const ProfileScreen = ({ navigation }) => {
                 refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchData(); }} tintColor={COLORS.primaryDark} />}
             >
                 <Animated.View style={{ opacity: fadeAnim }}>
+                    {/* ── Kapak ── */}
                     <View style={styles.coverWrap}>
-                        {coverUri ? (
-                            <SmartImage uri={coverUri} style={styles.coverImage} contentFit="cover" />
-                        ) : (
-                            <SmartImage source={DEFAULT_COVER} style={styles.coverImage} contentFit="cover" />
-                        )}
-                        <LinearGradient colors={['rgba(11,18,16,0.06)', 'rgba(11,18,16,0.62)']} style={styles.coverOverlay} />
-                        <View style={styles.heroTopRow}>
-                            <TouchableOpacity style={styles.heroIconBtn} onPress={() => showMediaOptions('cover')} activeOpacity={0.85}>
+                        <SmartImage
+                            {...(coverUri ? { uri: coverUri } : { source: DEFAULT_COVER })}
+                            style={styles.coverImage}
+                            contentFit="cover"
+                        />
+                        <LinearGradient colors={['rgba(11,18,16,0.45)', 'rgba(11,18,16,0.05)', 'rgba(11,18,16,0.55)']} style={styles.coverOverlay} />
+                        <SafeAreaView edges={['top']} style={styles.heroTopRow}>
+                            <TouchableOpacity style={styles.heroIconBtn} onPress={() => showMediaOptions('cover')} activeOpacity={0.85} accessibilityLabel="Kapak fotoğrafını değiştir">
                                 <Ionicons name="image-outline" size={18} color="#fff" />
                             </TouchableOpacity>
                             <View style={styles.heroActionGroup}>
-                                <TouchableOpacity style={styles.heroIconBtn} onPress={() => setEditing((value) => !value)} activeOpacity={0.85}>
+                                <TouchableOpacity style={styles.heroIconBtn} onPress={() => setEditing((value) => !value)} activeOpacity={0.85} accessibilityLabel="Profili düzenle">
                                     <Ionicons name={editing ? 'close-outline' : 'create-outline'} size={20} color="#fff" />
                                 </TouchableOpacity>
-                                <TouchableOpacity style={styles.heroIconBtn} onPress={() => navigation.navigate('ProfileMenu')} activeOpacity={0.85}>
-                                    <Ionicons name="menu-outline" size={22} color="#fff" />
+                                <TouchableOpacity style={styles.heroIconBtn} onPress={() => navigation.navigate('ProfileMenu')} activeOpacity={0.85} accessibilityLabel="Menü">
+                                    <Ionicons name="settings-outline" size={19} color="#fff" />
                                 </TouchableOpacity>
                             </View>
-                        </View>
+                        </SafeAreaView>
                     </View>
 
-                    <View style={styles.profileMain}>
-                        <TouchableOpacity style={[styles.avatarWrap, { borderColor: theme.colors.background }]} onPress={() => showMediaOptions('avatar')} activeOpacity={0.86}>
+                    {/* ── Kimlik kartı ── */}
+                    <View style={[styles.identityCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
+                        <TouchableOpacity style={[styles.avatarWrap, { borderColor: theme.colors.surface }]} onPress={() => showMediaOptions('avatar')} activeOpacity={0.86}>
                             {avatarUri ? (
                                 <SmartImage uri={avatarUri} style={styles.avatarImage} contentFit="cover" />
                             ) : (
-                                <LinearGradient colors={[theme.colors.primary, '#17372D']} style={styles.avatarFallback}>
+                                <LinearGradient colors={[theme.colors.primary, '#303D29']} style={styles.avatarFallback}>
                                     <Text style={styles.avatarInitials}>{getInitials(profileName)}</Text>
                                 </LinearGradient>
                             )}
                             <View style={styles.avatarCamera}>
-                                <Ionicons name="camera-outline" size={14} color="#fff" />
+                                <Ionicons name="camera" size={13} color="#fff" />
                             </View>
                         </TouchableOpacity>
 
-                        <Text style={[styles.profileName, { color: theme.colors.text }]}>{profileName}</Text>
-                        <Text style={[styles.profileBio, { color: theme.colors.textSecondary }]}>{bio || 'Kendini, gezi tarzını ve bir sonraki rotanı birkaç cümleyle anlat.'}</Text>
-                        <View style={styles.badgeRow}>
-                            <View style={[styles.badgePill, { backgroundColor: theme.colors.pill }]}> 
-                                <Ionicons name="sparkles-outline" size={13} color={theme.colors.primary} />
-                                <Text style={[styles.badgeTxt, { color: theme.colors.primary }]}>{styleLabel}</Text>
-                            </View>
+                        <Text style={[styles.profileName, { color: theme.colors.text }]} numberOfLines={1}>{profileName}</Text>
+                        <View style={[styles.badgePill, { backgroundColor: theme.colors.pill }]}>
+                            <Ionicons name="sparkles" size={12} color={theme.colors.primary} />
+                            <Text style={[styles.badgeTxt, { color: theme.colors.primary }]}>{styleLabel}</Text>
                         </View>
+                        <Text style={[styles.profileBio, { color: theme.colors.textSecondary }]}>
+                            {bio || 'Kendini, gezi tarzını ve bir sonraki rotanı birkaç cümleyle anlat.'}
+                        </Text>
 
-                        <View style={styles.statGrid}>
-                            <InlineStat label="Şehir" value={cityCollection.length} icon="location-outline" theme={theme} />
-                            <InlineStat label="Favori" value={favorites.length} icon="heart-outline" theme={theme} />
-                            <InlineStat label="Plan" value={itineraries.length} icon="map-outline" theme={theme} />
-                            <InlineStat label="Rozet" value={earnedBadges.length} icon="ribbon-outline" theme={theme} />
+                        <View style={[styles.statGrid, { borderTopColor: theme.colors.border }]}>
+                            <InlineStat label="Şehir" value={cityCollection.length} theme={theme} />
+                            <View style={[styles.statDivider, { backgroundColor: theme.colors.border }]} />
+                            <InlineStat label="Plan" value={itineraries.length} theme={theme} />
+                            <View style={[styles.statDivider, { backgroundColor: theme.colors.border }]} />
+                            <InlineStat label="Km" value={travelStats.totalCompletedDistance} theme={theme} />
+                            <View style={[styles.statDivider, { backgroundColor: theme.colors.border }]} />
+                            <InlineStat label="Rozet" value={allEarned.length} theme={theme} />
                         </View>
                     </View>
 
                     {editing && (
-                        <View style={[styles.editPanel, { borderColor: theme.colors.border }]}> 
-                            <TextInput value={fullName} onChangeText={setFullName} placeholder="Ad soyad" placeholderTextColor="#6B7280" style={styles.editInput} />
-                            <TextInput value={bio} onChangeText={setBio} placeholder="Kısa bir biyografi" placeholderTextColor="#6B7280" style={[styles.editInput, styles.bioInput]} multiline maxLength={180} />
-                            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.styleList}>
+                        <View style={[styles.card, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
+                            <Text style={[styles.cardTitle, { color: theme.colors.text }]}>Profili düzenle</Text>
+                            <Text style={[styles.fieldLabel, { color: theme.colors.textSecondary }]}>Ad soyad</Text>
+                            <TextInput value={fullName} onChangeText={setFullName} placeholder="Ad soyad" placeholderTextColor={theme.colors.textLight} style={[styles.editInput, { color: theme.colors.text, borderColor: theme.colors.border, backgroundColor: theme.colors.surfaceSoft }]} />
+                            <Text style={[styles.fieldLabel, { color: theme.colors.textSecondary }]}>Hakkımda</Text>
+                            <TextInput value={bio} onChangeText={setBio} placeholder="Kısa bir biyografi" placeholderTextColor={theme.colors.textLight} style={[styles.editInput, styles.bioInput, { color: theme.colors.text, borderColor: theme.colors.border, backgroundColor: theme.colors.surfaceSoft }]} multiline maxLength={180} />
+                            <Text style={[styles.counter, { color: theme.colors.textLight }]}>{bio.length}/180</Text>
+                            <Text style={[styles.fieldLabel, { color: theme.colors.textSecondary }]}>Gezi tarzı</Text>
+                            <View style={styles.styleList}>
                                 {TRAVEL_STYLES.map((item) => (
                                     <TouchableOpacity
                                         key={item.value}
@@ -338,7 +354,7 @@ const ProfileScreen = ({ navigation }) => {
                                         <Text style={[styles.styleChipTxt, travelStyle === item.value && styles.styleChipTxtActive]}>{item.label}</Text>
                                     </TouchableOpacity>
                                 ))}
-                            </ScrollView>
+                            </View>
                             <View style={styles.editActions}>
                                 <TouchableOpacity style={styles.secondaryBtn} onPress={() => setEditing(false)}><Text style={styles.secondaryBtnTxt}>Vazgeç</Text></TouchableOpacity>
                                 <TouchableOpacity style={styles.primaryBtn} onPress={handleSave}><Text style={styles.primaryBtnTxt}>Kaydet</Text></TouchableOpacity>
@@ -346,22 +362,89 @@ const ProfileScreen = ({ navigation }) => {
                         </View>
                     )}
 
-                    <View style={styles.progressSection}>
-                        <View style={styles.statsHeader}>
-                            <Text style={[styles.statsTitle, { color: theme.colors.text }]}>Türkiye hedefi</Text>
-                            <Text style={[styles.statsMeta, { color: theme.colors.primary }]}>%{visitedRatio}</Text>
-                        </View>
-                        <View style={[styles.progressTrack, { backgroundColor: theme.colors.pill }]}> 
-                            <View style={[styles.progressFill, { width: `${Math.max(8, visitedRatio)}%`, backgroundColor: theme.colors.primary }]} />
-                        </View>
-                        <Text style={[styles.progressCaption, { color: theme.colors.textSecondary }]}>{cityCollection.length} / 81 şehir görüldü</Text>
+                    {/* ── Hızlı erişim ── */}
+                    <View style={styles.quickGrid}>
+                        {quickActions.map((action) => (
+                            <TouchableOpacity
+                                key={action.key}
+                                style={[styles.quickTile, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}
+                                onPress={() => navigation.navigate(action.route)}
+                                activeOpacity={0.85}
+                            >
+                                <View style={[styles.quickIcon, { backgroundColor: `${action.tint}1F` }]}>
+                                    <Ionicons name={action.icon} size={18} color={action.tint} />
+                                </View>
+                                <Text style={[styles.quickLabel, { color: theme.colors.text }]}>{action.label}</Text>
+                                <Text style={[styles.quickMeta, { color: theme.colors.textSecondary }]} numberOfLines={1}>{action.meta}</Text>
+                            </TouchableOpacity>
+                        ))}
                     </View>
 
-                    <View style={[styles.flatSection, { borderTopColor: theme.colors.border }]}> 
+                    {/* ── Türkiye hedefi ── */}
+                    <View style={[styles.card, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
+                        <View style={styles.statsHeader}>
+                            <View style={styles.goalTitleRow}>
+                                <Text style={styles.goalEmoji}>🇹🇷</Text>
+                                <View>
+                                    <Text style={[styles.cardTitle, { color: theme.colors.text }]}>Türkiye hedefi</Text>
+                                    <Text style={[styles.sectionSub, { color: theme.colors.textSecondary }]}>{cityCollection.length} / 81 şehir keşfedildi</Text>
+                                </View>
+                            </View>
+                            <Text style={[styles.goalPercent, { color: theme.colors.primary }]}>%{visitedRatio}</Text>
+                        </View>
+                        <View style={[styles.progressTrack, { backgroundColor: theme.colors.pill }]}>
+                            <LinearGradient
+                                colors={COLORS.gradients.primary}
+                                start={{ x: 0, y: 0 }}
+                                end={{ x: 1, y: 0 }}
+                                style={[styles.progressFill, { width: `${Math.max(4, visitedRatio)}%` }]}
+                            />
+                        </View>
+                        <View style={styles.goalFacts}>
+                            <GoalFact icon="checkmark-done-outline" value={travelStats.completedPlans} label="tamamlanan plan" theme={theme} />
+                            <GoalFact icon="navigate-outline" value={`${travelStats.totalCompletedDistance} km`} label="gezilen yol" theme={theme} />
+                        </View>
+                    </View>
+
+                    {/* ── Son şehirler ── */}
+                    {cityCollection.length > 0 && (
+                        <View style={styles.section}>
+                            <View style={[styles.sectionHeader, styles.sectionHeaderPadded]}>
+                                <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Son şehirlerin</Text>
+                                <TouchableOpacity style={styles.inlineBtn} onPress={() => navigation.navigate('CityCollection')}>
+                                    <Text style={styles.inlineBtnTxt}>Tümü</Text>
+                                </TouchableOpacity>
+                            </View>
+                            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.cityRow}>
+                                {cityCollection.slice(0, 8).map((city) => {
+                                    const images = getCityImages(city.cityName, city.region);
+                                    return (
+                                        <View key={city.cityName} style={styles.cityCard}>
+                                            <SmartImage
+                                                thumbnail
+                                                uri={city.imageUrl || images.card}
+                                                fallbackUri={images.fallbackCard}
+                                                style={styles.cityImage}
+                                                contentFit="cover"
+                                            />
+                                            <LinearGradient colors={['transparent', 'rgba(0,0,0,0.72)']} style={styles.coverOverlay} />
+                                            <View style={styles.cityText}>
+                                                <Text style={styles.cityName} numberOfLines={1}>{city.cityName}</Text>
+                                                <Text style={styles.cityMeta}>{city.planCount} plan</Text>
+                                            </View>
+                                        </View>
+                                    );
+                                })}
+                            </ScrollView>
+                        </View>
+                    )}
+
+                    {/* ── Rozetler ── */}
+                    <View style={[styles.card, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
                         <View style={styles.sectionHeader}>
                             <View>
-                                <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Rozetlerin</Text>
-                                <Text style={[styles.sectionSub, { color: theme.colors.textSecondary }]}>Kazandığın modern rozetler</Text>
+                                <Text style={[styles.cardTitle, { color: theme.colors.text }]}>Rozetlerin</Text>
+                                <Text style={[styles.sectionSub, { color: theme.colors.textSecondary }]}>{allEarned.length} / {badges.length} rozet kazanıldı</Text>
                             </View>
                             <TouchableOpacity style={styles.inlineBtn} onPress={() => navigation.navigate('Badges')}>
                                 <Text style={styles.inlineBtnTxt}>Tümü</Text>
@@ -376,97 +459,161 @@ const ProfileScreen = ({ navigation }) => {
                                                 <Ionicons name={badge.icon} size={20} color="#fff" />
                                             </View>
                                         </View>
-                                        <Text style={[styles.medalLabel, { color: theme.colors.text }]}>{badge.label}</Text>
+                                        <Text style={[styles.medalLabel, { color: theme.colors.text }]} numberOfLines={2}>{badge.label}</Text>
                                     </View>
                                 ))}
                             </View>
-                        ) : (
-                            <Text style={[styles.emptyTxt, { color: theme.colors.textSecondary }]}>İlk rozetin için bir şehir planını tamamlaman yeterli.</Text>
-                        )}
+                        ) : null}
+                        {nextBadge ? (
+                            <View style={[styles.nextBadge, { backgroundColor: theme.colors.surfaceSoft }]}>
+                                <View style={[styles.nextBadgeIcon, { borderColor: theme.colors.border }]}>
+                                    <Ionicons name={nextBadge.icon} size={16} color={theme.colors.textSecondary} />
+                                </View>
+                                <View style={{ flex: 1 }}>
+                                    <Text style={[styles.nextBadgeTitle, { color: theme.colors.text }]}>Sıradaki: {nextBadge.label}</Text>
+                                    <Text style={[styles.nextBadgeText, { color: theme.colors.textSecondary }]} numberOfLines={2}>
+                                        {nextBadge.description || 'Bir şehir planını tamamlayarak rozet kazanabilirsin.'}
+                                    </Text>
+                                </View>
+                            </View>
+                        ) : null}
                     </View>
 
-                    <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout} activeOpacity={0.85}>
-                        <Ionicons name="log-out-outline" size={18} color={COLORS.error} />
-                        <Text style={styles.logoutTxt}>Çıkış yap</Text>
-                    </TouchableOpacity>
                 </Animated.View>
             </ScrollView>
-        </SafeAreaView>
+        </View>
     );
 };
 
-const InlineStat = ({ label, value, icon, theme }) => (
+const InlineStat = ({ label, value, theme }) => (
     <View style={styles.statItem}>
-        <View style={[styles.statIconWrap, { backgroundColor: theme.colors.pill }]}>
-            <Ionicons name={icon} size={15} color={theme.colors.primary} />
-        </View>
+        <Text style={[styles.statValue, { color: theme.colors.text }]}>{value}</Text>
+        <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>{label}</Text>
+    </View>
+);
+
+const GoalFact = ({ icon, value, label, theme }) => (
+    <View style={[styles.goalFact, { backgroundColor: theme.colors.surfaceSoft }]}>
+        <Ionicons name={icon} size={16} color={theme.colors.primary} />
         <View>
-            <Text style={[styles.statValue, { color: theme.colors.text }]}>{value}</Text>
-            <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>{label}</Text>
+            <Text style={[styles.goalFactValue, { color: theme.colors.text }]}>{value}</Text>
+            <Text style={[styles.goalFactLabel, { color: theme.colors.textSecondary }]}>{label}</Text>
         </View>
     </View>
 );
 
-const styles = StyleSheet.create({
-    safeArea: { flex: 1, backgroundColor: '#F5F6F1' },
-    container: { flex: 1, backgroundColor: '#F5F6F1' },
-    content: { paddingBottom: 110 },
-    coverWrap: { height: 205, position: 'relative' },
+const CARD_SHADOW = {
+    shadowColor: '#1B1F1C',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.06,
+    shadowRadius: 16,
+    elevation: 2,
+};
+
+const styles = createThemedStyles(() => ({
+    safeArea: { flex: 1, backgroundColor: COLORS.background },
+    container: { flex: 1, backgroundColor: COLORS.background },
+    content: { paddingBottom: 120 },
+
+    coverWrap: { height: 230, position: 'relative' },
     coverImage: { width: '100%', height: '100%' },
-    coverOverlay: { ...StyleSheet.absoluteFillObject },
-    heroTopRow: { position: 'absolute', top: 16, left: 16, right: 16, flexDirection: 'row', justifyContent: 'space-between' },
+    coverOverlay: { ...StyleSheet.absoluteFill },
+    heroTopRow: { position: 'absolute', top: 0, left: 16, right: 16, paddingTop: 8, flexDirection: 'row', justifyContent: 'space-between' },
     heroActionGroup: { flexDirection: 'row', gap: 10 },
-    heroIconBtn: { width: 42, height: 42, borderRadius: 21, backgroundColor: 'rgba(15,26,22,0.34)', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.28)' },
-    profileMain: { alignItems: 'center', paddingHorizontal: SPACING.md, paddingBottom: 18, borderBottomWidth: 1, borderBottomColor: 'rgba(143,168,158,0.22)' },
-    avatarWrap: { width: 104, height: 104, borderRadius: 52, borderWidth: 4, marginTop: -52, overflow: 'visible', backgroundColor: '#17372D' },
-    avatarImage: { width: '100%', height: '100%', borderRadius: 52 },
-    avatarFallback: { width: '100%', height: '100%', borderRadius: 52, alignItems: 'center', justifyContent: 'center' },
+    heroIconBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(15,26,22,0.34)', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.28)' },
+
+    identityCard: {
+        marginHorizontal: SPACING.md,
+        marginTop: -64,
+        borderRadius: 24,
+        borderWidth: 1,
+        alignItems: 'center',
+        paddingHorizontal: SPACING.md,
+        paddingBottom: SPACING.md,
+        ...CARD_SHADOW,
+    },
+    avatarWrap: { width: 96, height: 96, borderRadius: 48, borderWidth: 4, marginTop: -48, backgroundColor: '#303D29' },
+    avatarImage: { width: '100%', height: '100%', borderRadius: 48 },
+    avatarFallback: { width: '100%', height: '100%', borderRadius: 48, alignItems: 'center', justifyContent: 'center' },
     avatarInitials: { fontFamily: FONTS.heading, fontSize: 30, color: '#fff' },
-    avatarCamera: { position: 'absolute', right: -2, bottom: 4, width: 28, height: 28, borderRadius: 14, backgroundColor: COLORS.primaryDark, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: '#fff' },
-    profileName: { fontFamily: FONTS.heading, fontSize: 27, color: '#13231C', textAlign: 'center' },
-    profileBio: { marginTop: 8, maxWidth: 310, fontFamily: FONTS.body, fontSize: 14, lineHeight: 20, color: '#33423C', textAlign: 'center' },
-    badgeRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 8, marginTop: 14 },
-    badgePill: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, backgroundColor: '#EAF2EC' },
-    badgeTxt: { fontFamily: FONTS.bodySemiBold, fontSize: 12, color: COLORS.primaryDark },
-    editPanel: { gap: 10, marginHorizontal: SPACING.md, paddingTop: 4, paddingBottom: 18, borderBottomWidth: 1 },
-    editInput: { borderRadius: 16, borderWidth: 1, borderColor: '#D6DFD8', backgroundColor: '#FBFCFB', paddingHorizontal: 14, paddingVertical: 11, fontFamily: FONTS.body, fontSize: 14, color: '#13231C' },
-    bioInput: { minHeight: 92, textAlignVertical: 'top' },
-    styleList: { gap: 8, paddingTop: 2, paddingBottom: 2 },
-    styleChip: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, backgroundColor: '#EEF3EF', borderWidth: 1, borderColor: '#D6DFD8' },
-    styleChipActive: { backgroundColor: '#17372D', borderColor: '#17372D' },
-    styleChipTxt: { fontFamily: FONTS.bodyMedium, fontSize: 12, color: '#43514B' },
+    avatarCamera: { position: 'absolute', right: -2, bottom: 2, width: 28, height: 28, borderRadius: 14, backgroundColor: COLORS.primary, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: COLORS.surface },
+    profileName: { marginTop: 10, fontFamily: FONTS.heading, fontSize: 24, color: COLORS.textPrimary, textAlign: 'center' },
+    badgePill: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999, marginTop: 6 },
+    badgeTxt: { fontFamily: FONTS.bodySemiBold, fontSize: 12 },
+    profileBio: { marginTop: 10, maxWidth: 320, fontFamily: FONTS.body, fontSize: 14, lineHeight: 20, textAlign: 'center' },
+
+    statGrid: { alignSelf: 'stretch', marginTop: SPACING.md, paddingTop: SPACING.md, borderTopWidth: 1, flexDirection: 'row', alignItems: 'center' },
+    statItem: { flex: 1, alignItems: 'center' },
+    statDivider: { width: 1, height: 28 },
+    statValue: { fontFamily: FONTS.heading, fontSize: 20, lineHeight: 24 },
+    statLabel: { fontFamily: FONTS.body, fontSize: 11, marginTop: 1 },
+
+    card: {
+        marginHorizontal: SPACING.md,
+        marginTop: SPACING.md,
+        borderRadius: 20,
+        borderWidth: 1,
+        padding: SPACING.md,
+        ...CARD_SHADOW,
+    },
+    cardTitle: { fontFamily: FONTS.bodySemiBold, fontSize: 16, color: COLORS.textPrimary },
+    fieldLabel: { fontFamily: FONTS.bodyMedium, fontSize: 12, marginTop: 12, marginBottom: 6 },
+    editInput: { borderRadius: 14, borderWidth: 1, paddingHorizontal: 14, paddingVertical: 11, fontFamily: FONTS.body, fontSize: 14 },
+    bioInput: { minHeight: 88, textAlignVertical: 'top' },
+    counter: { alignSelf: 'flex-end', fontFamily: FONTS.body, fontSize: 11, marginTop: 4 },
+    styleList: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+    styleChip: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, backgroundColor: COLORS.surfaceAlt, borderWidth: 1, borderColor: COLORS.border },
+    styleChipActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
+    styleChipTxt: { fontFamily: FONTS.bodyMedium, fontSize: 12, color: COLORS.textPrimary },
     styleChipTxtActive: { color: '#fff' },
-    editActions: { flexDirection: 'row', gap: 10, marginTop: 4 },
-    secondaryBtn: { flex: 1, borderRadius: 14, backgroundColor: '#EEF3EF', paddingVertical: 12, alignItems: 'center' },
-    secondaryBtnTxt: { fontFamily: FONTS.bodySemiBold, fontSize: 13, color: '#2F3D37' },
-    primaryBtn: { flex: 1.3, borderRadius: 14, backgroundColor: '#17372D', paddingVertical: 12, alignItems: 'center' },
-    primaryBtnTxt: { fontFamily: FONTS.bodySemiBold, fontSize: 13, color: '#fff' },
-    progressSection: { paddingHorizontal: SPACING.md, paddingTop: 20, paddingBottom: 18 },
+    editActions: { flexDirection: 'row', gap: 10, marginTop: SPACING.md },
+    secondaryBtn: { flex: 1, borderRadius: 14, backgroundColor: COLORS.surfaceAlt, paddingVertical: 13, alignItems: 'center' },
+    secondaryBtnTxt: { fontFamily: FONTS.bodySemiBold, fontSize: 14, color: COLORS.textPrimary },
+    primaryBtn: { flex: 1.3, borderRadius: 14, backgroundColor: COLORS.primary, paddingVertical: 13, alignItems: 'center' },
+    primaryBtnTxt: { fontFamily: FONTS.bodySemiBold, fontSize: 14, color: '#fff' },
+
+    quickGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginHorizontal: SPACING.md, marginTop: SPACING.md },
+    quickTile: { width: '48.5%', flexGrow: 1, flexBasis: '46%', borderRadius: 18, borderWidth: 1, padding: 14, ...CARD_SHADOW },
+    quickIcon: { width: 36, height: 36, borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginBottom: 10 },
+    quickLabel: { fontFamily: FONTS.bodySemiBold, fontSize: 14 },
+    quickMeta: { fontFamily: FONTS.body, fontSize: 12, marginTop: 2 },
+
     statsHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12 },
-    statsTitle: { fontFamily: FONTS.bodySemiBold, fontSize: 18, color: '#13231C' },
-    statsMeta: { fontFamily: FONTS.bodySemiBold, fontSize: 13, color: COLORS.primaryDark },
-    progressTrack: { height: 9, borderRadius: 999, backgroundColor: '#E7EEE9', marginTop: 14, overflow: 'hidden' },
-    progressFill: { height: '100%', borderRadius: 999, backgroundColor: COLORS.primaryDark },
-    progressCaption: { marginTop: 10, fontFamily: FONTS.body, fontSize: 13, color: '#66746E' },
-    statGrid: { width: '100%', marginTop: 18, flexDirection: 'row', justifyContent: 'space-between', gap: 8 },
-    statItem: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 },
-    statIconWrap: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
-    statValue: { fontFamily: FONTS.heading, fontSize: 20, color: '#13231C', lineHeight: 23 },
-    statLabel: { marginTop: -1, fontFamily: FONTS.body, fontSize: 11, color: '#66746E' },
-    flatSection: { paddingHorizontal: SPACING.md, paddingTop: 18, paddingBottom: 18, borderTopWidth: 1 },
+    goalTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+    goalEmoji: { fontSize: 26 },
+    goalPercent: { fontFamily: FONTS.heading, fontSize: 22 },
+    progressTrack: { height: 10, borderRadius: 999, marginTop: 14, overflow: 'hidden' },
+    progressFill: { height: '100%', borderRadius: 999 },
+    goalFacts: { flexDirection: 'row', gap: 10, marginTop: 14 },
+    goalFact: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 14, paddingHorizontal: 12, paddingVertical: 10 },
+    goalFactValue: { fontFamily: FONTS.bodyBold, fontSize: 15 },
+    goalFactLabel: { fontFamily: FONTS.body, fontSize: 11 },
+
+    section: { marginTop: SPACING.lg },
     sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 },
-    sectionTitle: { fontFamily: FONTS.bodySemiBold, fontSize: 18, color: '#13231C' },
-    sectionSub: { marginTop: 2, fontFamily: FONTS.body, fontSize: 12, color: '#66746E' },
-    inlineBtn: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, backgroundColor: '#EDF4EF' },
-    inlineBtnTxt: { fontFamily: FONTS.bodySemiBold, fontSize: 12, color: COLORS.primaryDark },
-    medalRow: { flexDirection: 'row', justifyContent: 'flex-start', gap: 10, flexWrap: 'wrap' },
-    medalItem: { width: '23%', alignItems: 'center' },
+    sectionHeaderPadded: { paddingHorizontal: SPACING.md, marginBottom: 10 },
+    sectionTitle: { fontFamily: FONTS.bodySemiBold, fontSize: 17, color: COLORS.textPrimary },
+    sectionSub: { marginTop: 2, fontFamily: FONTS.body, fontSize: 12, color: COLORS.textSecondary },
+    inlineBtn: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 999, backgroundColor: COLORS.primaryMuted },
+    inlineBtnTxt: { fontFamily: FONTS.bodySemiBold, fontSize: 12, color: COLORS.primary },
+
+    cityRow: { gap: 10, paddingHorizontal: SPACING.md },
+    cityCard: { width: 132, height: 160, borderRadius: 18, overflow: 'hidden', backgroundColor: COLORS.surfaceAlt },
+    cityImage: { ...StyleSheet.absoluteFill },
+    cityText: { position: 'absolute', left: 12, right: 12, bottom: 12 },
+    cityName: { fontFamily: FONTS.bodySemiBold, fontSize: 14, color: '#fff' },
+    cityMeta: { fontFamily: FONTS.body, fontSize: 11, color: 'rgba(255,255,255,0.8)', marginTop: 2 },
+
+    medalRow: { flexDirection: 'row', gap: 6 },
+    medalItem: { flex: 1, maxWidth: '25%', alignItems: 'center' },
     medalOuter: { width: 58, height: 58, borderRadius: 29, alignItems: 'center', justifyContent: 'center' },
     medalInner: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
     medalLabel: { marginTop: 8, fontFamily: FONTS.bodySemiBold, fontSize: 11, textAlign: 'center' },
-    emptyTxt: { fontFamily: FONTS.body, fontSize: 13, lineHeight: 19, color: '#66746E' },
-    logoutBtn: { marginHorizontal: SPACING.md, marginTop: SPACING.md, borderRadius: 18, backgroundColor: '#FFF4F4', borderWidth: 1, borderColor: '#F6D5D5', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14 },
-    logoutTxt: { fontFamily: FONTS.bodySemiBold, fontSize: 14, color: COLORS.error },
-});
+    nextBadge: { flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 14, padding: 12, marginTop: 14 },
+    nextBadgeIcon: { width: 36, height: 36, borderRadius: 18, borderWidth: 1.5, borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center' },
+    nextBadgeTitle: { fontFamily: FONTS.bodySemiBold, fontSize: 13 },
+    nextBadgeText: { fontFamily: FONTS.body, fontSize: 12, marginTop: 2, lineHeight: 17 },
+
+}));
 
 export default ProfileScreen;

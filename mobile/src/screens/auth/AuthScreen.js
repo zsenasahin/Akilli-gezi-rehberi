@@ -21,6 +21,7 @@ import { signIn, signUp, signInWithGoogle, resendVerificationEmail } from '../..
 import AuthFormLayout from '../../components/auth/AuthFormLayout';
 import EmailVerificationPanel from '../../components/auth/EmailVerificationPanel';
 import GlassmorphismModal from '../../components/common/GlassmorphismModal';
+import { createThemedStyles } from '../../utils/themedStyles';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -311,7 +312,7 @@ export default function AuthScreen({ navigation }) {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles(() => ({
   headerBlock: {
     marginBottom: SPACING.lg,
   },
@@ -455,4 +456,4 @@ const styles = StyleSheet.create({
     fontSize: FONT_SIZES.md,
     color: COLORS.textPrimary,
   },
-});
+}));

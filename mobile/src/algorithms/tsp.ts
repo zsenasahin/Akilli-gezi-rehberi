@@ -32,18 +32,25 @@ export function optimizeRoute(startLocation: Coordinates, places: Place[], retur
     unvisited.splice(nearestIdx, 1);
   }
 
-  // 2. 2-Opt Optimization to remove cross-overs
+  // 2. 2-Opt Optimization to remove cross-overs.
+  // Yalnızca ters çevrilen parçanın iki ucundaki kenarlar değiştiği için tüm
+  // rotayı yeniden ölçmek yerine mesafe farkı (delta) hesaplanır.
+  const EPSILON = 1e-9;
   let improvement = true;
   while (improvement) {
     improvement = false;
     for (let i = 0; i < route.length - 1; i++) {
       for (let k = i + 1; k < route.length; k++) {
-        const newRoute = twoOptSwap(route, i, k);
-        const currentDist = calculateTotalDistance(startLocation, route, returnToStart);
-        const newDist = calculateTotalDistance(startLocation, newRoute, returnToStart);
-        
-        if (newDist < currentDist) {
-          route = newRoute;
+        const before: Coordinates = i === 0 ? startLocation : route[i - 1];
+        const after: Coordinates | null = k + 1 < route.length
+          ? route[k + 1]
+          : (returnToStart ? startLocation : null);
+
+        const removed = haversineDistance(before, route[i]) + (after ? haversineDistance(route[k], after) : 0);
+        const added = haversineDistance(before, route[k]) + (after ? haversineDistance(route[i], after) : 0);
+
+        if (added + EPSILON < removed) {
+          route = twoOptSwap(route, i, k);
           improvement = true;
         }
       }
@@ -61,7 +68,7 @@ function twoOptSwap(route: Place[], i: number, k: number): Place[] {
   return newRoute;
 }
 
-function calculateTotalDistance(startLocation: Coordinates, route: Place[], returnToStart: boolean): number {
+export function calculateTotalDistance(startLocation: Coordinates, route: Place[], returnToStart: boolean): number {
   let total = 0;
   let currentLoc = startLocation;
 

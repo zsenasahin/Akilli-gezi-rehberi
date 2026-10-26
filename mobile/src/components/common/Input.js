@@ -3,6 +3,7 @@ import { View, TextInput, Text, StyleSheet } from 'react-native';
 import { COLORS } from '../../constants/colors';
 import { FONT_SIZES } from '../../constants/typography';
 import { BORDER_RADIUS, SPACING } from '../../constants/layout';
+import { createThemedStyles } from '../../utils/themedStyles';
 
 /**
  * Reusable text input with a floating-style label.
@@ -46,7 +47,7 @@ const Input = ({
     );
 };
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles(() => ({
     container: {
         marginBottom: SPACING.md,
     },
@@ -75,6 +76,6 @@ const styles = StyleSheet.create({
         fontSize: FONT_SIZES.xs,
         marginTop: SPACING.xs,
     },
-});
+}));
 
 export default Input;

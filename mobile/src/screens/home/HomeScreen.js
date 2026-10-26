@@ -14,6 +14,7 @@ import {
 import SmartImage from '../../components/common/SmartImage';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../../constants/colors';
 import { FONTS, FONT_SIZES } from '../../constants/typography';
@@ -28,6 +29,7 @@ import { useThemePreference } from '../../contexts/ThemeContext';
 
 import { getEtkinlikler } from '../../services/etkinlikService';
 import { getTurizmAktiviteleri } from '../../services/turizmAktiviteService';
+import { createThemedStyles } from '../../utils/themedStyles';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const HERO_HEIGHT = SCREEN.height * 0.48;
@@ -38,6 +40,10 @@ const HERO_IMAGE = 'https://images.unsplash.com/photo-1524231757912-21f4fe3a7200
 const HomeScreen = ({ navigation }) => {
     const { user } = useAuth();
     const { theme } = useThemePreference();
+    const insets = useSafeAreaInsets();
+    // Hero yüksekliği sabit değil: başlık, alt yazı ve buton farklı ekran
+    // boyutlarında/yazı ölçeklerinde taşmasın diye içerik ölçülerek belirlenir.
+    const [heroHeight, setHeroHeight] = useState(HERO_HEIGHT);
     const [profile, setProfile] = useState(null);
     const [cities, setCities] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -120,18 +126,18 @@ const HomeScreen = ({ navigation }) => {
 
     // Parallax: hero resmi biraz daha yavaş kayar
     const heroParallax = scrollY.interpolate({
-        inputRange: [0, HERO_HEIGHT],
-        outputRange: [0, -HERO_HEIGHT * 0.25],
+        inputRange: [0, heroHeight],
+        outputRange: [0, -heroHeight * 0.25],
         extrapolate: 'clamp',
     });
 
     return (
         <View style={[styles.root, { backgroundColor: theme.colors.background }]}>
             {/* ═══ HERO — STICKY ARKAPLAN ═══ */}
-            <View style={styles.heroSection}>
+            <View style={[styles.heroSection, { height: heroHeight + 40 }]}>
                 <Animated.View
                     style={[
-                        StyleSheet.absoluteFillObject,
+                        StyleSheet.absoluteFill,
                         { transform: [{ translateY: heroParallax }] },
                     ]}
                 >
@@ -143,7 +149,7 @@ const HomeScreen = ({ navigation }) => {
                     />
                     <LinearGradient
                         colors={COLORS.gradients.heroOverlay}
-                        style={StyleSheet.absoluteFillObject}
+                        style={StyleSheet.absoluteFill}
                     />
                 </Animated.View>
             </View>
@@ -164,12 +170,18 @@ const HomeScreen = ({ navigation }) => {
                         refreshing={refreshing}
                         onRefresh={() => { setRefreshing(true); fetchData(); }}
                         tintColor={COLORS.primary}
-                        progressViewOffset={HERO_HEIGHT}
+                        progressViewOffset={heroHeight}
                     />
                 }
             >
                 {/* Hero içeriği */}
-                <View style={styles.heroContent}>
+                <View
+                    style={[styles.heroContent, { paddingTop: insets.top + SPACING.lg }]}
+                    onLayout={(event) => {
+                        const measured = Math.round(event.nativeEvent.layout.height);
+                        if (Math.abs(measured - heroHeight) > 1) setHeroHeight(measured);
+                    }}
+                >
                     <View style={styles.heroBadge}>
                         <Ionicons name="location" size={14} color="#fff" />
                         <Text style={styles.heroBadgeText}>Akıllı Gezi Rehberi</Text>
@@ -322,15 +334,15 @@ const HomeScreen = ({ navigation }) => {
 
 // ─── Etkinlik Card ──────────────────────────────────────────────────────────
 const TUR_COLORS = {
-    'Sergi': { bg: '#EDE9FE', text: '#7C3AED' },
-    'Konser': { bg: '#FEF3C7', text: '#D97706' },
-    'Tiyatro': { bg: '#FCE7F3', text: '#DB2777' },
-    'Festival': { bg: '#D1FAE5', text: '#059669' },
-    'Yarışma': { bg: '#DBEAFE', text: '#2563EB' },
+    'Sergi': { bg: COLORS.earthLight, text: '#7A5C42' },
+    'Konser': { bg: COLORS.accentLight, text: '#9C7230' },
+    'Tiyatro': { bg: COLORS.earthLight, text: '#93594B' },
+    'Festival': { bg: COLORS.primaryMuted, text: '#4F6342' },
+    'Yarışma': { bg: 'rgba(90,125,140,0.14)', text: '#5A7D8C' },
 };
 
 const EtkinlikCard = React.memo(({ etkinlik, onPress }) => {
-    const turStyle = TUR_COLORS[etkinlik.tur] || { bg: '#F3F4F6', text: '#374151' };
+    const turStyle = TUR_COLORS[etkinlik.tur] || { bg: COLORS.surfaceAlt, text: COLORS.textPrimary };
     return (
         <TouchableOpacity style={styles.etkinlikCard} onPress={onPress} activeOpacity={0.85}>
             <View style={styles.etkinlikDateBox}>
@@ -353,8 +365,8 @@ const EtkinlikCard = React.memo(({ etkinlik, onPress }) => {
 
 const TurizmActivityCard = React.memo(({ activity, onPress }) => (
     <TouchableOpacity style={styles.activityCard} onPress={onPress} activeOpacity={0.86}>
-        <SmartImage uri={activity.imageUrl} style={styles.activityImage} contentFit="cover" transition={350} />
-        <LinearGradient colors={['transparent', 'rgba(0,0,0,0.72)']} style={StyleSheet.absoluteFillObject} />
+        <SmartImage thumbnail uri={activity.imageUrl} style={styles.activityImage} contentFit="cover" transition={350} />
+        <LinearGradient colors={['transparent', 'rgba(0,0,0,0.72)']} style={StyleSheet.absoluteFill} />
         <View style={styles.activityTypeBadge}>
             <Text style={styles.activityTypeText}>{activity.type}</Text>
         </View>
@@ -389,6 +401,7 @@ const CityCard = React.memo(({ city, images, index, onPress, onPlanPress }) => {
                 activeOpacity={1}
             >
                 <SmartImage
+                    thumbnail
                     uri={city.image_url || images.card}
                     fallbackUri="https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?w=400&h=300&fit=crop&q=80"
                     style={styles.cityCardImage}
@@ -415,7 +428,7 @@ const CityCard = React.memo(({ city, images, index, onPress, onPlanPress }) => {
     );
 });
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles(() => ({
     root: {
         flex: 1,
         backgroundColor: COLORS.background,
@@ -432,13 +445,14 @@ const styles = StyleSheet.create({
     },
     heroImage: {
         width: '100%',
-        height: HERO_HEIGHT + 60,
+        height: '115%',
     },
     heroContent: {
-        height: HERO_HEIGHT,
-        justifyContent: 'flex-start',
+        minHeight: HERO_HEIGHT,
+        justifyContent: 'flex-end',
         paddingHorizontal: SPACING.lg,
-        paddingTop: Platform.OS === 'ios' ? 80 : 60,
+        // İçerik kartının yuvarlatılmış köşesi butonun üstüne binmesin
+        paddingBottom: SPACING.xl + SPACING.sm,
     },
     heroBadge: {
         flexDirection: 'row',
@@ -463,9 +477,9 @@ const styles = StyleSheet.create({
         fontFamily: FONTS.display,
         fontSize: FONT_SIZES.display,
         color: '#fff',
-        lineHeight: 50,
-        marginBottom: SPACING.md,
-        letterSpacing: -1.5,
+        lineHeight: 40,
+        marginBottom: SPACING.sm,
+        letterSpacing: -0.8,
         textShadowColor: 'rgba(0,0,0,0.3)',
         textShadowOffset: { width: 0, height: 2 },
         textShadowRadius: 8,
@@ -605,10 +619,10 @@ const styles = StyleSheet.create({
         elevation: 4,
     },
     cityCardImage: {
-        ...StyleSheet.absoluteFillObject,
+        ...StyleSheet.absoluteFill,
     },
     cityCardGradient: {
-        ...StyleSheet.absoluteFillObject,
+        ...StyleSheet.absoluteFill,
     },
     cityCardContent: {
         position: 'absolute',
@@ -702,7 +716,7 @@ const styles = StyleSheet.create({
         backgroundColor: COLORS.surface,
     },
     activityImage: {
-        ...StyleSheet.absoluteFillObject,
+        ...StyleSheet.absoluteFill,
     },
     activityTypeBadge: {
         position: 'absolute',
@@ -741,6 +755,6 @@ const styles = StyleSheet.create({
         fontSize: FONT_SIZES.xs,
         color: 'rgba(255,255,255,0.82)',
     },
-});
+}));
 
 export default HomeScreen;

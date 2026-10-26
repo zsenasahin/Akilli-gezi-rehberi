@@ -5,6 +5,7 @@ import { COLORS } from '../../constants/colors';
 import { FONT_SIZES, FONT_WEIGHTS } from '../../constants/typography';
 import { BORDER_RADIUS, SPACING } from '../../constants/layout';
 import { formatCurrency, formatDuration } from '../../utils/formatters';
+import { createThemedStyles } from '../../utils/themedStyles';
 
 /**
  * A single place item within an itinerary day card.
@@ -53,7 +54,7 @@ const PlaceItem = ({ place, index }) => {
     );
 };
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles(() => ({
     container: {
         flexDirection: 'row',
         alignItems: 'flex-start',
@@ -110,6 +111,6 @@ const styles = StyleSheet.create({
         overflow: 'hidden',
         textTransform: 'capitalize',
     },
-});
+}));
 
 export default PlaceItem;

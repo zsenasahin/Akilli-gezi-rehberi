@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, DefaultTheme, DarkTheme } from '@react-navigation/native';
+import { COLORS } from '../constants/colors';
+import { useThemePreference } from '../contexts/ThemeContext';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useAuth } from '../contexts/AuthContext';
 import AuthNavigator from './AuthNavigator';
@@ -10,8 +12,12 @@ import { hasCompletedOnboarding } from '../utils/onboardingStorage';
 
 const RootStack = createNativeStackNavigator();
 
+// Tema değişiminde navigator yeniden oluşturulurken kullanıcının ekranı korunur.
+let savedNavigationState;
+
 const AppNavigator = () => {
     const { isLoading, session } = useAuth();
+    const { theme } = useThemePreference();
     const [onboardingReady, setOnboardingReady] = useState(false);
     const [skipOnboarding, setSkipOnboarding] = useState(false);
 
@@ -62,7 +68,12 @@ const AppNavigator = () => {
     };
 
     return (
-        <NavigationContainer linking={linking}>
+        <NavigationContainer
+            linking={linking}
+            theme={navigationTheme(theme.isDark)}
+            initialState={savedNavigationState}
+            onStateChange={(state) => { savedNavigationState = state; }}
+        >
             <RootStack.Navigator screenOptions={{ headerShown: false }}>
                 {session ? (
                     <RootStack.Screen name="App" component={MainNavigator} />
@@ -89,6 +100,22 @@ const AppNavigator = () => {
             </RootStack.Navigator>
         </NavigationContainer>
     );
+};
+
+// Ekran geçişlerinde beyaz/siyah parlama olmaması için gezinme teması da paletten gelir.
+const navigationTheme = (isDark) => {
+    const base = isDark ? DarkTheme : DefaultTheme;
+    return {
+        ...base,
+        colors: {
+            ...base.colors,
+            primary: COLORS.primary,
+            background: COLORS.background,
+            card: COLORS.surface,
+            text: COLORS.textPrimary,
+            border: COLORS.border,
+        },
+    };
 };
 
 export default AppNavigator;

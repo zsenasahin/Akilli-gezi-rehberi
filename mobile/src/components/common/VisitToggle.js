@@ -5,6 +5,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { FONTS, FONT_SIZES } from '../../constants/typography';
 import { getCityVisitStatus, toggleCityVisit } from '../../services/cityVisitService';
+import { createThemedStyles } from '../../utils/themedStyles';
 
 /**
  * VisitToggle — Şehir ziyaret durumu toggle bileşeni.
@@ -20,8 +21,8 @@ const STATUS_CYCLE = { none: 'visited', visited: 'wishlist', wishlist: 'none' };
 
 const STATUS_CONFIG = {
     none:     { color: '#94A3B8', icon: 'bookmark-outline', label: 'Ekle' },
-    visited:  { color: '#22C55E', icon: 'checkmark-circle', label: 'Gittim ✓' },
-    wishlist: { color: '#EF4444', icon: 'heart',            label: 'Gitmek İstiyorum ♡' },
+    visited:  { color: '#5B7A4A', icon: 'checkmark-circle', label: 'Gittim ✓' },
+    wishlist: { color: '#B5523B', icon: 'heart',            label: 'Gitmek İstiyorum ♡' },
 };
 
 const VisitToggle = ({ cityId, cityName, userId, compact = false }) => {
@@ -103,7 +104,7 @@ const VisitToggle = ({ cityId, cityName, userId, compact = false }) => {
     );
 };
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles(() => ({
     compactBtn: {
         width: 28,
         height: 28,
@@ -126,6 +127,6 @@ const styles = StyleSheet.create({
         fontFamily: FONTS.bodySemiBold,
         fontSize: FONT_SIZES.sm,
     },
-});
+}));
 
 export default VisitToggle;

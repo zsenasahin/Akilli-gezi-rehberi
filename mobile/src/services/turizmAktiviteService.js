@@ -1,4 +1,5 @@
 import rawActivities from '../data/turkiye_turizm_aktiviteleri.json';
+import { normalizeImageUrl } from '../utils/imageUrl';
 
 const BASE_URL = 'https://www.kulturportali.gov.tr';
 
@@ -57,7 +58,7 @@ const parseActivity = (item, index) => {
         type: toTitleCase(rawType || 'Turizm Aktivitesi'),
         city,
         citySlug: slug,
-        imageUrl: item.Resim ? `${BASE_URL}${item.Resim}` : null,
+        imageUrl: item.Resim ? normalizeImageUrl(`${BASE_URL}${item.Resim}`) : null,
         url: item.Url ? `${BASE_URL}${item.Url}` : null,
         total: item.KayitSayisi || 0,
         rawTitle: item.Baslik || '',

@@ -17,7 +17,6 @@ import {
     RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
@@ -30,6 +29,8 @@ import { useAuth } from '../../contexts/AuthContext';
 import { getFavorites, removeFavorite } from '../../services/favoriteService';
 import { SkeletonLoader } from '../../components/common/SkeletonLoader';
 import { useThemePreference } from '../../contexts/ThemeContext';
+import SmartImage from '../../components/common/SmartImage';
+import { createThemedStyles } from '../../utils/themedStyles';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 const CARD_WIDTH = SCREEN_W - SPACING.lg * 2;
@@ -106,8 +107,9 @@ const FavoritesScreen = ({ navigation }) => {
                     // For now, just show the place in discover
                 }}
             >
-                <Image
-                    source={{ uri: imageUrl }}
+                <SmartImage
+                    thumbnail uri={imageUrl}
+                    fallbackUri={getPlaceImage(place.name, null, place.category)}
                     style={styles.cardImage}
                     contentFit="cover"
                     transition={300}
@@ -128,7 +130,7 @@ const FavoritesScreen = ({ navigation }) => {
                     style={styles.removeBtn}
                     onPress={() => handleRemoveFavorite(place.id, place.name)}
                 >
-                    <Ionicons name="heart" size={22} color="#EF4444" />
+                    <Ionicons name="heart" size={22} color="#B5523B" />
                 </TouchableOpacity>
 
                 {/* İçerik */}
@@ -246,7 +248,7 @@ const FavoritesScreen = ({ navigation }) => {
     );
 };
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles(() => ({
     container: { flex: 1, backgroundColor: COLORS.background },
 
     // Header
@@ -289,7 +291,7 @@ const styles = StyleSheet.create({
         shadowRadius: 16,
         elevation: 6,
     },
-    cardImage: { ...StyleSheet.absoluteFillObject },
+    cardImage: { ...StyleSheet.absoluteFill },
     cardGradient: {
         position: 'absolute', bottom: 0, left: 0, right: 0, height: 140,
     },
@@ -375,6 +377,6 @@ const styles = StyleSheet.create({
         fontFamily: 'Inter_600SemiBold', fontSize: FONT_SIZES.md,
         color: '#fff',
     },
-});
+}));
 
 export default FavoritesScreen;

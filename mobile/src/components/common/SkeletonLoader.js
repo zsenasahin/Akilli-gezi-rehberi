@@ -16,6 +16,7 @@ import React, { useEffect, useRef } from 'react';
 import { View, Animated, StyleSheet, Dimensions } from 'react-native';
 import { COLORS } from '../../constants/colors';
 import { SPACING, BORDER_RADIUS } from '../../constants/layout';
+import { createThemedStyles } from '../../utils/themedStyles';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 
@@ -245,7 +246,7 @@ export const ProfileSkeleton = () => (
 );
 
 // ─── Styles ──────────────────────────────────────────────────────────────
-const styles = StyleSheet.create({
+const styles = createThemedStyles(() => ({
     homeContainer: { flex: 1, backgroundColor: COLORS.background },
     discoverContainer: { flex: 1, backgroundColor: COLORS.background },
     discoverHeader: {
@@ -298,4 +299,4 @@ const styles = StyleSheet.create({
     mb8: { marginBottom: 8 },
     mb12: { marginBottom: 12 },
     mb16: { marginBottom: 16 },
-});
+}));

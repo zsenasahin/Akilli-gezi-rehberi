@@ -1,6 +1,7 @@
 import React, { useRef, useEffect } from 'react';
 import { StyleSheet, View, Dimensions } from 'react-native';
 import LottieView from 'lottie-react-native';
+import { createThemedStyles } from '../../utils/themedStyles';
 
 const { width, height } = Dimensions.get('window');
 
@@ -30,9 +31,9 @@ const ConfettiOverlay = ({ onAnimationFinish, visible = true }) => {
     );
 };
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles(() => ({
     container: {
-        ...StyleSheet.absoluteFillObject,
+        ...StyleSheet.absoluteFill,
         zIndex: 9999,
         justifyContent: 'center',
         alignItems: 'center',
@@ -41,6 +42,6 @@ const styles = StyleSheet.create({
         width: width,
         height: height,
     },
-});
+}));
 
 export default ConfettiOverlay;

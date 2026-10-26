@@ -1,0 +1,965 @@
+[
+  {
+    "id": 1,
+    "city": "İstanbul",
+    "name": "Ayasofya",
+    "source": "wikipedia",
+    "matchedTitle": "Ayasofya",
+    "patch": {
+      "short_description": "Ayasofya, resmî adıyla Ayasofya-i Kebîr Câmi-i Şerîfi, İstanbul'un Fatih ilçesinde kiliseden çevrilmiş bir camidir. Bizans İmparatoru I. Justinianus tarafından, 532-537 yılları arasında inşa ettirilmiş bazilika planlı bir patrik katedrali olmuştur. 1453 yılında İstanbul'un Osmanlılar tarafından fethedilmesinden sonra II. Mehmed tarafından camiye dönüştürülmüştür.",
+      "image_url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/4/4a/Hagia_Sophia_%28228968325%29.jpeg/330px-Hagia_Sophia_%28228968325%29.jpeg?utm_source=tr.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+      "source_url": "https://tr.wikipedia.org/wiki/Ayasofya"
+    }
+  },
+  {
+    "id": 2,
+    "city": "İstanbul",
+    "name": "Topkapı Sarayı",
+    "source": "kulturportali+wikipedia",
+    "matchedTitle": "Topkapı Sarayı",
+    "patch": {
+      "image_url": "https://www.kulturportali.gov.tr/repoKulturPortali/large/SehirRehberi//GezilecekYer/20251226170448917_ISTANBUL Topkapi Sarayi Murat OCAL (15) kopya.jpg?format=jpg&quality=50",
+      "gallery": [
+        "https://www.kulturportali.gov.tr/repoKulturPortali/large/SehirRehberi//GezilecekYer/20251226170448917_ISTANBUL Topkapi Sarayi Murat OCAL (15) kopya.jpg?format=jpg&quality=50",
+        "https://www.kulturportali.gov.tr/repoKulturPortali/large/SehirRehberi//GezilecekYer/20190109152246940_IMG_0161.JPG?format=jpg&quality=85",
+        "https://www.kulturportali.gov.tr/repoKulturPortali/large/25022013/b81f0977-aa19-4c5d-b974-42a9618b9c60.jpg?format=jpg&quality=85",
+        "https://www.kulturportali.gov.tr/repoKulturPortali/large/25022013/4e012013-0be9-493e-bb93-0ac1ce6516fb.JPG?format=jpg&quality=85",
+        "https://www.kulturportali.gov.tr/repoKulturPortali/large/12062013/8c0ee7ff-0c1e-4728-85e0-899d63b8ee0a.jpg?format=jpg&quality=85"
+      ],
+      "short_description": "Topkapı Sarayı, İstanbul Sarayburnu'nda, Osmanlı İmparatorluğu'nun 600 yıllık tarihinin 400 yılı boyunca, devletin idare merkezi olarak kullanılan ve Osmanlı padişahlarının yaşadığı saraydır. Bir zamanlar içinde 4.000'e yakın insan yaşamıştır."
+    }
+  },
+  {
+    "id": 3,
+    "city": "İstanbul",
+    "name": "Sultanahmet Camii",
+    "source": "wikipedia",
+    "matchedTitle": "Sultanahmet Camii",
+    "patch": {
+      "short_description": "Sultanahmet Camii, 1609-1617 yılları arasında Osmanlı Padişahı I. Ahmed tarafından İstanbul'daki tarihî yarımadada, Mimar Sedefkâr Mehmed Ağa'ya yaptırılmıştır. Cami; mavi, yeşil ve beyaz renkli İznik çinileriyle bezendiği için ve yarım kubbeleri ile büyük kubbesinin içi de yine mavi ağırlıklı kalem işleriyle süslendiği için Avrupalılar tarafından \"Mavi Camii \" olarak adlandırılır. Ayasofya'nın 1935 yılında camiden müzeye dönüştürülmesiyle, İstanbul'un ana camii konumuna ulaşmıştır.",
+      "image_url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/0/03/Istanbul_%2834223582516%29_%28cropped%29.jpg/330px-Istanbul_%2834223582516%29_%28cropped%29.jpg?utm_source=tr.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+      "source_url": "https://tr.wikipedia.org/wiki/Sultanahmet_Camii"
+    }
+  },
+  {
+    "id": 4,
+    "city": "İstanbul",
+    "name": "Kapalıçarşı",
+    "source": "kulturportali",
+    "patch": {
+      "short_description": "Türkiye'nin en büyük şehri İstanbul'da yer alan Kapalıçarşı'nın tarihi 15'inci yüzyılın ortalarına Fatih Sultan Mehmet Dönemi'ne kadar gider. Osmanlı kurumlarını ayakta tutan en önemli uygulamalardan olan vakıf sistemine göre camilerin tamir ve bakım masrafları gibi çeşitli ihtiyaçlarının karşılanabilmesi için gelir getirici bir başka yapı meydana getirilirdi.",
+      "image_url": "https://www.kulturportali.gov.tr/repoKulturPortali/large/SehirRehberi//GezilecekYer/20171009155914553_shutterstock_219791317.jpg?format=jpg&quality=50",
+      "gallery": [
+        "https://www.kulturportali.gov.tr/repoKulturPortali/large/SehirRehberi//GezilecekYer/20171009155914553_shutterstock_219791317.jpg?format=jpg&quality=50",
+        "https://www.kulturportali.gov.tr/repoKulturPortali/large/SehirRehberi//GezilecekYer/20171009155914553_shutterstock_219791317.jpg?format=jpg&quality=85",
+        "https://www.kulturportali.gov.tr/repoKulturPortali/large/SehirRehberi//GezilecekYer/20171009155932790_shutterstock_590848910.jpg?format=jpg&quality=85",
+        "https://www.kulturportali.gov.tr/repoKulturPortali/large/25022013/afbcecc0-c11d-4e05-8391-6b9088ce638b.JPG?format=jpg&quality=85",
+        "https://www.kulturportali.gov.tr/repoKulturPortali/large/27082014/834e88a0-6fbe-45dd-a7f9-a7383004a3cd.jpg?format=jpg&quality=85",
+        "https://www.kulturportali.gov.tr/repoKulturPortali/large/26032013/f92914e0-42c6-43ae-9419-86dd81ff297b.JPG?format=jpg&quality=85"
+      ]
+    }
+  },
+  {
+    "id": 5,
+    "city": "İstanbul",
+    "name": "Galata Kulesi",
+    "source": "kulturportali",
+    "patch": {
+      "short_description": "Dünyanın en eski kuleleri arasında sayılan ve İstanbul'un sembollerinden biri olan Galata Kulesi, 2013 yılında UNESCO Dünya Mirası Geçici Listesi'ne dahil edilmiştir. İstanbul'un siluetini oluşturan en önemli yapılardan biri olan Galata Kulesi, uzun dönem yangın gözetleme kulesi olarak kullanıldı ve Galata Yangın Kulesi olarak adlandırıldı.",
+      "image_url": "https://www.kulturportali.gov.tr/repoKulturPortali/large/SehirRehberi//GezilecekYer/20200610172559609_ISTANBUL GALATA KULESI GULCAN ACAR (8).png",
+      "gallery": [
+        "https://www.kulturportali.gov.tr/repoKulturPortali/large/SehirRehberi//GezilecekYer/20200610172559609_ISTANBUL GALATA KULESI GULCAN ACAR (8).png",
+        "https://www.kulturportali.gov.tr/repoKulturPortali/large/01032013/83212950-8a81-4080-ad4a-6cc90be66177.JPG?format=jpg&quality=85",
+        "https://www.kulturportali.gov.tr/repoKulturPortali/large/uploads/dsc0102.jpg?format=jpg&quality=85",
+        "https://www.kulturportali.gov.tr/repoKulturPortali/large/SehirRehberi//GezilecekYer/20260209131023444_DJI_20240804152957_0551_D.JPG?format=jpg&quality=85"
+      ]
+    }
+  },
+  {
+    "id": 6,
+    "city": "İstanbul",
+    "name": "Dolmabahçe Sarayı",
+    "source": "kulturportali+wikipedia",
+    "matchedTitle": "Dolmabahçe Sarayı",
+    "patch": {
+      "image_url": "https://www.kulturportali.gov.tr/repoKulturPortali/large/SehirRehberi//GezilecekYer/20191023142836886_0a4a820a 42ae 4758 a7ed 1edde29462c9.jpg?format=jpg&quality=50",
+      "gallery": [
+        "https://www.kulturportali.gov.tr/repoKulturPortali/large/SehirRehberi//GezilecekYer/20191023142836886_0a4a820a 42ae 4758 a7ed 1edde29462c9.jpg?format=jpg&quality=50",
+        "https://www.kulturportali.gov.tr/repoKulturPortali/large/05022013/9f60ace1-a286-41d1-967a-2f09beaa4cb4.jpg?format=jpg&quality=85",
+        "https://www.kulturportali.gov.tr/repoKulturPortali/large/08022013/7410c6c6-cafe-4bb5-9105-4efeecf864f4.jpg?format=jpg&quality=85",
+        "https://www.kulturportali.gov.tr/repoKulturPortali/large/06032013/08abd6d1-9db2-4e48-a6fd-a9fffa0bcdad.jpg?format=jpg&quality=85",
+        "https://www.kulturportali.gov.tr/repoKulturPortali/large/SehirRehberi//GezilecekYer/20210901102226717_1.JPG?format=jpg&quality=85"
+      ],
+      "short_description": "Dolmabahçe Sarayı, İstanbul, Beşiktaş'ta, Kabataş'tan Beşiktaş'a uzanan Dolmabahçe Caddesi'yle İstanbul Boğazı arasında, 250.000 m²'lik bir alan üzerinde bulunan Osmanlı sarayıdır. Marmara Denizi'nden Boğaziçi'ne deniz yoluyla girişte sol kıyıda, Üsküdar ve Kuzguncuk'un karşısında yer alır. Sultan Abdülmecid tarafından inşa ettirilen sarayın yapımı 1843 yılında başlayıp 1856 yılında bitirilmiştir. Günümüzde müze olarak kullanılmaktadır."
+    }
+  },
+  {
+    "id": 7,
+    "city": "İstanbul",
+    "name": "Basilika Sarnıcı",
+    "source": "wikipedia",
+    "matchedTitle": "Yerebatan Sarnıcı",
+    "patch": {
+      "short_description": "Yerebatan Sarnıcı (Bizans Yunancası: βασιλική κινστέρνή; Latince: Basilica Cisterna) İmparator Justinianus (h. 527-565) döneminde İstanbul'da şehrin su ihtiyacını karşılamak üzere 526-527 senelerinde yaptırılmış kapalı su sarnıcıdır. Ayasofya'nın güneybatısında, Soğukçeşme Sokağı'nda bulunmaktadır. Suyun içinden yükselen pek çok mermer sütun nedeniyle halk arasında Yerebatan Sarayı olarak isimlendirilmektedir. Sarnıcın üzerinde daha önce bir bazilika bulunmasından ötürü, Bazilika Sarnıcı olarak da adlandırılır. Bizans imparatoru I.",
+      "image_url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/a/ae/Cisterna_Bas%C3%ADlica%2C_Estambul%2C_Turqu%C3%ADa%2C_2024-09-28%2C_DD_58-60_HDR.jpg/1280px-Cisterna_Bas%C3%ADlica%2C_Estambul%2C_Turqu%C3%ADa%2C_2024-09-28%2C_DD_58-60_HDR.jpg?utm_source=tr.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+      "source_url": "https://tr.wikipedia.org/wiki/Yerebatan_Sarn%C4%B1c%C4%B1"
+    }
+  },
+  {
+    "id": 8,
+    "city": "İstanbul",
+    "name": "İstanbul Arkeoloji Müzesi",
+    "source": null,
+    "patch": {}
+  },
+  {
+    "id": 9,
+    "city": "İstanbul",
+    "name": "Miniatürk",
+    "source": "kulturportali",
+    "patch": {
+      "short_description": "30 Haziran 2001 tarihinde temeli atılan Türkiye'nin ilk minyatür parkı olan Miniaturk, 2 Mayıs 2003 tarihinde Başbakan Recep Tayyip Erdoğan tarafından büyük bir törenle ziyarete açılmıştır. Toplam 60 bin metrekare alan üzerine kurulan Miniaturk'te, 15 bin metrekare maket alanı, 40 bin metrekare yeşil ve açık alan, 3 bin 500 metrekare kapalı alan, 2.000 metrekare havuz ve suyolu, 500 araçlık otopark yer almaktadır.",
+      "image_url": "https://www.kulturportali.gov.tr/repoKulturPortali/large/03062014/500972c4-eb45-4550-b2fb-dd3259f4e1cf.bmp?format=jpg&quality=50",
+      "gallery": [
+        "https://www.kulturportali.gov.tr/repoKulturPortali/large/03062014/500972c4-eb45-4550-b2fb-dd3259f4e1cf.bmp?format=jpg&quality=50",
+        "https://www.kulturportali.gov.tr/repoKulturPortali/large/30012013/68327787-90ce-455c-9461-529e444ed080.jpg?format=jpg&quality=85",
+        "https://www.kulturportali.gov.tr/repoKulturPortali/large/uploads/selime-10.jpg?format=jpg&quality=85",
+        "https://www.kulturportali.gov.tr/repoKulturPortali/large/14032013/0a7f3175-bd8c-4caa-840c-e910eb988ecc.jpg?format=jpg&quality=85"
+      ]
+    }
+  },
+  {
+    "id": 10,
+    "city": "İstanbul",
+    "name": "Emirgan Korusu",
+    "source": "wikipedia",
+    "matchedTitle": "Emirgân Korusu",
+    "patch": {
+      "short_description": "Emirgân Korusu, İstanbul'un Sarıyer ilçesinin Emirgân semtinde bulunan bir korudur. İstanbul Boğazı kıyısında, 47,2 hektarlık bir alanda sırtlar ve yamaçlar üstüne yayılmıştır. Çevresi yüksek duvarlarla çevrilmiş durumdadır.",
+      "source_url": "https://tr.wikipedia.org/wiki/Emirg%C3%A2n_Korusu"
+    }
+  },
+  {
+    "id": 11,
+    "city": "Konya",
+    "name": "Mevlana Müzesi",
+    "source": "kulturportali",
+    "patch": {
+      "short_description": "Mevlâna Müzesi, Konya'nın Karatay ilçesinde, Mevlâna Dergâhı'nda hizmet vermektedir. Dergâh, Cumhuriyetin ilanı sonrasında, 1926 yılında, &quot;Konya Asâr-ı Atîka Müzesi&quot; adı altında ziyarete açılmış; 1954 yılında ise yeni bir düzenleme ile Mevlâna Müzesi adını almıştır.",
+      "image_url": "https://www.kulturportali.gov.tr/repoKulturPortali/large/SehirRehberi//GezilecekYer/20241112103409321_516_20170323101828053.jpg?format=jpg&quality=50",
+      "gallery": [
+        "https://www.kulturportali.gov.tr/repoKulturPortali/large/SehirRehberi//GezilecekYer/20241112103409321_516_20170323101828053.jpg?format=jpg&quality=50",
+        "https://www.kulturportali.gov.tr/repoKulturPortali/large/SehirRehberi//GezilecekYer/20241112103409321_516_20170323101828053.jpg?format=jpg&quality=85",
+        "https://www.kulturportali.gov.tr/repoKulturPortali/large/SehirRehberi//GezilecekYer/20241112103418864_KONYAMEVLANAMUZESIGULCANACAR1_20170427154936961.jpg?format=jpg&quality=85",
+        "https://www.kulturportali.gov.tr/repoKulturPortali/large/SehirRehberi//GezilecekYer/20241112103430113_KONYAMEVLANAMUZESIGULCANACAR15_20170427162622633.jpg?format=jpg&quality=85",
+        "https://www.kulturportali.gov.tr/repoKulturPortali/large/26022013/45238035-2f80-4645-9afc-7ecdb49b57b0.JPG?format=jpg&quality=85",
+        "https://www.kulturportali.gov.tr/repoKulturPortali/large/29042013/36e55012-fc8a-4e6d-815f-269f272724a9.JPG?format=jpg&quality=85"
+      ]
+    }
+  },
+  {
+    "id": 12,
+    "city": "Konya",
+    "name": "Alaeddin Tepesi",
+    "source": "wikipedia",
+    "matchedTitle": "Alâeddin Tepesi",
+    "patch": {
+      "short_description": "Alâeddin Tepesi, Türkiye'nin Konya ili kent merkezinde, üzerinde Alâeddin Camii ve avlusunda sekiz Anadolu Selçuklu Sultanı'nın mezarı da dahil olmak üzere önemli tarihî yapılar bulunduran tepe. Konya ovasının batı kenarındaki dağların son yamaçlarına yakın bir mevkide yer alan, 450 x 350 metre boyunda, 20 metre yüksekliğinde oval planlı bir höyüktür. Şehrin tarihi boyunca gelişimi bu tepenin etrafında şekillenmiştir.",
+      "image_url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/3/32/Al%C3%A2eddin_Tepesi_-_panoramio.jpg/1280px-Al%C3%A2eddin_Tepesi_-_panoramio.jpg?utm_source=tr.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+      "source_url": "https://tr.wikipedia.org/wiki/Al%C3%A2eddin_Tepesi"
+    }
+  },
+  {
+    "id": 13,
+    "city": "Konya",
+    "name": "Karatay Medresesi",
+    "source": "wikipedia",
+    "matchedTitle": "Karatay Medresesi",
+    "patch": {
+      "short_description": "Karatay Medresesi, Konya'da bulunan Selçuklu dönemine ait yapı. Medrese Karatay ilçesi, Ferhuniye Mahallesi, Adliye Bulvarı'nda bulunmaktadır.",
+      "image_url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/e/e0/Konya_-_panoramio_-_HALUK_COMERTEL_%2825%29.jpg/330px-Konya_-_panoramio_-_HALUK_COMERTEL_%2825%29.jpg?utm_source=tr.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+      "source_url": "https://tr.wikipedia.org/wiki/Karatay_Medresesi"
+    }
+  },
+  {
+    "id": 14,
+    "city": "Konya",
+    "name": "İnce Minareli Medrese",
+    "source": "wikipedia",
+    "matchedTitle": "İnce Minareli Medrese",
+    "patch": {
+      "short_description": "İnce Minareli Medrese, Konya ili, Selçuklu İlçesi'nde, Alaaddin Tepesi'nin batısındadır. Selçuklu Sultanı II. İzzeddin Keykavus devrinde Vezir Sahip Ata Fahrettin Ali tarafından, hadis ilmi öğretilmek üzere 663 H.(1264 M.) yılında inşa ettirilmiştir.",
+      "image_url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/2/27/Ince_Minareli_Medrese_01.jpg/330px-Ince_Minareli_Medrese_01.jpg?utm_source=tr.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+      "source_url": "https://tr.wikipedia.org/wiki/%C4%B0nce_Minareli_Medrese"
+    }
+  },
+  {
+    "id": 15,
+    "city": "Konya",
+    "name": "Sille Köyü",
+    "source": null,
+    "patch": {}
+  },
+  {
+    "id": 16,
+    "city": "Konya",
+    "name": "Kelebek Bahçesi",
+    "source": "wikipedia",
+    "matchedTitle": "Konya Tropikal Kelebek Bahçesi",
+    "patch": {
+      "short_description": "Konya Tropikal Kelebek Bahçesi, 2015 yılında Konya ilinin Selçuklu ilçesinde açılan bir tropikal kelebek ve bitki evidir.",
+      "image_url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/2/2e/Cethosia_cyane_-_Leopard_Lacewing_05.jpg/1280px-Cethosia_cyane_-_Leopard_Lacewing_05.jpg?utm_source=tr.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+      "source_url": "https://tr.wikipedia.org/wiki/Konya_Tropikal_Kelebek_Bah%C3%A7esi"
+    }
+  },
+  {
+    "id": 17,
+    "city": "Antalya",
+    "name": "Kaleiçi",
+    "source": "kulturportali",
+    "patch": {
+      "short_description": "Antalya'nın eski kent merkezi; eski ve yeninin güzelliğinin buluştuğu Kaleiçi, içten ve dıştan surlarla çevrilidir. Bazıları günümüze dek ayakta kalan bu surlar, iki bin yılı aşkın süre burada yaşamış çeşitli medeniyetler tarafından inşa edilmiştir. Surların içinde, limana giden dar sokakların etrafına dizilmiş geleneksel evler bulunur. Bir cephesi sokağa, diğer cepheleri ise bahçeye bakan iki ya da üç katlı evler, eski Antalya'nın atmosferini mükemmel bir şekilde yansıtır. Kaleiçi'ndeki antik liman, şimdilerde modern yat limanı olarak kullanılmaktadır.",
+      "image_url": "https://www.kulturportali.gov.tr/repoKulturPortali/large/SehirRehberi//GezilecekYer/20210707104118838_ANTALYA KALEICI VE YATLIMANI GULCANACAR (7).jpg?format=jpg&quality=50",
+      "gallery": [
+        "https://www.kulturportali.gov.tr/repoKulturPortali/large/SehirRehberi//GezilecekYer/20210707104118838_ANTALYA KALEICI VE YATLIMANI GULCANACAR (7).jpg?format=jpg&quality=50",
+        "https://www.kulturportali.gov.tr/repoKulturPortali/large/25022013/d4351286-9100-4a68-b943-6bb229342aeb.jpg?format=jpg&quality=85",
+        "https://www.kulturportali.gov.tr/repoKulturPortali/large/25022013/0ab79f3e-36a7-4e82-a5b7-418dca86b749.JPG?format=jpg&quality=85",
+        "https://www.kulturportali.gov.tr/repoKulturPortali/large/uploads/dsc0751_0.jpg?format=jpg&quality=85",
+        "https://www.kulturportali.gov.tr/repoKulturPortali/large/18092014/c3b1e02b-8806-4cb9-a32d-6fa33477ad9d.jpg?format=jpg&quality=85"
+      ]
+    }
+  },
+  {
+    "id": 18,
+    "city": "Antalya",
+    "name": "Düden Şelalesi",
+    "source": "kulturportali",
+    "patch": {
+      "short_description": "Düden Şelalesi, Antalya'nın Kepez ilçesinde yer almaktadır. Çeşitli kaynaklarda, İskender Şelalesi ve Yukarı Düden Şelalesi olarak da geçmektedir. Halk arasında Düdenbaşı Şelalesi diye bilinir.",
+      "image_url": "https://www.kulturportali.gov.tr/repoKulturPortali/large/SehirRehberi//GezilecekYer/20190506132011733_ANTALYA DUDEN SELALESI (7).jpg?format=jpg&quality=50",
+      "gallery": [
+        "https://www.kulturportali.gov.tr/repoKulturPortali/large/SehirRehberi//GezilecekYer/20190506132011733_ANTALYA DUDEN SELALESI (7).jpg?format=jpg&quality=50",
+        "https://www.kulturportali.gov.tr/repoKulturPortali/large/04022013/3ba43ac6-4cbd-4a11-a75e-e1497d48af8c.JPG?format=jpg&quality=85",
+        "https://www.kulturportali.gov.tr/repoKulturPortali/large/03042013/e338a0c1-0f5a-4f0d-ac4b-bea92a1e0025.png?format=jpg&quality=85",
+        "https://www.kulturportali.gov.tr/repoKulturPortali/large/27022013/d72a3f1a-f6cc-43df-9646-a96c26e28bff.jpg?format=jpg&quality=85",
+        "https://www.kulturportali.gov.tr/repoKulturPortali/large/15022013/b7a35caf-3d4d-448d-8d7b-95fc03da3258.jpg?format=jpg&quality=85",
+        "https://www.kulturportali.gov.tr/repoKulturPortali/large/21022013/ba01f16b-a25a-4785-8b6e-7c4db110d83c.jpg?format=jpg&quality=85"
+      ]
+    }
+  },
+  {
+    "id": 19,
+    "city": "Antalya",
+    "name": "Antalya Müzesi",
+    "source": "kulturportali",
+    "patch": {
+      "short_description": "Antalya Müzesi, 1922 yılında, Süleyman Fikri Erten tarafından Birinci Dünya Savaşı'ndan sonra bölgeye gelen işgal güçlerinin yağmasından kurtarılan eserlerin korunması amacıyla kurulmuştur. İlk olarak, Kaleiçi'nde bulunan Alaaddin Camisi içinde, daha sonra ise Yivli Cami'de yer alan Müze, 1972 yılında bugünkü binasına taşınmıştır. Antalya Müzesi, bugün 30 bin metrekarelik bir alanda 14 sergi salonu ile heykel ve değişik eserlerin sergilendiği açık hava galerileri ve bahçeden oluşmaktadır.",
+      "image_url": "https://www.kulturportali.gov.tr/repoKulturPortali/large/19022013/d2f39e87-4405-4800-95bb-e85c67855d6e.JPG?format=jpg&quality=50",
+      "gallery": [
+        "https://www.kulturportali.gov.tr/repoKulturPortali/large/19022013/d2f39e87-4405-4800-95bb-e85c67855d6e.JPG?format=jpg&quality=50",
+        "https://www.kulturportali.gov.tr/repoKulturPortali/large/19022013/d2f39e87-4405-4800-95bb-e85c67855d6e.JPG?format=jpg&quality=85",
+        "https://www.kulturportali.gov.tr/repoKulturPortali/large/25022013/9bdb8364-9235-48b7-b218-31af0575fcfa.JPG?format=jpg&quality=85",
+        "https://www.kulturportali.gov.tr/repoKulturPortali/large/08072014/1ac34bbf-0776-4f2d-b047-c9345afdac42.jpg?format=jpg&quality=85",
+        "https://www.kulturportali.gov.tr/repoKulturPortali/large/06022013/281bc0e7-924c-4c2b-b6e3-88401144c238.jpg?format=jpg&quality=85",
+        "https://www.kulturportali.gov.tr/repoKulturPortali/large/21022013/756227be-ed2b-4f46-a82a-8238286e5c27.JPG?format=jpg&quality=85"
+      ]
+    }
+  },
+  {
+    "id": 20,
+    "city": "Antalya",
+    "name": "Konyaaltı Plajı",
+    "source": "wikipedia",
+    "matchedTitle": "Konyaaltı Plajı",
+    "patch": {
+      "short_description": "Konyaaltı Sahili, Lara Plajı ile birlikte Antalya'nın iki önemli sahilinden biridir. Şehir merkezinin batısında, Konyaaltı ilçesinin Akdeniz sahilindedir.",
+      "image_url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/7/73/Falezlerden_Antalya_Konyaalt%C4%B1_Plaj%C4%B1na_do%C4%9Fru_bir_g%C3%B6r%C3%BCn%C3%BCm.jpg/330px-Falezlerden_Antalya_Konyaalt%C4%B1_Plaj%C4%B1na_do%C4%9Fru_bir_g%C3%B6r%C3%BCn%C3%BCm.jpg?utm_source=tr.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+      "source_url": "https://tr.wikipedia.org/wiki/Konyaalt%C4%B1_Plaj%C4%B1"
+    }
+  },
+  {
+    "id": 21,
+    "city": "Antalya",
+    "name": "Aspendos Antik Tiyatrosu",
+    "source": "wikipedia",
+    "matchedTitle": "Aspendos",
+    "patch": {
+      "short_description": "Aspendos veya Belkıs (Pamfilya lehçesi: ΕΣΤϜΕΔΥΣ; Attika lehçesi: Ἄσπενδος), Antalya ili Serik ilçesinde bulunan Belkıs köyünde yer alan antik tiyatrosuyla meşhur bir antik kenttir. Pamfilya'nın en zengin şehirlerinden birisidir.",
+      "image_url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/6/60/Aspendos_Amphitheatre.jpg/1280px-Aspendos_Amphitheatre.jpg?utm_source=tr.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+      "source_url": "https://tr.wikipedia.org/wiki/Aspendos"
+    }
+  },
+  {
+    "id": 22,
+    "city": "Antalya",
+    "name": "Perge Antik Kenti",
+    "source": "kulturportali",
+    "patch": {
+      "short_description": "Perge Antik Kenti Antalya'nın Aksu ilçesinde yer alır. Hitit döneminde varlığını sürdürdüğüne inanılan ve &quot;Parha&quot; diye bilinen kent, Roma döneminde Anadolu'nun en düzenli kentlerinden biri olmuştur. Mimarisi ve mermer heykeltıraşlığı ile ünlü olan antik kentte yapılan kazılarda ortaya çıkarılan heykeller, Antalya Müzesi'ni en önemli heykel müzelerinden biri haline getirmiştir.",
+      "image_url": "https://www.kulturportali.gov.tr/repoKulturPortali/large/SehirRehberi//GezilecekYer/20170224120901427_Tiyatro, Stadyum, agora, Hel. Kule, G. Hamimi kuzeydogudan genel gorunum.1.JPG?format=jpg&quality=50",
+      "gallery": [
+        "https://www.kulturportali.gov.tr/repoKulturPortali/large/SehirRehberi//GezilecekYer/20170224120901427_Tiyatro, Stadyum, agora, Hel. Kule, G. Hamimi kuzeydogudan genel gorunum.1.JPG?format=jpg&quality=50",
+        "https://www.kulturportali.gov.tr/repoKulturPortali/large/17022013/cb5121cc-b88b-4938-bfc5-e228d263c770.jpg?format=jpg&quality=85",
+        "https://www.kulturportali.gov.tr/repoKulturPortali/large/18062014/2ff23512-0831-4172-ab83-defad4c10386.jpg?format=jpg&quality=85"
+      ]
+    }
+  },
+  {
+    "id": 23,
+    "city": "Antalya",
+    "name": "Manavgat Şelalesi",
+    "source": "kulturportali",
+    "patch": {
+      "short_description": "Batı Torosların doğu yamaçlarından doğarak Sorgun bölgesindeki boğazdan Akdeniz'e karışan ve büyük yer altı sularından beslenen doksan üç kilometre uzunluğundaki Manavgat Nehri, yaklaşık beş metre yükseklikteki falezlerden dökülen Manavgat Şelalesi'ni oluşturmaktadır. Antalya'nın Manavgat ilçesinin üç kilometre batısında bulunan şelale, ilçe ile aynı adı taşır.",
+      "image_url": "https://www.kulturportali.gov.tr/repoKulturPortali/large/SehirRehberi//GezilecekYer/20210409141427224_ANTALYA  MANAVGAT  SELALESI SERVET UYGUN 20190513_8.JPG?format=jpg&quality=50",
+      "gallery": [
+        "https://www.kulturportali.gov.tr/repoKulturPortali/large/SehirRehberi//GezilecekYer/20210409141427224_ANTALYA  MANAVGAT  SELALESI SERVET UYGUN 20190513_8.JPG?format=jpg&quality=50",
+        "https://www.kulturportali.gov.tr/repoKulturPortali/large/SehirRehberi//GezilecekYer/20180517140214009_MersinmutAlahanManastiriGulcanAcar2_20170330110517733.jpg?format=jpg&quality=85",
+        "https://www.kulturportali.gov.tr/repoKulturPortali/large/07072014/e855fd76-7cf4-4fb6-85c7-759f63ac630a.jpg?format=jpg&quality=85",
+        "https://www.kulturportali.gov.tr/repoKulturPortali/large/27082014/0f0a9873-33b3-4dd7-9315-2e326b170cef.JPG?format=jpg&quality=85",
+        "https://www.kulturportali.gov.tr/repoKulturPortali/large/27062013/423269df-5b62-4e7f-838e-0580acd7c26d.JPG?format=jpg&quality=85",
+        "https://www.kulturportali.gov.tr/repoKulturPortali/large/SehirRehberi//GezilecekYer/20200309154333368_heraion.JPG?format=jpg&quality=85"
+      ]
+    }
+  },
+  {
+    "id": 24,
+    "city": "Antalya",
+    "name": "Olimpos",
+    "source": "wikipedia",
+    "matchedTitle": "Olimpos",
+    "patch": {}
+  },
+  {
+    "id": 109,
+    "city": "Afyonkarahisar",
+    "name": "AMORİUM ANTİK KENTİ",
+    "source": "wikipedia",
+    "matchedTitle": "Amorium",
+    "patch": {
+      "short_description": "Amorium veya Amorion (Yunanca: Ἀμόριον), Küçük Asya'daki Frigya'da, Hellenistik dönemde kurulmuş, Bizans İmparatorluğu döneminde gelişmiş ve 838 yılındaki Arap yağmasından sonra gerilemeye başlamış antik bir şehirdi. Kent, Konstantinopolis'ten Kilikya'ya uzanan Bizans askeri yolu üzerinde stratejik bir konumda bulunuyordu. Günümüzdeki kalıntıları ve höyüğü, Afyonkarahisar İli'nin Emirdağ ilçesine 13 kilometre doğuda yer alan Hisar köyünün altında ve çevresinde bulunmaktadır. Arap/İslam kaynaklarında şehir 'Ammūriye olarak geçer."
+    }
+  },
+  {
+    "id": 144,
+    "city": "Afyonkarahisar",
+    "name": "İSHAKLI HAN",
+    "source": null,
+    "patch": {}
+  },
+  {
+    "id": 199,
+    "city": "Aksaray",
+    "name": "ACEMHÖYÜK",
+    "source": "wikipedia",
+    "matchedTitle": "Acemhöyük",
+    "patch": {
+      "short_description": "Acemhöyük, Aksaray il merkezinin 18 km kuzeybatısındaki Yeşilova kasabasında yer alan bir höyüktür. Yayvan bir tepe görünümündeki höyüğün, çanak çömlek yayılımına göre 800x700 metre boyutlarında olduğu belirtilmektedir. Höyüğün MÖ 3000 başlarından itibaren iskan edildiği, en parlak döneminin Asur Ticaret Kolonileri Çağı olduğu belirtilmektedir. Bu dönemde yerleşim höyüğün dışına, \"aşağı kent\"e yayılmış, ancak dönemin sonunda hem höyük, hem de aşağı kent terk edilmiştir. Daha sonra Erken Helenistik Dönem ve Roma Döneminde yeniden iskan edilmiş, bu dönemlerin sonunda da terk edilmiştir."
+    }
+  },
+  {
+    "id": 216,
+    "city": "Aksaray",
+    "name": "CINCIKLI HACI YUSUF MESCİDİ",
+    "source": null,
+    "patch": {}
+  },
+  {
+    "id": 221,
+    "city": "Amasya",
+    "name": "İKİNCİ BAYEZİD KÜLLİYESİ",
+    "source": "wikipedia",
+    "matchedTitle": "II. Bayezid Külliyesi",
+    "patch": {
+      "short_description": "II. Bayezid Külliyesi, Edirne'de tarihî külliye. İkinci başkent konumundaki Edirne'yi darüşşifaya kavuşturmak amacıyla Sultan II. Bayezid tarafından 1484-1488 yıllarında Mimar Hayreddin'e yaptırılmıştır."
+    }
+  },
+  {
+    "id": 285,
+    "city": "Ankara",
+    "name": "ANADOLU MEDENİYETLERİ MÜZESİ",
+    "source": "wikipedia",
+    "matchedTitle": "Anadolu Medeniyetleri Müzesi",
+    "patch": {
+      "short_description": "Anadolu Medeniyetleri Müzesi, Ankara'nın Altındağ ilçesinde bulunan bir tarih ve arkeoloji müzesidir."
+    }
+  },
+  {
+    "id": 303,
+    "city": "Ankara",
+    "name": "CENABİ AHMET PAŞA CAMİ",
+    "source": "wikipedia",
+    "matchedTitle": "Cenabi Ahmed Paşa Camii",
+    "patch": {
+      "short_description": "Cenabi Ahmed Paşa Camii; Ankara'nın Altındağ ilçesinde bulunan bir camidir."
+    }
+  },
+  {
+    "id": 349,
+    "city": "Ankara",
+    "name": "KOCATEPE CAMİ",
+    "source": "wikipedia",
+    "matchedTitle": "Kocatepe Camii",
+    "patch": {
+      "short_description": "Kocatepe Camii, Ankara'nın Kocatepe semtinde 1967'de inşaatına başlanan ve Türkiye Diyanet Vakfı tarafından 1987'de inşaatı tamamlanan camidir."
+    }
+  },
+  {
+    "id": 350,
+    "city": "Ankara",
+    "name": "AHİ ELVAN CAMİ",
+    "source": null,
+    "patch": {}
+  },
+  {
+    "id": 441,
+    "city": "Antalya",
+    "name": "RHODİAPOLİS ANTİK KENTİ",
+    "source": "wikipedia",
+    "matchedTitle": "Rhodiapolis",
+    "patch": {
+      "short_description": "Rhodiapolis, Antalya il sınırları Kumluca ilçesi yakınlarındaki antik kent. Antalya İli Kumluca ilçesinin 2,5 kilometre (1,6 mi) kuzeyinde tepe üzerinde ve eteklerinde kurulmuştur."
+    }
+  },
+  {
+    "id": 448,
+    "city": "Antalya",
+    "name": "SİLLYON ANTİK KENTİ",
+    "source": "wikipedia",
+    "matchedTitle": "Sillyon",
+    "patch": {
+      "short_description": "Sillyon, (Grekçe: Σύλλιον), Antalya ilinin Serik ilçesinde bulunan kale ve antik bir kent. Serik ilçesine 15 km uzaklıkta olan Sillyon, Pamfilya'da Aspendos ile Perge arasındaki bir tepe üzerinde kurulu bir kaledir. Bu kale, bugün harabe durumundadır."
+    }
+  },
+  {
+    "id": 476,
+    "city": "Antalya",
+    "name": "KORYDALLA ANTİK KENTİ",
+    "source": "wikipedia",
+    "matchedTitle": "Korydalla",
+    "patch": {
+      "short_description": "Corydella, Corydala veya Korydalla (Grekçe: Κορύδαλλα), Antalya ilinin Kumluca ilçesinin güneyinde yer alan Likya antik kentidir. Antik çağda, Bizanslı Stefanos tarafından alıntılanan Hekataios'a göre, Rodoslulara aitti. Ancak ne Rodos'taydı, ne de Karya'daki Rodos'un mülklerinden biriydi. Antik Roma yol haritası Tabula Peutingeriana, Corydala'yı \"Coridallo\" olarak yazar, Phaselis'ten Patara'ya giden yol üzerinde işaretler ve bu iki yer arasındaki mesafeyi 29 Roma mili (43 km; 27 mil) olarak gösterir."
+    }
+  },
+  {
+    "id": 503,
+    "city": "Artvin",
+    "name": "İŞHAN KİLİSESİ",
+    "source": "wikipedia",
+    "matchedTitle": "İşhan Manastırı",
+    "patch": {
+      "short_description": "İşhan Manastırı, tarihsel Gürcistan Krallığı'nın güneybatı kesiminde Orta Çağ Gürcü Ortodoks Manastırıdır. Bugün Türkiye'nin sınırları içinde, Artvin ilinin Yusufeli ilçesine bağlı İşhan köyündedir."
+    }
+  },
+  {
+    "id": 508,
+    "city": "Artvin",
+    "name": "SAHARA KARAGÖL MİLLİ PARKI",
+    "source": "wikipedia",
+    "matchedTitle": "Karagöl-Sahara Millî Parkı",
+    "patch": {
+      "short_description": "Karagöl-Sahara Millî Parkı, Türkiye'deki millî park alanlarından birisidir. Artvin'in Şavşat ilçesi sınırları içerisinde yer alan park, Karagöl ve Sahara Yaylası olmak üzere iki ayrı sahadan oluşur. Meşeli Peribacaları bu parkın sınırları içinde yer alır. Karagöl, Şavşat ilçe merkezinin 45 km. kuzeyinde yer almaktadır. Sahara yaylası ise ilçe merkezine 17 km. uzaklıktadır. Karagöl ve çevresinde genel olarak paleojen ve neojen arazileri yer alır. Kayaçlar genellikle sedimenter kökenlidir. Karagöl ve çevresi yer yer vadilerle yarılmıştır."
+    }
+  },
+  {
+    "id": 582,
+    "city": "Aydın",
+    "name": "AFRODİSİAS MÜZESİ",
+    "source": "wikipedia",
+    "matchedTitle": "Afrodisias Müzesi",
+    "patch": {
+      "short_description": "Afrodisias Müzesi, 1979 yılında Aydın'da bulunan Afrodisias Antik Kenti'nden çıkan arkeolojik eserlerin sergilenmesi amacıyla kurulmuştur."
+    }
+  },
+  {
+    "id": 739,
+    "city": "Bolu",
+    "name": "YEDİGÖLLER MİLLİ PARKI",
+    "source": "wikipedia",
+    "matchedTitle": "Yedigöller Millî Parkı",
+    "patch": {
+      "short_description": "Yedigöller Millî Parkı, Karadeniz Bölgesi'nde Bolu ilinde bir millî parktır."
+    }
+  },
+  {
+    "id": 741,
+    "city": "Bolu",
+    "name": "ABANT GÖLÜ MİLLİ PARKI",
+    "source": "wikipedia",
+    "matchedTitle": "Abant Gölü Millî Parkı",
+    "patch": {
+      "short_description": "Abant Gölü Millî Parkı, Türkiye'nin Bolu ilinin Mudurnu ilçesinde yer alan bir millî parktır. Batı Karadeniz sıradağlarının Karadeniz sahiline paralel ikinci kolunu oluşturan Abant ve Keremali sıradağlarının kolları arasındadır. 1.262 hektar (12,62 km2) alan kaplamaktadır. Geçmişte 21 Ekim 1988 tarihinde tabiat parkı, 9 Haziran 2022 tarihinde ise millî park olarak ilan edilmiştir. Türkiye'nin 48. millî parkıdır. Tamamı devlet mülkiyetindedir. Abant Gölü, Abant Dağları üzerinde oluşmuş bir krater ve birikinti gölüdür. Park alanında 1.400 metreden 1."
+    }
+  },
+  {
+    "id": 825,
+    "city": "Bursa",
+    "name": "YEŞİL TÜRBE",
+    "source": "wikipedia",
+    "matchedTitle": "Yeşil Türbe",
+    "patch": {
+      "short_description": "Yeşil Türbe, I. Bayezid'in oğlu Mehmet Çelebi tarafından 1421 yılında yaptırılmıştır. Yeşil Külliye'nin bir parçası olan türbenin mimarı Hacı İvaz Paşa’dır. Bursa'nın sembolü hâline gelen yapı şehrin her yerinden görülebilecek bir konuma sahiptir. I. Mehmed sağlığında türbeyi yaptırmış, 40 gün sonra da ölmüştür. Türbede Çelebi Sultan Mehmet ile oğulları Şehzade Mustafa, Mahmut ve Yusuf ile kızları Selçuk Hatun, Sitti Hatun, Hafsa Hatun, Ayşe Hatun ve dadısı Daya Hatuna ait olmak üzere toplam 9 sanduka bulunmaktadır."
+    }
+  },
+  {
+    "id": 836,
+    "city": "Bursa",
+    "name": "ULUDAĞ MİLLİ PARKI",
+    "source": "wikipedia",
+    "matchedTitle": "Uludağ Millî Parkı",
+    "patch": {
+      "short_description": "Uludağ Millî Parkı, Bursa ilinin güney ve güneydoğusunda 13.024 hektarlık bir alanda 1961 yılında millî park olarak ilan edilerek koruma altına alınmıştır. Millî parka ulaşım karayolu ve teleferik ile yapılabilmektedir. Dağın Kuzey ve Güney yamaçlarında çok sayıda patikalar sayesinde park içindeki vadiler ve tepeler arasında ulaşım mümkündür."
+    }
+  },
+  {
+    "id": 999,
+    "city": "Çanakkale",
+    "name": "ÇANAKKALE TROYA MÜZESİ",
+    "source": "wikipedia",
+    "matchedTitle": "Troya Müzesi",
+    "patch": {
+      "short_description": "Troya Müzesi, Türkiye'nin Çanakkale ilinde Troya antik kentinden ve Troas bölgesinin diğer antik kentlerinden çıkarılmış eserlerin sergilendiği arkeoloji müzesidir. Tevfikiye Köyü sınırları içinde, Troya örenyerinin girişindedir. 10 Ekim 2018'de ziyaret açılmıştır. Müze, yurt dışına kaçırılmış ve birçok farklı müze ve koleksiyona dağılmış Troya buluntularının Türkiye'ye iadesini sağlamak amacıyla kurulmuştur. Türkiye'nin diğer müzelerindeki Troya hazinesi buluntularının bir araya getirildiği müzede hiçbir kopya eser yer almaz."
+    }
+  },
+  {
+    "id": 1009,
+    "city": "Çanakkale",
+    "name": "ÇANAKKALE 1915 HİLALİ AHMER HASTANESİ CANLANDIRMA ALANI",
+    "source": null,
+    "patch": {}
+  },
+  {
+    "id": 1045,
+    "city": "Çorum",
+    "name": "ALACAHÖYÜK MÜZE VE ÖREN YERİ",
+    "source": null,
+    "patch": {}
+  },
+  {
+    "id": 1047,
+    "city": "Çorum",
+    "name": "YAZILIKAYA AÇIKHAVA TAPINAĞI",
+    "source": null,
+    "patch": {}
+  },
+  {
+    "id": 1053,
+    "city": "Çorum",
+    "name": "ÇORUM MÜZESİ",
+    "source": null,
+    "patch": {}
+  },
+  {
+    "id": 1077,
+    "city": "Denizli",
+    "name": "PAMUKKALE TERMAL SULARI",
+    "source": "wikipedia",
+    "matchedTitle": "Pamukkale",
+    "patch": {
+      "short_description": "Pamukkale, Türkiye'nin güneybatısındaki Denizli ilinde yer alan doğal bir mevkidir. Kent, termal suyun akışıyla kalan karbonat mineralleriyle oluşan travertenleri ve teraslarıyla ünlüdür. Türkiye'nin Ege Bölgesi'nde, yılın büyük bölümünde ılıman bir iklime sahip olan Menderes Nehri vadisinde bulunur. Eski bir Yunan kenti olan Hierapolis, toplamda yaklaşık 2.700 metre uzunluğunda, 600 metre genişliğinde ve 160 metre yüksekliğindeki traverten oluşumunun üzerine inşa edilmiştir. Denizli merkezinin 20 km uzağındaki vadinin karşı tarafında yer alan tepelerden görülebilir."
+    }
+  },
+  {
+    "id": 1093,
+    "city": "Denizli",
+    "name": "ATATÜRK EVİ VE ETNOGRAFYA MÜZESİ",
+    "source": null,
+    "patch": {}
+  },
+  {
+    "id": 1096,
+    "city": "Denizli",
+    "name": "APOLLON LAİRBENOS TAPINAĞI",
+    "source": null,
+    "patch": {}
+  },
+  {
+    "id": 1168,
+    "city": "Düzce",
+    "name": "AKÇAKOCA",
+    "source": "wikipedia",
+    "matchedTitle": "Akçakoca",
+    "patch": {
+      "short_description": "Akçakoca, Batı Karadeniz Bölgesi'nde Düzce iline bağlı bir ilçedir."
+    }
+  },
+  {
+    "id": 1169,
+    "city": "Düzce",
+    "name": "EFTENİ GÖLÜ",
+    "source": "wikipedia",
+    "matchedTitle": "Efteni Gölü",
+    "patch": {
+      "short_description": "Efteni Gölü, Düzce ili sınırlarında, Merkez ve Gölyaka ilçe sınırlarında yer alan, tektonik oluşumlu, tatlı su gölü. Düzce merkezin 10 km güneybatısı, Gölyaka merkezin 2 km doğusunda yer alır. Göl çevresinde 76 hektarlık alanda, 2005 yılında Efteni Gölü Yaban Hayatı Geliştirme Sahası kurulmuştur."
+    }
+  },
+  {
+    "id": 1170,
+    "city": "Düzce",
+    "name": "DÜZCE ŞELALELERİ",
+    "source": null,
+    "patch": {}
+  },
+  {
+    "id": 1196,
+    "city": "Düzce",
+    "name": "SAKLIKENT ŞELALESİ",
+    "source": null,
+    "patch": {}
+  },
+  {
+    "id": 1217,
+    "city": "Edirne",
+    "name": "İKİNCİ BAYEZİD KÜLLİYESİ SAĞLIK MÜZESİ",
+    "source": "wikipedia",
+    "matchedTitle": "Sultan II. Bayezid Külliyesi Sağlık Müzesi",
+    "patch": {
+      "short_description": "\"Sultan II. Bayezıd Külliyesi Sağlık Müzesi\", \"Edirne Sağlık Müzesi\", Edirne'de, İkinci Beyazıt Külliyesi'nin Darüşşifa ve Tıp medresesi yapıları içinde hizmet veren, Trakya Üniversitesi bünyesindeki müze."
+    }
+  },
+  {
+    "id": 1248,
+    "city": "Edirne",
+    "name": "EDİRNE SARAYI",
+    "source": null,
+    "patch": {}
+  },
+  {
+    "id": 1315,
+    "city": "Erzurum",
+    "name": "ÇİFTE MİNARELİ MEDRESE",
+    "source": "wikipedia",
+    "matchedTitle": "Çifte Minareli Medrese (Erzurum)",
+    "patch": {
+      "short_description": "Çifte Minareli Medrese (Hatuniye Medresesi), Türkiye'de Erzurum İlinde bulunmaktadır. Selçuklular dönemine aittir. Bu tarihî eser günümüze kadar varlığını koruyabilmiş ve bulunduğu şehrin sembolü haline gelmiştir. Her yıl binlerce yerli ve yabancı turist tarafından ziyaret edilir."
+    }
+  },
+  {
+    "id": 1350,
+    "city": "Eskişehir",
+    "name": "SEYYİD BATTAL GAZİ KÜLLİYESİ ",
+    "source": "wikipedia",
+    "matchedTitle": "Seyit Battal Gazi Külliyesi",
+    "patch": {
+      "short_description": "Seyyit Battal Gazi Külliyesi, Eskişehir'in Seyitgazi ilçesinde, 150 metre yüksekliğinde Üçler Tepesi'nin doğuya bakan yamaçları üzerindeki külliye. Seyit Battal Gazi'ye ithafen yapılmıştır. Anadolu'nun Bizans İmparatorluğu egemenliği altında bulunduğu 700 yıllarında, İslamiyet henüz Anadolu içlerine yayılmamıştı. İslam'ı kabul etmiş olan Emeviler doğudan sık sık Bizans'a karşı Anadolu'nun içlerine akın yaparak Anadolu'yu ele geçirmek ve İslam'ı yaymak istemişlerdir."
+    }
+  },
+  {
+    "id": 1360,
+    "city": "Eskişehir",
+    "name": "HAN YERALTI ŞEHRİ VE ÇEVRESİ",
+    "source": null,
+    "patch": {}
+  },
+  {
+    "id": 1369,
+    "city": "Eskişehir",
+    "name": "ŞEYH SÜCAEDDİN-İ VELİ KÜLLİYESİ VE TÜRBESİ",
+    "source": null,
+    "patch": {}
+  },
+  {
+    "id": 1438,
+    "city": "Gaziantep",
+    "name": "GAZİANTEP ARKEOLOJİ MÜZESİ",
+    "source": null,
+    "patch": {}
+  },
+  {
+    "id": 1590,
+    "city": "Isparta",
+    "name": "YAZILI KANYON TABİAT PARKI",
+    "source": "wikipedia",
+    "matchedTitle": "Yazılı Kanyon Tabiat Parkı",
+    "patch": {
+      "short_description": "Yazılı Kanyon, Isparta ili Sütçüler ilçesinde bulunan kanyon ve tabiat parkıdır.Çandır Köyü hudutları içerisinde kalan park, 1989 yılında tabiat parkı olarak tescil edilmiştir. Yazılı denmesinin sebebi kanyonda büyük bir kaya üzerinde eski Yunan şairlerinden Epiktetos'un Hür İnsan Üzerine Bir Şiir'inin yer almasıdır."
+    }
+  },
+  {
+    "id": 1595,
+    "city": "Isparta",
+    "name": "ADADA ANTİK KENTİ",
+    "source": null,
+    "patch": {}
+  },
+  {
+    "id": 1605,
+    "city": "Isparta",
+    "name": "BAŞPINAR TABİAT PARKI",
+    "source": "wikipedia",
+    "matchedTitle": "Başpınar Tabiat Parkı",
+    "patch": {
+      "short_description": "Başpınar Tabiat Parkı Isparta'da bulunan bir doğa parkıdır. Başpınar Tabiat Parkı, Isparta ili Aksu ilçesi kırsalında bulunmaktadır (37°50′00″K 31°06′31″D). Aksu'ya uzaklığı 7 km'dir. Orman ve Su İşleri Bakanlığı tarafından 11 Temmuz 2011 tarihinde tabiat parkı ilan edildi. Aksu Çayı'nın bir kolu olan vadide ve Sorgun Barajı'nın doğusunda yer almaktadır. Rakımı 1.365 m'dir. Doğa parkı 395 daa'lık bir alanı kaplamaktadır (0,395 km²; 0,153 sq mi). Yakınlardaki turistik yerler baraj ve Zindan Mağarasıdır."
+    }
+  },
+  {
+    "id": 1701,
+    "city": "İstanbul",
+    "name": "SÜLEYMANİYE CAMİSİ",
+    "source": "wikipedia",
+    "matchedTitle": "Süleymaniye Camii",
+    "patch": {
+      "short_description": "Süleymaniye Camii, İstanbul'un Üçüncü Tepesi üzerinde yer alan bir Osmanlı imparatorluk camisidir. Kanuni Sultan Süleyman'ın emriyle inşa edilen cami, imparatorluk baş mimarı Mimar Sinan tarafından tasarlandı. Bir yazıtta, yapının temelinin 1550'de atıldığı ve 1557'de açılışının yapıldığı belirtilmektedir; ancak külliyenin inşaatı muhtemelen bu tarihten birkaç yıl sonrasına kadar sürdü."
+    }
+  },
+  {
+    "id": 1702,
+    "city": "İstanbul",
+    "name": "DOLMABAHÇE SARAYI",
+    "source": "wikipedia",
+    "matchedTitle": "Dolmabahçe Sarayı",
+    "patch": {
+      "short_description": "Dolmabahçe Sarayı, İstanbul, Beşiktaş'ta, Kabataş'tan Beşiktaş'a uzanan Dolmabahçe Caddesi'yle İstanbul Boğazı arasında, 250.000 m²'lik bir alan üzerinde bulunan Osmanlı sarayıdır. Marmara Denizi'nden Boğaziçi'ne deniz yoluyla girişte sol kıyıda, Üsküdar ve Kuzguncuk'un karşısında yer alır. Sultan Abdülmecid tarafından inşa ettirilen sarayın yapımı 1843 yılında başlayıp 1856 yılında bitirilmiştir. Günümüzde müze olarak kullanılmaktadır."
+    }
+  },
+  {
+    "id": 1703,
+    "city": "İstanbul",
+    "name": "AYASOFYAİ KEBİR CAMİİ ŞERİFİ",
+    "source": null,
+    "patch": {}
+  },
+  {
+    "id": 1710,
+    "city": "İstanbul",
+    "name": "BEYLERBEYİ SARAYI",
+    "source": "wikipedia",
+    "matchedTitle": "Beylerbeyi Sarayı",
+    "patch": {
+      "short_description": "Beylerbeyi Sarayı, İstanbul'un Üsküdar ilçesinde bulunan yazlık bir Osmanlı sarayıydı. Günümüzde müze olarak kullanılan Beylerbeyi Sarayı, kendisine bağlı çeşitli yapı ve diğer unsurlardan oluşan bir kompleksin parçasıdır. Adını, bulunduğu Beylerbeyi semtinden alır. Osmanlı Padişahı Abdülaziz'in talimatıyla, 1863-1865 yıllarında, Sarkis Balyan'ın mimarlığında inşa edilmiştir."
+    }
+  },
+  {
+    "id": 1750,
+    "city": "İstanbul",
+    "name": "FENERBAHÇE SPOR KULÜBÜ MÜZESİ",
+    "source": "wikipedia",
+    "matchedTitle": "Fenerbahçe Müzesi",
+    "patch": {
+      "short_description": "Fenerbahçe Müzesi, Fenerbahçe Spor Kulübü tarafından açılan spor müzesi. Kulübün tarihi boyunca kazandığı kupa, madalya, şilt ve plaketin 480 tanesi bu müzede sergilenmektedir. Fenerbahçe Spor Kulübü, tam 35 dalda 118 yıllık başarılarla dolu çalışmalarında çok değerli ödüller ve kupalara sahip olmuştur. Fenerbahçe ilk kupasını 5 Haziran 1910'da İstanbul'un ünlü Rum takımı Stragglers'ı 3-1 yenerek kazandı. Gümüş işlemeli bir kupa ile başlayan bu ilk ödül ile Fenerbahçe müzesinin temelleri de atılmış oldu."
+    }
+  },
+  {
+    "id": 1815,
+    "city": "İzmir",
+    "name": "İZMİR TARİH VE SANAT MÜZESİ ",
+    "source": "wikipedia",
+    "matchedTitle": "İzmir Tarih ve Sanat Müzesi",
+    "patch": {
+      "short_description": "İzmir Tarih ve Sanat Müzesi, Türkiye'nin İzmir şehrinde, Kültürpark içerisinde 2004-2025 yılları arasında hizmet vermiş müzedir. Taş Eserler Bölümü, Seramik Eserler Bölümü ve Kıymetli Eserler Bölümü olmak üzere üç ayrı bölümde ziyaretçilerine İzmir ve çevresinde yapılan kazılarda ortaya çıkarılan eserleri sunmuştur. Her yıl yüz binden fazla ziyaretçi tarafından gezilmiştir."
+    }
+  },
+  {
+    "id": 1846,
+    "city": "Kahramanmaraş",
+    "name": "KAHRAMANMARAŞ ARKEOLOJİ MÜZESİ",
+    "source": null,
+    "patch": {}
+  },
+  {
+    "id": 1983,
+    "city": "Kastamonu",
+    "name": "KASTAMONU KENT MÜZESİ",
+    "source": null,
+    "patch": {}
+  },
+  {
+    "id": 1998,
+    "city": "Kayseri",
+    "name": "KARATAY HAN",
+    "source": null,
+    "patch": {}
+  },
+  {
+    "id": 2115,
+    "city": "Kilis",
+    "name": "RAVANDA KALESİ",
+    "source": null,
+    "patch": {}
+  },
+  {
+    "id": 2118,
+    "city": "Kilis",
+    "name": "ŞURAHBİL BİN HASENE (ŞÖR HABİL HASENE)TÜRBE VE ZAVİYESİ ",
+    "source": null,
+    "patch": {}
+  },
+  {
+    "id": 2489,
+    "city": "Mersin",
+    "name": "KELENDERİS",
+    "source": "wikipedia",
+    "matchedTitle": "Kelenderis",
+    "patch": {
+      "short_description": "Kelenderis, Taşlık Kilikya bölgesinde yer alan antik bir şehirdir. Günümüzde Mersin'e bağlı Aydıncık ilçesinde yer alan antik kent ilk kez 1987 yılında kazılmaya başlanmıştır."
+    }
+  },
+  {
+    "id": 2551,
+    "city": "Muğla",
+    "name": "HALİKARNASSOS",
+    "source": null,
+    "patch": {}
+  },
+  {
+    "id": 2668,
+    "city": "Niğde",
+    "name": "SUNGUR BEY CAMİ",
+    "source": "wikipedia",
+    "matchedTitle": "Sungur, Sorgun",
+    "patch": {
+      "short_description": "Sungur, Yozgat ilinin Sorgun ilçesine bağlı, Bahadın beldesi içine alınan bir köydür."
+    }
+  },
+  {
+    "id": 2671,
+    "city": "Niğde",
+    "name": "NİĞDE MÜZESİ",
+    "source": null,
+    "patch": {}
+  },
+  {
+    "id": 2782,
+    "city": "Osmaniye",
+    "name": "ALA CAMİ",
+    "source": null,
+    "patch": {}
+  },
+  {
+    "id": 2842,
+    "city": "Sakarya",
+    "name": "UZUN ÇARŞI ",
+    "source": null,
+    "patch": {}
+  },
+  {
+    "id": 2939,
+    "city": "Sinop",
+    "name": "HAMSİLOS TABİAT PARKI",
+    "source": "wikipedia",
+    "matchedTitle": "Hamsilos",
+    "patch": {
+      "short_description": "Hamsilos; Sinop il sınırları içinde, Türkiye'nin en kuzey ucunu oluşturan İnceburun üzerinde bulunan bir koy. Deveci Deresi'nin ağız kısmından karaya doğru 300-400 metrelik deniz girintisidir."
+    }
+  },
+  {
+    "id": 3178,
+    "city": "Tekirdağ",
+    "name": "SARBANI AHMED TÜRBESİ",
+    "source": null,
+    "patch": {}
+  },
+  {
+    "id": 3238,
+    "city": "Tokat",
+    "name": "KOMANA ANTİK KENTİ",
+    "source": "wikipedia",
+    "matchedTitle": "Komana Pontiki",
+    "patch": {
+      "short_description": "Komana Pontiki, Pontik Komana veya kısaca Komana (Pontus Rumcası: Κόμανα Ποντική) veya Latince Comana Pontica, Türkiye'nin Tokat ilinin merkez ilçesine bağlı Gümenek köyündeki Yeşilırmak Nehri kıyısında bulunan antik Pontus şehri. Yeşilırmak yanında kurulmuştur, merkezi konumu onu tercih edilen bir ticaret merkezi haline getirmişti. Şehirde, Ay Tanrıçası'na tapınılırdı. Bu tapınakta hizmet gören köle sayısı 6000 kişiden az değildi. İoannis Hrisostomos, Konstantinopolis'ten sürgüne Aladağlar'da bulunan Cocysus şehrine giderken burada ölmüştür."
+    }
+  },
+  {
+    "id": 3248,
+    "city": "Tokat",
+    "name": "ARASTALI BEDESTEN ",
+    "source": null,
+    "patch": {}
+  },
+  {
+    "id": 3340,
+    "city": "Uşak",
+    "name": "TAŞYARAN VADİSİ",
+    "source": null,
+    "patch": {}
+  },
+  {
+    "id": 3405,
+    "city": "Yozgat",
+    "name": "YOZGAT SARIKAYA KAPLICALARI",
+    "source": "wikipedia",
+    "matchedTitle": "Sarıkaya",
+    "patch": {
+      "short_description": "Sarıkaya, Yozgat ilinin bir ilçesidir. İl merkezine 79 km uzaklıktadır. İlçenin yüzölçümü 1.018 km²dir. Sarıkaya ilçe merkezinin deniz seviyesinden ortalama yüksekliği 1.115 metredir."
+    }
+  },
+  {
+    "id": 3409,
+    "city": "Yozgat",
+    "name": "KERKENES HARABELERİ (KAYIP ŞEHİR PTERİA) ",
+    "source": "wikipedia",
+    "matchedTitle": "Kerkenes",
+    "patch": {
+      "short_description": "Kerkenes Dağı, Yozgat il merkezinin güneydoğusunda, Şahmuratlı köyünün 5 km batısında, Kapadokya Ovası'nın kuzey ucunda yer alan bir höyüktür. Anadolu platosunda MÖ 600 yılı dolaylarının en geniş yerleşimlerinden biri olarak bilinmektedir. Bir Demir Çağı başkenti olarak büyük olasılıkla Herodot'un yazmalarında belirtilen Pteria olmalıdır. Kent, MÖ 6. yüzyıl ortalarında yağmalanmış ve yakılmıştır. Yerleşmeyi çeviren 7 sur kapılı, toplam 7 km uzunluğundaki surları yıkılmıştır ve bu olaydan sonra kent bütünüyle terk edilmiştir."
+    }
+  },
+  {
+    "id": 3412,
+    "city": "Yozgat",
+    "name": "ÇEŞKA YERALTI ŞEHRİ",
+    "source": "wikipedia",
+    "matchedTitle": "Çeşka Kalesi Yeraltı Şehri",
+    "patch": {
+      "short_description": "Çeşka Kalesi Yer Altı Şehri, Yozgat ili şehir merkezine 3 kilometre kuzeydoğusunda bulunan kirazlı göleti'nin kuzey kısmında, çevreye hakim yüksek bir tepenin uç noktasında bulunmaktadır."
+    }
+  },
+  {
+    "id": 3413,
+    "city": "Yozgat",
+    "name": "YOZGAT MÜZESİ ",
+    "source": null,
+    "patch": {}
+  },
+  {
+    "id": 3414,
+    "city": "Yozgat",
+    "name": "GEDİKHASANLI ŞAKİR EFENDİ TÜRBESİ",
+    "source": null,
+    "patch": {}
+  },
+  {
+    "id": 3415,
+    "city": "Yozgat",
+    "name": "AKDAĞMADENİ MUŞALİKALESİ",
+    "source": "wikipedia",
+    "matchedTitle": "Muşalikalesi",
+    "patch": {
+      "short_description": "Muşalikalesi, Yozgat ilinin Akdağmadeni ilçesine bağlı bir köydür."
+    }
+  },
+  {
+    "id": 3416,
+    "city": "Yozgat",
+    "name": "AKDAĞMADENİ KİLİSESİ",
+    "source": null,
+    "patch": {}
+  },
+  {
+    "id": 3417,
+    "city": "Yozgat",
+    "name": "YOZGAT BİLAL ŞAHİN KÜLLİYESİ",
+    "source": null,
+    "patch": {}
+  },
+  {
+    "id": 3418,
+    "city": "Yozgat",
+    "name": "BOZOK YAYLASI",
+    "source": null,
+    "patch": {}
+  },
+  {
+    "id": 3430,
+    "city": "Yozgat",
+    "name": "ÇANDIR ŞAH SULTAN HATUN TÜRBESİ",
+    "source": null,
+    "patch": {}
+  },
+  {
+    "id": 3449,
+    "city": "Yozgat",
+    "name": "KAYYIMZADE CAMİİ",
+    "source": null,
+    "patch": {}
+  }
+]

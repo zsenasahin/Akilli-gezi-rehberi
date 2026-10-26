@@ -1,6 +1,6 @@
 import { supabase } from '../../config/supabase';
 import { getCityCenter } from '../../constants/cities';
-import { getCityPOIs } from '../api/overpassApi';
+import { getCityPOIs, getFoodPOIs } from '../api/overpassApi';
 import localCuisine from '../turkiye_mutfak.json';
 
 /**
@@ -36,111 +36,152 @@ function haversine(lat1, lng1, lat2, lng2) {
     return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
+// ─── Yemek / tatlı önerisi puanlaması ────────────────────────────────────────
+// Eski sürüm şehir merkezine en yakın ilk restoranı seçiyordu; burger zinciri
+// ya da isimsiz büfe de "öğle yemeği" olabiliyordu. Şimdi her gün kendi
+// duraklarının çevresinden aday toplanır ve yerel mutfak, bilgi doluluğu ve
+// mesafeye göre puanlanır; zincirler ve fast food geri plana itilir.
+
+const CHAIN_RE = /mc ?donald|burger king|kfc|popeyes|starbucks|domino|pizza hut|little caesars|subway|sbarro|arby|carl'?s jr|wendy|papa john|caribou|gloria jean|espressolab|kahve dünyası|tavuk dünyası|usta dönerci|bereket döner|komagene/i;
+const LOCAL_CUISINE_RE = /turkish|kebab|regional|local|ottoman|anatolian|kofte|köfte|pide|lahmacun|meze|fish|seafood|balik|balık|grill|ocakbasi|ocakbaşı|home|ev_yemekleri|soup|corba|çorba|manti|mantı|kokorec/i;
+const FAST_RE = /burger|pizza|chicken|sandwich|hot_dog|fried|wrap|doner|döner/i;
+const DESSERT_RE = /dessert|ice_cream|pastry|cake|baklava|kunefe|künefe|turkish_delight|chocolate|waffle|coffee_shop|turkish_coffee|tea|bakery/i;
+const DESSERT_NAME_RE = /baklava|künefe|kunefe|tatlı|tatli|pastane|pasta(ne|cı)|lokum|dondurma|muhallebi|helva|şekerci|sekerci|kahve|çay bahçesi|cay bahcesi|gelato|maraş|sütlaç|kazandibi|katmer/i;
+
+const SLOT_RADIUS_KM = { lunch: 0.9, dinner: 1.2, dessert: 0.8 };
+
+function poiTags(poi) {
+    return poi.tags || {};
+}
+
+function infoScore(poi) {
+    const t = poiTags(poi);
+    let score = 0;
+    if (poi.openingHours || t.opening_hours) score += 1;
+    if (poi.phone || poi.website || t.phone || t.website || t['contact:instagram']) score += 1;
+    if (poi.address || t['addr:street']) score += 0.5;
+    if (t.wikidata || t.wikipedia || t.tourism) score += 2; // bilinen/turistik işletme
+    return score;
+}
+
+function scoreMeal(poi, distKm, slot) {
+    const t = poiTags(poi);
+    const cuisine = `${t.cuisine || ''} ${poi.cuisine || ''}`.toLowerCase();
+    const name = poi.name || '';
+    let score = infoScore(poi);
+    if (CHAIN_RE.test(name) || t.brand) score -= 6;
+    if (poi.category === 'fast_food') score -= 3;
+    if (FAST_RE.test(cuisine)) score -= 2;
+    if (LOCAL_CUISINE_RE.test(cuisine) || LOCAL_CUISINE_RE.test(name)) score += 3;
+    if (poi.category === 'restaurant') score += 1.5;
+    if (poi.category === 'cafe' || poi.category === 'ice_cream' || poi.category === 'pastry' || poi.category === 'confectionery') score -= 4;
+    if (slot === 'dinner' && /fish|seafood|meyhane|meze|ocakbas/i.test(cuisine + name)) score += 1;
+    return score - distKm * 2.5;
+}
+
+function scoreDessert(poi, distKm) {
+    const t = poiTags(poi);
+    const cuisine = `${t.cuisine || ''} ${poi.cuisine || ''}`.toLowerCase();
+    const name = poi.name || '';
+    // Restoranlar ve fast food mola önerisi olmaz; mutfak etiketinde "coffee_shop"
+    // geçen kebapçılar tatlıcı sanılıyordu.
+    if (!['pastry', 'confectionery', 'ice_cream', 'cafe'].includes(poi.category)) return -Infinity;
+    const isDessertPlace = poi.category !== 'cafe' || DESSERT_RE.test(cuisine) || DESSERT_NAME_RE.test(name);
+    let score = infoScore(poi) + (isDessertPlace ? 4 : 0);
+    if (/nargile|nargile|hookah|shisha|bar|pub/i.test(name) || t.amenity === 'hookah_lounge' || /hookah|shisha/i.test(cuisine)) score -= 6;
+    if (CHAIN_RE.test(name) || t.brand) score -= 5;
+    return score - distKm * 3;
+}
+
+function pickBest(pois, pivot, slot, excluded) {
+    const maxKm = SLOT_RADIUS_KM[slot];
+    let best = null;
+    let bestScore = -Infinity;
+    for (const poi of pois) {
+        const key = String(poi.id);
+        if (excluded.has(key) || excluded.has(`name:${poi.name}`)) continue;
+        const distKm = haversine(pivot.lat, pivot.lng, poi.lat, poi.lng);
+        if (distKm > maxKm) continue;
+        const score = slot === 'dessert' ? scoreDessert(poi, distKm) : scoreMeal(poi, distKm, slot);
+        if (score > bestScore) { bestScore = score; best = { ...poi, distanceKm: Math.round(distKm * 10) / 10 }; }
+    }
+    // Çok zayıf adaylar (ör. tek seçenek uzak bir fast food) önerilmez
+    const floor = slot === 'dessert' ? 1 : -1.5;
+    return best && bestScore >= floor ? best : null;
+}
+
+function midpoint(a, b) {
+    if (a?.lat && b?.lat) return { lat: (a.lat + b.lat) / 2, lng: (a.lng + b.lng) / 2 };
+    if (a?.lat) return { lat: a.lat, lng: a.lng };
+    return null;
+}
+
 /**
- * Belirli bir şehir ve gün için öğle + akşam yemeği yeri önerileri üretir.
- * Overpass API'den gerçek restoran/kafe çeker.
+ * Belirli bir gün için öğle yemeği, tatlı/kahve molası ve akşam yemeği önerir.
  *
- * - Öğle: günün ortasındaki iki yer arasına en yakın restoran
- * - Akşam: son yerden sonra en yakın restoran
+ * - Öğle: öğle arasının iki yanındaki durakların orta noktası çevresinde
+ * - Tatlı: öğleden sonraki ilk durağın çevresinde (pastane/tatlıcı/dondurmacı)
+ * - Akşam: günün son durağının çevresinde
  *
  * @param {number} cityId
  * @param {string} cityName
- * @param {string[]} usedPlaceIds
+ * @param {string[]} usedPlaceIds - Önerilmemesi gereken yer kimlikleri
  * @param {Array} [orderedPlaces] - Günün sıralı yerleri
  * @param {number} [dayIndex] - Plan içindeki sıfırdan başlayan gün indeksi
- * @returns {Promise<{ lunch, dinner, lunchAfterIndex, dinnerAfterIndex }>}
+ * @param {Set<string>} [excluded] - Önceki günlerde önerilen işletmeler (paylaşılır, güncellenir)
+ * @returns {Promise<{ lunch, dinner, localBreak, lunchAfterIndex, dinnerAfterIndex, breakAfterIndex }>}
  */
-export const getMealSuggestions = async (cityId, cityName = '', usedPlaceIds = [], orderedPlaces = [], dayIndex = 0) => {
+export const getMealSuggestions = async (cityId, cityName = '', usedPlaceIds = [], orderedPlaces = [], dayIndex = 0, excluded = new Set()) => {
     const lunchAfterIndex = orderedPlaces.length > 1
         ? Math.floor(orderedPlaces.length / 2) - 1
         : 0;
     const dinnerAfterIndex = Math.max(0, orderedPlaces.length - 1);
-
-    const breakAfterIndex = orderedPlaces.length > 2 ? 0 : lunchAfterIndex;
+    const breakAfterIndex = Math.min(lunchAfterIndex + 1, dinnerAfterIndex);
     const empty = { lunch: null, dinner: null, localBreak: null, lunchAfterIndex, dinnerAfterIndex, breakAfterIndex };
 
     try {
         const center = getCityCenter(cityName);
+        const located = orderedPlaces.filter(p => p?.lat && p?.lng);
+        const lunchPivot = midpoint(orderedPlaces[lunchAfterIndex], orderedPlaces[lunchAfterIndex + 1])
+            || located[0] || center;
+        const dessertPivot = midpoint(orderedPlaces[breakAfterIndex], null) || lunchPivot;
+        const dinnerPivot = midpoint(orderedPlaces[dinnerAfterIndex], null) || located[located.length - 1] || center;
 
-        // Hem restoran hem kafe çek
-        const [restResult, cafeResult] = await Promise.all([
-            getCityPOIs(center.lat, center.lng, 'restaurant', 3000),
-            getCityPOIs(center.lat, center.lng, 'cafe', 2000),
-        ]);
+        // Yakın pivotlar aynı sorguyu paylaşır (getFoodPOIs önbelleği ~200 m ızgaralı)
+        const [lunchPool, dessertPool, dinnerPool] = await Promise.all([
+            getFoodPOIs(lunchPivot.lat, lunchPivot.lng, 900),
+            getFoodPOIs(dessertPivot.lat, dessertPivot.lng, 900),
+            getFoodPOIs(dinnerPivot.lat, dinnerPivot.lng, 1200),
+        ]).then(results => results.map(r => r.data || []));
 
-        const allEateries = [
-            ...(restResult.data || []),
-            ...(cafeResult.data || []),
-        ].filter(p => p.name && p.lat && p.lng);
+        const blocked = new Set([...excluded, ...usedPlaceIds.map(String)]);
+        const take = (poi) => {
+            if (!poi) return null;
+            blocked.add(String(poi.id));
+            blocked.add(`name:${poi.name}`);
+            excluded.add(String(poi.id));
+            excluded.add(`name:${poi.name}`);
+            return poi;
+        };
 
-        if (allEateries.length === 0) return empty;
+        const lunchPick = take(pickBest(lunchPool, lunchPivot, 'lunch', blocked));
+        const dessertPick = take(pickBest(dessertPool, dessertPivot, 'dessert', blocked));
+        const dinnerPick = take(pickBest(dinnerPool, dinnerPivot, 'dinner', blocked));
 
-        // Aynı şehirdeki çok günlük planlarda aynı yöresel lezzeti her güne
-        // yazmak yerine, öne çıkan lezzetleri gün sırasına göre döndürüyoruz.
+        const asMeal = (poi) => poi && ({ ...poi, id: String(poi.id), type: 'restaurant' });
+        const lunch = asMeal(lunchPick);
+        const dinner = asMeal(dinnerPick);
+
+        // Şehrin yöresel tatlısı/içeceği yalnızca bir "deneyebilirsin" ipucu olarak
+        // gösterilir; işletmenin onu sattığı iddia edilmez.
         const localSpecialty = pickLocalSpecialty(cityName, dayIndex);
-
-        // Öğle: günün ortasındaki iki yer arasına en yakın
-        let lunchPivotLat = center.lat;
-        let lunchPivotLng = center.lng;
-        if (orderedPlaces.length > 1) {
-            const a = orderedPlaces[lunchAfterIndex];
-            const b = orderedPlaces[lunchAfterIndex + 1];
-            if (a?.lat && b?.lat) {
-                lunchPivotLat = (a.lat + b.lat) / 2;
-                lunchPivotLng = (a.lng + b.lng) / 2;
-            }
-        }
-
-        const sortedForLunch = [...allEateries].sort((a, b) =>
-            haversine(lunchPivotLat, lunchPivotLng, a.lat, a.lng) -
-            haversine(lunchPivotLat, lunchPivotLng, b.lat, b.lng)
-        );
-        const lunch = sortedForLunch[0] ? {
-            ...sortedForLunch[0],
-            id: String(sortedForLunch[0].id),
-            type: 'restaurant',
-        } : null;
-
-        // Akşam: son yere en yakın, öğleden farklı
-        let dinnerPivotLat = center.lat;
-        let dinnerPivotLng = center.lng;
-        const lastPlace = orderedPlaces[orderedPlaces.length - 1];
-        if (lastPlace?.lat) {
-            dinnerPivotLat = lastPlace.lat;
-            dinnerPivotLng = lastPlace.lng;
-        }
-
-        const sortedForDinner = [...allEateries]
-            .filter(p => p.id !== sortedForLunch[0]?.id)
-            .sort((a, b) =>
-                haversine(dinnerPivotLat, dinnerPivotLng, a.lat, a.lng) -
-                haversine(dinnerPivotLat, dinnerPivotLng, b.lat, b.lng)
-            );
-        const dinner = sortedForDinner[0] ? {
-            ...sortedForDinner[0],
-            id: String(sortedForDinner[0].id),
-            type: 'restaurant',
-        } : null;
-
-        // Yöresel tatlı/içecek için, rotanın başındaki durağa yakın gerçek bir
-        // kafe öner. Veri seti işletmenin o ürünü kesin sattığını söylemediği
-        // için bunu "mola önerisi" olarak sunuyoruz; yanlış vaat etmiyoruz.
-        const firstPlace = orderedPlaces[0];
-        const cafeCandidates = allEateries.filter(p => p.category === 'cafe' || p.type === 'cafe');
-        const localBreakPool = cafeCandidates.length ? cafeCandidates : allEateries;
-        const nearestLocalBreak = localSpecialty && localBreakPool.length
-            ? [...localBreakPool].sort((a, b) =>
-                haversine(firstPlace?.lat ?? center.lat, firstPlace?.lng ?? center.lng, a.lat, a.lng)
-                - haversine(firstPlace?.lat ?? center.lat, firstPlace?.lng ?? center.lng, b.lat, b.lng)
-            )[0]
-            : null;
-        const localBreak = nearestLocalBreak ? {
-            ...nearestLocalBreak,
-            id: String(nearestLocalBreak.id),
+        const localBreak = dessertPick ? {
+            ...dessertPick,
+            id: String(dessertPick.id),
             type: 'cafe',
             localSpecialty,
-            categoryLabel: `${localSpecialty} molası`,
-            cuisine: `Yöresel öneri: ${localSpecialty}`,
+            categoryLabel: 'Tatlı & kahve molası',
+            cuisine: localSpecialty ? `Şehrin lezzeti: ${localSpecialty}` : dessertPick.cuisine,
         } : null;
 
         return { lunch, dinner, localBreak, lunchAfterIndex, dinnerAfterIndex, breakAfterIndex };
@@ -176,12 +217,14 @@ function pickLocalSpecialty(cityName, dayIndex = 0) {
         .map(name => byNormalizedName.get(normalizeSpecialtyName(name)))
         .filter(Boolean);
 
-    // Öncelik listesinden sonra tatlı/içecek ve diğer yerel lezzetleri ekle.
-    // Set, aynı yemeğin döngüde ikinci kez görünmesini engeller.
-    const snacks = dishes
-        .filter(item => /dondurma|tatlı|helva|şerbet|kahve|lokum|reçel/.test(String(item.Baslik).toLocaleLowerCase('tr-TR')))
-        .map(item => item.Baslik?.trim());
-    const candidates = [...new Set([...featured, ...snacks, ...dishes.map(item => item.Baslik?.trim())].filter(Boolean))];
-
+    // Mola kartında yalnızca tatlı/içecek önerilir; ana yemekler (kebap vb.)
+    // "tatlı molası" altında anlamsız duruyordu.
+    const SWEET_RE = /dondurma|tatlı|tatlısı|helva|şerbet|kahve|lokum|reçel|baklava|künefe|kadayıf|muhallebi|sütlaç|kazandibi|lokma|revani|aşure|pestil|köme|şekerleme|hoşaf|ayran|boza|salep|çay/;
+    const sweets = dishes
+        .map(item => item.Baslik?.trim())
+        .filter(name => name && SWEET_RE.test(name.toLocaleLowerCase('tr-TR')));
+    const featuredSweets = featured.filter(name => SWEET_RE.test(name.toLocaleLowerCase('tr-TR')));
+    const candidates = [...new Set([...featuredSweets, ...sweets])];
+    if (!candidates.length) return null;
     return candidates[Math.abs(dayIndex) % candidates.length] || null;
 }

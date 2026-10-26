@@ -21,11 +21,11 @@ export function generateTurkeyMapHtml(visitedCityNames = [], wishlistCityNames =
 
         let color, emoji, zIndex;
         if (visitedSet.has(name)) {
-            color = '#22C55E'; emoji = '✓'; zIndex = 1000;
+            color = '#5B7A4A'; emoji = '✓'; zIndex = 1000;
         } else if (wishlistSet.has(name)) {
-            color = '#EF4444'; emoji = '♡'; zIndex = 900;
+            color = '#B5523B'; emoji = '♡'; zIndex = 900;
         } else {
-            color = '#3D7A62'; emoji = ''; zIndex = 800;
+            color = '#4F6342'; emoji = ''; zIndex = 800;
         }
 
         const iconHtml = emoji
@@ -125,18 +125,18 @@ export function generateTurkeyMapHtml(visitedCityNames = [], wishlistCityNames =
 }
 
 const COLLECTION_COLORS = [
-    '#E76F51',
+    '#B0694A',
     '#2A9D8F',
-    '#E9C46A',
+    '#C9B27C',
     '#457B9D',
-    '#F4A261',
+    '#C49A6C',
     '#8E7DBE',
     '#D1495B',
     '#118AB2',
     '#06D6A0',
-    '#EF476F',
+    '#A86A5A',
     '#7CB342',
-    '#F77F00',
+    '#B87B4F',
 ];
 
 const COLLECTION_CITY_ALIASES = {
@@ -263,7 +263,7 @@ export function generateCityCollectionMapHtml(collectionCities = [], themeKey = 
     const bounds = getGeoBounds(turkeyCitiesGeo.features);
     const mutedFill = isDark ? '#45534E' : '#D3DAD5';
     const stroke = isDark ? '#18231F' : '#FFFFFF';
-    const labelColor = isDark ? '#EDF7F3' : '#13231C';
+    const labelColor = isDark ? '#F2F4EE' : '#2A2822';
     const background = isDark ? '#17211E' : '#FFFFFF';
     const cityPaths = turkeyCitiesGeo.features.map((feature, index) => {
         const name = feature.properties.name;

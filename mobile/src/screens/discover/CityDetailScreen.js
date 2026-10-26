@@ -24,7 +24,6 @@ import {
     TextInput,
     Modal,
 } from 'react-native';
-import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -45,6 +44,12 @@ import { CityDetailSkeleton, SkeletonLoader } from '../../components/common/Skel
 import { useThemePreference } from '../../contexts/ThemeContext';
 
 import mutfakData from '../../data/turkiye_mutfak.json';
+import { normalizeImageUrl } from '../../utils/imageUrl';
+import WeatherStrip from '../../components/city/WeatherStrip';
+import CityActivities from '../../components/city/CityActivities';
+import PlanTripButton from '../../components/city/PlanTripButton';
+import SmartImage from '../../components/common/SmartImage';
+import { createThemedStyles } from '../../utils/themedStyles';
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 
@@ -269,8 +274,9 @@ const CityDetailScreen = ({ route, navigation }) => {
                     setSelectedItem({ ...place, source: place.source || 'db' });
                 }}
             >
-                <Image
-                    source={{ uri: imageUrl }}
+                <SmartImage
+                    thumbnail uri={imageUrl}
+                    fallbackUri={getPlaceImage(place.name, null, place.category)}
                     style={styles.placeCardImage}
                     contentFit="cover"
                     transition={300}
@@ -290,7 +296,7 @@ const CityDetailScreen = ({ route, navigation }) => {
                         <Ionicons
                             name={isFav ? 'heart' : 'heart-outline'}
                             size={20}
-                            color={isFav ? '#EF4444' : '#fff'}
+                            color={isFav ? '#B5523B' : '#fff'}
                         />
                     </TouchableOpacity>
                 )}
@@ -383,7 +389,14 @@ const CityDetailScreen = ({ route, navigation }) => {
     const renderDetailModal = () => {
         if (!selectedItem) return null;
         const item = selectedItem;
-        const isDB = item.source === 'db';
+        const isDB = item.source === 'db' || item.source === 'database';
+        // Kültür Portalı metinlerinin sonunda kalan "<Şehir> Gezilecek Yerler" kırıntısını at
+        const aboutText = (item.description || item.short_description || '')
+            .replace(/\s*\S+\s+Gezilecek Yerler\s*$/u, '')
+            .trim();
+        const aboutSource = /kulturportali/i.test(item.source_url || '') || item.source === 'kulturportali'
+            ? 'Kültür Portalı'
+            : /wikipedia/i.test(item.source_url || '') ? 'Wikipedia' : null;
 
         const photoResult = placePhotos[item.name];
         const heroImageUrl =
@@ -399,15 +412,15 @@ const CityDetailScreen = ({ route, navigation }) => {
                 <View style={styles.detailSheet}>
                     {/* Fotoğraf Hero */}
                     <View style={styles.detailHero}>
-                        <Image
-                            source={{ uri: heroImageUrl }}
+                        <SmartImage
+                            uri={heroImageUrl}
                             style={styles.detailHeroImage}
                             contentFit="cover"
                             transition={400}
                         />
                         <LinearGradient
                             colors={['transparent', 'rgba(0,0,0,0.6)']}
-                            style={StyleSheet.absoluteFillObject}
+                            style={StyleSheet.absoluteFill}
                         />
                         {/* Kaynak badge */}
                         <TouchableOpacity
@@ -441,7 +454,7 @@ const CityDetailScreen = ({ route, navigation }) => {
                                     <Ionicons
                                         name={favorites[item.id] ? 'heart' : 'heart-outline'}
                                         size={24}
-                                        color={favorites[item.id] ? '#EF4444' : COLORS.textLight}
+                                        color={favorites[item.id] ? '#B5523B' : COLORS.textLight}
                                     />
                                 </TouchableOpacity>
                             )}
@@ -542,22 +555,24 @@ const CityDetailScreen = ({ route, navigation }) => {
                             </View>
                         )}
 
-                        {/* Kültür Portalı açıklaması */}
-                        {item.source === 'kulturportali' && item.description ? (
+                        {/* Tanıtım özeti (DB: description → short_description) */}
+                        {aboutText ? (
                             <View style={styles.wikiSection}>
                                 <View style={styles.wikiHeader}>
                                     <Ionicons name="book-outline" size={16} color={COLORS.primary} />
                                     <Text style={styles.wikiTitle}>Hakkında</Text>
-                                    <View style={[styles.wikiBadge, { backgroundColor: '#e8f4f8' }]}>
-                                        <Text style={[styles.wikiBadgeText, { color: '#0077aa' }]}>Kültür Portalı</Text>
-                                    </View>
+                                    {aboutSource ? (
+                                        <View style={[styles.wikiBadge, { backgroundColor: 'rgba(90,125,140,0.14)' }]}>
+                                            <Text style={[styles.wikiBadgeText, { color: '#5A7D8C' }]}>{aboutSource}</Text>
+                                        </View>
+                                    ) : null}
                                 </View>
-                                <Text style={styles.wikiText}>{item.description}</Text>
+                                <Text style={styles.wikiText}>{aboutText}</Text>
                             </View>
                         ) : null}
 
                         {/* Fotoğraf galerisi (Kültür Portalı) */}
-                        {item.source === 'kulturportali' && item.gallery?.length > 1 ? (
+                        {item.gallery?.length > 1 ? (
                             <View style={styles.gallerySection}>
                                 <Text style={styles.gallerySectionTitle}>📸 Fotoğraflar</Text>
                                 <ScrollView
@@ -567,8 +582,8 @@ const CityDetailScreen = ({ route, navigation }) => {
                                 >
                                     {item.gallery.map((imgUrl, idx) => (
                                         <TouchableOpacity key={idx} onPress={() => setLightboxUri(imgUrl)} activeOpacity={0.85}>
-                                            <Image
-                                                source={{ uri: imgUrl }}
+                                            <SmartImage
+                                                thumbnail uri={imgUrl}
                                                 style={styles.galleryThumb}
                                                 contentFit="cover"
                                                 transition={300}
@@ -598,11 +613,11 @@ const CityDetailScreen = ({ route, navigation }) => {
                                 if (hasKP) {
                                     return (
                                         <TouchableOpacity
-                                            style={[styles.actionBtn, { backgroundColor: '#e8f4f8' }]}
+                                            style={[styles.actionBtn, { backgroundColor: 'rgba(90,125,140,0.14)' }]}
                                             onPress={() => Linking.openURL(item.kulturportali_url)}
                                         >
-                                            <Ionicons name="open-outline" size={18} color="#0077aa" />
-                                            <Text style={[styles.actionBtnText, { color: '#0077aa' }]}>Webde Gör</Text>
+                                            <Ionicons name="open-outline" size={18} color="#5A7D8C" />
+                                            <Text style={[styles.actionBtnText, { color: '#5A7D8C' }]}>Webde Gör</Text>
                                         </TouchableOpacity>
                                     );
                                 }
@@ -722,7 +737,7 @@ const CityDetailScreen = ({ route, navigation }) => {
 
             // Öne çıkan ilk yemek (hero card)
             const heroYemek = yemekler[0];
-            const heroImgUrl = heroYemek.Resim ? `${BASE_KP_URL}${heroYemek.Resim}` : null;
+            const heroImgUrl = heroYemek.Resim ? normalizeImageUrl(`${BASE_KP_URL}${heroYemek.Resim}`) : null;
 
             return (
                 <View>
@@ -743,18 +758,18 @@ const CityDetailScreen = ({ route, navigation }) => {
                         activeOpacity={0.88}
                         onPress={() => setSelectedYemek(heroYemek)}
                     >
-                        <Image
-                            source={{ uri: heroImgUrl }}
+                        <SmartImage
+                            uri={heroImgUrl}
                             style={styles.yemekHeroImage}
                             contentFit="cover"
                             transition={400}
                         />
                         <LinearGradient
                             colors={['transparent', 'rgba(0,0,0,0.25)', 'rgba(0,0,0,0.82)']}
-                            style={StyleSheet.absoluteFillObject}
+                            style={StyleSheet.absoluteFill}
                         />
                         <View style={styles.yemekHeroBadge}>
-                            <Ionicons name="star" size={11} color="#FFB800" />
+                            <Ionicons name="star" size={11} color="#B8893A" />
                             <Text style={styles.yemekHeroBadgeText}>Öne Çıkan</Text>
                         </View>
                         <View style={styles.yemekHeroContent}>
@@ -776,7 +791,7 @@ const CityDetailScreen = ({ route, navigation }) => {
                     <View style={styles.yemekGrid}>
                         {yemekler.slice(1).map((yemek, idx) => {
                             const imgUrl = yemek.Resim
-                                ? `${BASE_KP_URL}${yemek.Resim}`
+                                ? normalizeImageUrl(`${BASE_KP_URL}${yemek.Resim}`)
                                 : null;
                             return (
                                 <TouchableOpacity
@@ -785,15 +800,15 @@ const CityDetailScreen = ({ route, navigation }) => {
                                     activeOpacity={0.85}
                                     onPress={() => setSelectedYemek(yemek)}
                                 >
-                                    <Image
-                                        source={{ uri: imgUrl }}
+                                    <SmartImage
+                                        thumbnail uri={imgUrl}
                                         style={styles.yemekCardImage}
                                         contentFit="cover"
                                         transition={300}
                                     />
                                     <LinearGradient
                                         colors={['transparent', 'rgba(0,0,0,0.18)', 'rgba(0,0,0,0.72)']}
-                                        style={StyleSheet.absoluteFillObject}
+                                        style={StyleSheet.absoluteFill}
                                     />
                                     <View style={styles.yemekCardContent}>
                                         <Text style={styles.yemekCardName} numberOfLines={2}>
@@ -911,8 +926,9 @@ const CityDetailScreen = ({ route, navigation }) => {
             >
                 {/* ═══ HERO ═══ */}
                 <View style={styles.heroSection}>
-                    <Image
-                        source={{ uri: cityImages.hero || cityImages.card }}
+                    <SmartImage
+                        uri={city?.image_url || cityImages.hero || cityImages.card}
+                        fallbackUri={cityImages.fallbackHero || cityImages.fallbackCard}
                         style={styles.heroImage}
                         contentFit="cover"
                         transition={500}
@@ -951,51 +967,10 @@ const CityDetailScreen = ({ route, navigation }) => {
                     </View>
                 ) : null}
 
-                {/* ═══ Hızlı aksiyonlar ═══ */}
-                <View style={styles.quickActions}>
-                    <TouchableOpacity
-                        style={styles.quickActionBtn}
-                        onPress={() => {
-                            const center = getCityCenter(cityName);
-                            Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${center.lat},${center.lng}`);
-                        }}
-                    >
-                        <LinearGradient
-                            colors={[COLORS.primary + '18', COLORS.primary + '08']}
-                            style={styles.quickActionIconGrad}
-                        >
-                            <Ionicons name="map" size={20} color={COLORS.primary} />
-                        </LinearGradient>
-                        <Text style={styles.quickActionLabel}>Haritada Gör</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                        style={styles.quickActionBtn}
-                        onPress={() => navigation.navigate('CreateItinerary', { preselectedCity: city })}
-                    >
-                        <LinearGradient
-                            colors={[COLORS.accent + '18', COLORS.accent + '08']}
-                            style={styles.quickActionIconGrad}
-                        >
-                            <Ionicons name="calendar" size={20} color={COLORS.accent} />
-                        </LinearGradient>
-                        <Text style={styles.quickActionLabel}>Gezi Planla</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                        style={styles.quickActionBtn}
-                        onPress={() => {
-                            const query = encodeURIComponent(`${cityName} hava durumu`);
-                            Linking.openURL(`https://www.google.com/search?q=${query}`);
-                        }}
-                    >
-                        <LinearGradient
-                            colors={['#38BDF818', '#38BDF808']}
-                            style={styles.quickActionIconGrad}
-                        >
-                            <Ionicons name="partly-sunny" size={20} color="#38BDF8" />
-                        </LinearGradient>
-                        <Text style={styles.quickActionLabel}>Hava Durumu</Text>
-                    </TouchableOpacity>
-                </View>
+                {/* ═══ Hava durumu ═══ */}
+                <WeatherStrip cityName={cityName} />
+
+                <CityActivities cityName={cityName} />
 
                 {/* ═══ Kategori sekmeler — Modern Pill ═══ */}
                 <View style={styles.categorySection}>
@@ -1039,13 +1014,21 @@ const CityDetailScreen = ({ route, navigation }) => {
                 <View style={{ height: 100 }} />
             </Animated.ScrollView>
 
+            {/* Yüzen "Gezi Planla" butonu — detay pencereleri açıkken gizlenir */}
+            {!selectedItem && !selectedYemek && !lightboxUri && (
+                <PlanTripButton
+                    cityName={cityName}
+                    onPress={() => navigation.navigate('CreateItinerary', { preselectedCity: city })}
+                />
+            )}
+
             {/* Detay modal */}
             {selectedItem && renderDetailModal()}
 
             {/* Lightbox — fotoğraf büyütme */}
             <Modal visible={!!lightboxUri} transparent animationType="fade" onRequestClose={() => setLightboxUri(null)}>
                 <TouchableOpacity style={styles.lightboxOverlay} activeOpacity={1} onPress={() => setLightboxUri(null)}>
-                    <Image source={{ uri: lightboxUri }} style={styles.lightboxImage} contentFit="contain" />
+                    <SmartImage uri={lightboxUri} style={styles.lightboxImage} contentFit="contain" />
                     <TouchableOpacity style={styles.lightboxClose} onPress={() => setLightboxUri(null)}>
                         <Ionicons name="close" size={24} color="#fff" />
                     </TouchableOpacity>
@@ -1062,15 +1045,15 @@ const CityDetailScreen = ({ route, navigation }) => {
                     <View style={styles.detailSheet}>
                         {/* Hero fotoğraf */}
                         <View style={styles.detailHero}>
-                            <Image
-                                source={{ uri: selectedYemek.Resim ? `${BASE_KP_URL}${selectedYemek.Resim}` : null }}
+                            <SmartImage
+                                uri={selectedYemek.Resim ? normalizeImageUrl(`${BASE_KP_URL}${selectedYemek.Resim}`) : null}
                                 style={styles.detailHeroImage}
                                 contentFit="cover"
                                 transition={400}
                             />
                             <LinearGradient
                                 colors={['rgba(0,0,0,0.15)', 'transparent', 'rgba(0,0,0,0.55)']}
-                                style={StyleSheet.absoluteFillObject}
+                                style={StyleSheet.absoluteFill}
                             />
                             <TouchableOpacity
                                 style={styles.detailClose}
@@ -1115,15 +1098,15 @@ const CityDetailScreen = ({ route, navigation }) => {
                                     <Text style={styles.yemekInfoValue}>Yöresel</Text>
                                 </View>
                                 <View style={styles.yemekInfoCard}>
-                                    <View style={[styles.yemekInfoIconWrap, { backgroundColor: '#FEF3C7' }]}>
-                                        <Ionicons name="location" size={18} color="#D97706" />
+                                    <View style={[styles.yemekInfoIconWrap, { backgroundColor: COLORS.accentLight }]}>
+                                        <Ionicons name="location" size={18} color="#9C7230" />
                                     </View>
                                     <Text style={styles.yemekInfoLabel}>Şehir</Text>
                                     <Text style={styles.yemekInfoValue}>{cityName}</Text>
                                 </View>
                                 <View style={styles.yemekInfoCard}>
-                                    <View style={[styles.yemekInfoIconWrap, { backgroundColor: '#D1FAE5' }]}>
-                                        <Ionicons name="leaf" size={18} color="#059669" />
+                                    <View style={[styles.yemekInfoIconWrap, { backgroundColor: COLORS.primaryMuted }]}>
+                                        <Ionicons name="leaf" size={18} color="#4F6342" />
                                     </View>
                                     <Text style={styles.yemekInfoLabel}>Mutfak</Text>
                                     <Text style={styles.yemekInfoValue}>Türk</Text>
@@ -1174,7 +1157,7 @@ function toTitleCase(str) {
         .replace(/\bVe\b/g, 've').replace(/\bİle\b/g, 'ile');
 }
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles(() => ({
     container: { flex: 1, backgroundColor: COLORS.background },
 
     // Sticky header
@@ -1200,8 +1183,8 @@ const styles = StyleSheet.create({
         height: SCREEN_H * 0.4,
         position: 'relative',
     },
-    heroImage: { ...StyleSheet.absoluteFillObject },
-    heroGradient: { ...StyleSheet.absoluteFillObject },
+    heroImage: { ...StyleSheet.absoluteFill },
+    heroGradient: { ...StyleSheet.absoluteFill },
     heroBackBtn: {
         position: 'absolute',
         left: SPACING.md,
@@ -1361,7 +1344,7 @@ const styles = StyleSheet.create({
         overflow: 'hidden',
         position: 'relative',
     },
-    placeCardImage: { ...StyleSheet.absoluteFillObject },
+    placeCardImage: { ...StyleSheet.absoluteFill },
     placeCardGradient: {
         position: 'absolute', bottom: 0, left: 0, right: 0, height: 100,
     },
@@ -1502,11 +1485,11 @@ const styles = StyleSheet.create({
 
     // Detail modal
     detailOverlay: {
-        ...StyleSheet.absoluteFillObject, zIndex: 200,
+        ...StyleSheet.absoluteFill, zIndex: 200,
         justifyContent: 'flex-end',
     },
     detailBackdrop: {
-        ...StyleSheet.absoluteFillObject,
+        ...StyleSheet.absoluteFill,
         backgroundColor: 'rgba(0,0,0,0.5)',
     },
     detailSheet: {
@@ -1684,7 +1667,7 @@ const styles = StyleSheet.create({
         elevation: 4,
     },
     yemekCardImage: {
-        ...StyleSheet.absoluteFillObject,
+        ...StyleSheet.absoluteFill,
     },
     yemekCardContent: {
         position: 'absolute',
@@ -1764,7 +1747,7 @@ const styles = StyleSheet.create({
         elevation: 8,
     },
     yemekHeroImage: {
-        ...StyleSheet.absoluteFillObject,
+        ...StyleSheet.absoluteFill,
     },
     yemekHeroBadge: {
         position: 'absolute',
@@ -2000,6 +1983,6 @@ const styles = StyleSheet.create({
     actionBtnText: {
         fontFamily: 'Inter_600SemiBold', fontSize: FONT_SIZES.sm,
     },
-});
+}));
 
 export default CityDetailScreen;

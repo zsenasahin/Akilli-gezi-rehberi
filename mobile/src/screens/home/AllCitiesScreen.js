@@ -17,19 +17,20 @@ import { COLORS } from '../../constants/colors';
 import { FONTS, FONT_SIZES } from '../../constants/typography';
 import { SPACING, BORDER_RADIUS } from '../../constants/layout';
 import { getCityImages } from '../../services/cityImageService';
+import { createThemedStyles } from '../../utils/themedStyles';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const CITY_CARD_WIDTH = (SCREEN_WIDTH - SPACING.lg * 2 - SPACING.sm) / 2;
 
 const REGION_COLORS = {
     'Tümü': COLORS.primary,
-    'Marmara': '#6366F1',
+    'Marmara': '#6E5A47',
     'Ege': COLORS.primary,
-    'Akdeniz': '#F59E0B',
-    'İç Anadolu': '#84CC16',
-    'Karadeniz': '#10B981',
-    'Doğu Anadolu': '#8B5CF6',
-    'Güneydoğu Anadolu': '#EF4444',
+    'Akdeniz': '#B8893A',
+    'İç Anadolu': '#8A9A5B',
+    'Karadeniz': '#5B7A4A',
+    'Doğu Anadolu': '#8B6B4E',
+    'Güneydoğu Anadolu': '#B5523B',
 };
 
 export default function AllCitiesScreen({ navigation, route }) {
@@ -166,8 +167,9 @@ const CityCard = React.memo(({ city, images, onPress, onPlanPress }) => (
     <View style={styles.cityCard}>
         <TouchableOpacity style={StyleSheet.absoluteFill} onPress={onPress} activeOpacity={0.9}>
             <SmartImage
-                uri={images.card}
-                fallbackUri="https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?w=400&h=300&fit=crop&q=80"
+                thumbnail
+                uri={city.image_url || images.card}
+                fallbackUri={images?.fallbackCard || images?.card || "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?w=400&h=300&fit=crop&q=80"}
                 style={styles.cityCardImage}
                 contentFit="cover"
                 transition={500}
@@ -191,7 +193,7 @@ const CityCard = React.memo(({ city, images, onPress, onPlanPress }) => (
     </View>
 ));
 
-const styles = StyleSheet.create({
+const styles = createThemedStyles(() => ({
     root: {
         flex: 1,
         backgroundColor: COLORS.background,
@@ -307,7 +309,7 @@ const styles = StyleSheet.create({
         elevation: 4,
     },
     cityCardImage: {
-        ...StyleSheet.absoluteFillObject,
+        ...StyleSheet.absoluteFill,
     },
     cityCardContent: {
         position: 'absolute',
@@ -357,4 +359,4 @@ const styles = StyleSheet.create({
         color: COLORS.textSecondary,
         textAlign: 'center',
     },
-});
+}));

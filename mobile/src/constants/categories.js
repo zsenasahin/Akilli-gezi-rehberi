@@ -3,14 +3,14 @@
  * Each entry has a label, icon (Ionicons), and tint color.
  */
 export const CATEGORIES = [
-    { key: 'all', label: 'Tümü', icon: 'grid-outline', color: '#6366F1' },
-    { key: 'historical', label: 'Tarihi', icon: 'time-outline', color: '#D97706' },
-    { key: 'museum', label: 'Müze', icon: 'business-outline', color: '#7C3AED' },
-    { key: 'nature', label: 'Doğa', icon: 'leaf-outline', color: '#059669' },
+    { key: 'all', label: 'Tümü', icon: 'grid-outline', color: '#6E5A47' },
+    { key: 'historical', label: 'Tarihi', icon: 'time-outline', color: '#9C7230' },
+    { key: 'museum', label: 'Müze', icon: 'business-outline', color: '#7A5C42' },
+    { key: 'nature', label: 'Doğa', icon: 'leaf-outline', color: '#4F6342' },
     { key: 'beach', label: 'Plaj', icon: 'sunny-outline', color: '#0EA5E9' },
-    { key: 'religious', label: 'Dini', icon: 'moon-outline', color: '#8B5CF6' },
-    { key: 'shopping', label: 'Alışveriş', icon: 'cart-outline', color: '#EC4899' },
-    { key: 'food', label: 'Yemek', icon: 'restaurant-outline', color: '#F97316' },
+    { key: 'religious', label: 'Dini', icon: 'moon-outline', color: '#8B6B4E' },
+    { key: 'shopping', label: 'Alışveriş', icon: 'cart-outline', color: '#A86A5A' },
+    { key: 'food', label: 'Yemek', icon: 'restaurant-outline', color: '#B87B4F' },
     { key: 'artificial', label: 'Yapay', icon: 'construct-outline', color: '#64748B' },
 ];
 
